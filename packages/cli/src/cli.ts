@@ -15,6 +15,7 @@ import { check } from './check.js'
 import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
 import { cacheTable, notificationsTable } from './notifications.js'
+import { cloudflareSetup, d1Migrations } from './cloudflare.js'
 import { i18nReport } from './i18n.js'
 import { createMcpServer, serveStdio } from './mcp/protocol.js'
 import { calderaTools, INSTRUCTIONS } from './mcp/tools.js'
@@ -355,6 +356,26 @@ const cacheTableCommand = defineCommand({
     }),
 })
 
+const cloudflareSetupCommand = defineCommand({
+  meta: { name: 'cloudflare:setup', description: 'Add wrangler.json and src/worker.ts to run this app on Cloudflare Workers (D1, R2, Queues, Email, Cron)' },
+  args: { ...shared, force: { type: 'boolean', description: 'Overwrite existing files' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = await cloudflareSetup(openProject(args.cwd), { force: args.force })
+      return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
+const d1MigrationsCommand = defineCommand({
+  meta: { name: 'd1:migrations', description: 'Copy drizzle migrations to migrations/ for `wrangler d1 migrations apply`' },
+  args: { ...shared },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = d1Migrations(openProject(args.cwd))
+      return { data: result, text: [...result.copied.map((p) => `copied    ${p}`), ...result.unchanged.map((p) => `unchanged ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
 const i18nMissingCommand = defineCommand({
   meta: { name: 'i18n:missing', description: 'Report missing, extra and mismatched translations per locale, and unused keys' },
   args: { ...shared },
@@ -533,6 +554,8 @@ export const main = defineCommand({
     'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
     'notifications:table': notificationsTableCommand,
     'cache:table': cacheTableCommand,
+    'cloudflare:setup': cloudflareSetupCommand,
+    'd1:migrations': d1MigrationsCommand,
     'i18n:missing': i18nMissingCommand,
     mcp: mcpCommand,
     'schedule:list': scheduleListCommand,

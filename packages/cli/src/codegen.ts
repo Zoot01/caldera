@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { CalderaError, type AnyConfigDefinition, type AnyEnvDefinition } from '@caldera/core'
 import { CONVENTIONS, configFiles, exportsOfKind, type Project } from './project.js'
 import { AGENTS_FILE, agentsFile } from './agents.js'
@@ -29,6 +29,7 @@ export interface GenerateResult {
 
 /** Builds every generated file in memory. Imports the app's env, config, relations, model and route modules, nothing else. */
 export async function buildGeneratedFiles(project: Project): Promise<GeneratedFile[]> {
+  repairGenerated(project)
   const envModule = await project.load(CONVENTIONS.env)
   const envExports = exportsOfKind<AnyEnvDefinition>(envModule, 'caldera.env')
   if (envExports.length !== 1) {
@@ -105,7 +106,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
 
   // Edge queue consumers (Cloudflare's queue() handler) can't scan src/jobs, so they import this list.
   const jobs = await loadJobs(project)
-  if (jobs.length > 0) {
+  if (jobs.length > 0 || usesPackage(project, '@caldera/queue')) {
     const jobFilesUsed = [...new Set(jobs.map((j) => j.file))]
     const jobsAlias = (file: string) => `jobs${jobFilesUsed.indexOf(file)}`
     generated.push({
@@ -259,4 +260,32 @@ function usesPackage(project: Project, name: string): boolean {
   if (!existsSync(project.path('package.json'))) return false
   const manifest = JSON.parse(readFileSync(project.path('package.json'), 'utf8')) as Record<string, Record<string, string> | undefined>
   return Boolean(manifest.dependencies?.[name] ?? manifest.devDependencies?.[name])
+}
+
+/**
+ * Generation loads the app, and the app imports the generated lists. A list still naming a file
+ * that was deleted would fail that load, so generation could never fix it: first, drop imports of
+ * files that no longer exist (and their entries) from the existing lists. They're rewritten after.
+ */
+export function repairGenerated(project: Project): string[] {
+  const dir = project.path(CONVENTIONS.generatedDir)
+  if (!existsSync(dir)) return []
+  const repaired: string[] = []
+  for (const name of readdirSync(dir).filter((f) => f.endsWith('.gen.ts'))) {
+    const file = join(dir, name)
+    const text = readFileSync(file, 'utf8')
+    const missing: string[] = []
+    const kept = text.replace(/^import \* as (\w+) from '(\.{1,2}\/[^']+)'\n/gm, (line, alias: string, specifier: string) => {
+      const base = join(dir, specifier).replace(/\.js$/, '')
+      const exists = ['', '.ts', '.tsx', '.js', '.jsx'].some((ext) => existsSync(`${base}${ext}`))
+      if (exists) return line
+      missing.push(alias)
+      return ''
+    })
+    if (missing.length === 0) continue
+    const pattern = new RegExp(`\\b(?:${missing.join('|')})\\.\\w+(?:,\\s*)?`, 'g')
+    writeFileSync(file, kept.replace(pattern, '').replace(/,\s*([\])])/g, '$1'))
+    repaired.push(`${CONVENTIONS.generatedDir}/${name}`)
+  }
+  return repaired
 }

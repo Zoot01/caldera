@@ -107,3 +107,18 @@ it.runIf(hasRedis)('queue:failed explains connections that keep no failed jobs',
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+it('generate survives a deleted file that the generated lists still import', async () => {
+  const dir = join(tmp, `${PREFIX}repair-${Math.random().toString(36).slice(2)}`)
+  cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  writeFileSync(join(dir, 'src/jobs/extra.ts'), readFileSync(join(dir, 'src/jobs/greet.ts'), 'utf8').replaceAll('Greet', 'Extra').replaceAll('fixture.greet', 'fixture.extra'))
+  await generate(openProject(dir))
+  // Loaded by generate itself (configs are), so a stale list would break the load.
+  writeFileSync(join(dir, 'src/config/jobs.ts'), "import { defineConfig } from '@caldera/core'\nimport { jobs } from '../../.caldera/jobs.gen.js'\n\nexport const jobList = defineConfig('jobList', () => ({ names: jobs.map((j) => j.name) }))\n")
+  await generate(openProject(dir))
+  expect(readFileSync(join(dir, '.caldera/jobs.gen.ts'), 'utf8')).toContain('jobs0.Extra')
+  rmSync(join(dir, 'src/jobs/extra.ts'))
+  await generate(openProject(dir))
+  expect(readFileSync(join(dir, '.caldera/jobs.gen.ts'), 'utf8')).toContain(`import * as jobs0 from '../src/jobs/greet.js'\n\nexport const jobs = [jobs0.Greet] as const\n`)
+  rmSync(dir, { recursive: true, force: true })
+})

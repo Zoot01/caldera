@@ -3,10 +3,14 @@ import { CalderaError } from '@caldera/core'
 import { AUTH_SCHEMA_FILE, generateProjectAuthSchema } from './auth-schema.js'
 import { generate } from './codegen.js'
 import { i18nReport } from './i18n.js'
+import { workersIssues } from './cloudflare.js'
+import { loadApp, projectEnv } from './describe.js'
 import type { Project } from './project.js'
 
 export interface CheckIssue {
   code: string
+  /** Warnings are reported but don't fail the check. Default error. */
+  severity?: 'error' | 'warning'
   message: string
   file?: string
   /** The command that fixes it, when there is one. */
@@ -61,7 +65,20 @@ export async function check(project: Project): Promise<CheckResult> {
     }
   }
 
-  return { schemaVersion: 1, ok: issues.length === 0, issues }
+  // Cloudflare Workers (a wrangler config): the defaults the app would use there.
+  try {
+    issues.push(
+      ...(await workersIssues(project, async (env) => {
+        const app = await loadApp(project)
+        await app.boot({ env: { ...projectEnv(project), ...env } })
+        return app as unknown as { config: Record<string, any>; shutdown(): Promise<void> }
+      })),
+    )
+  } catch (error) {
+    issues.push(asIssue(error))
+  }
+
+  return { schemaVersion: 1, ok: !issues.some((issue) => issue.severity !== 'warning'), issues }
 }
 
 function asIssue(error: unknown): CheckIssue {
