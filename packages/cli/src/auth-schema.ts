@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { generateAuthSchema, type AuthTableDescriptor } from '@caldera/auth'
+import type { AuthTableDescriptor } from '@caldera/auth'
 import { CalderaError } from '@caldera/core'
 import { loadApp, projectEnv } from './describe.js'
 import type { Project } from './project.js'
@@ -35,6 +35,8 @@ export async function generateProjectAuthSchema(project: Project, options: { che
     if (!auth?.options) throw new CalderaError('missing_auth', 'No Better Auth instance found. Add betterAuthProvider() to src/app.ts.')
     const dialect = options.dialect ?? dialectFor(services.db?.driver)
     const { getAuthTables } = await project.importPackage<{ getAuthTables(options: unknown): Record<string, AuthTableDescriptor> }>('better-auth/db')
+    // Loaded here, not at the top: apps without @caldera/auth's peers must still run the CLI.
+    const { generateAuthSchema } = await import('@caldera/auth')
     const generated = generateAuthSchema(getAuthTables(auth.options), {
       dialect,
       idType: auth.options.advanced?.database?.generateId === 'uuid' ? 'uuid' : 'text',

@@ -1,0 +1,35 @@
+{
+  "name": "create-caldera",
+  "version": "0.0.0",
+  "description": "Create a Caldera app: npm create caldera my-app",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-caldera": "./bin/create-caldera.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "dist",
+    "template"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "citty": "0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "5.9.3"
+  }
+}

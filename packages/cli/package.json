@@ -22,15 +22,16 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@caldera/auth": "workspace:*",
     "@caldera/core": "workspace:*",
     "@caldera/db": "workspace:*",
     "citty": "0.2.2",
-    "jiti": "2.7.0",
-    "@caldera/auth": "workspace:*"
+    "jiti": "2.7.0"
   },
   "devDependencies": {
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
+    "@libsql/client": "0.18.0",
     "better-auth": "1.7.14",
     "drizzle-kit": "1.0.0-rc.5",
     "drizzle-orm": "1.0.0-rc.5",

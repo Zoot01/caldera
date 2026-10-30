@@ -1,6 +1,6 @@
 import { CalderaError } from '@caldera/core'
 import { defaultDatabase, type Database } from './database.js'
-import { factorySeed, setFactorySeed } from './factories.js'
+import { changeSeed, currentSeed } from './seed-state.js'
 
 export interface SeederContext {
   db: Database<any>
@@ -56,7 +56,7 @@ export async function runSeeders(seeders: readonly SeederDefinition[], options: 
   if (production && !options.force) {
     throw new CalderaError('confirmation_required', 'Refusing to seed with NODE_ENV=production. Pass --force if you mean it.')
   }
-  if (options.seed !== undefined) setFactorySeed(options.seed)
+  if (options.seed !== undefined) changeSeed(options.seed)
 
   const selected = options.only ? seeders.filter((s) => options.only!.includes(s.name)) : seeders
   if (options.only) {
@@ -65,7 +65,7 @@ export async function runSeeders(seeders: readonly SeederDefinition[], options: 
   }
   const ordered = sortSeeders(selected)
   const db = options.database ?? defaultDatabase()
-  const report: SeedReport = { schemaVersion: 1, seed: factorySeed(), environment: options.environment, seeders: [] }
+  const report: SeedReport = { schemaVersion: 1, seed: currentSeed(), environment: options.environment, seeders: [] }
 
   const runAll = async () => {
     for (const seeder of ordered) {

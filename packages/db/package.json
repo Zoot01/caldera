@@ -51,6 +51,7 @@
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@faker-js/faker": "10.6.0",
+    "@libsql/client": "0.18.0",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",
     "typescript": "5.9.3",

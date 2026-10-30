@@ -12,6 +12,7 @@
     "test"
   ],
   "exclude": [
+    "test/libsql.test.ts",
     "test/sqlite.test.ts"
   ]
 }

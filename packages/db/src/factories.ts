@@ -2,25 +2,27 @@ import { CalderaError } from '@caldera/core'
 import { Faker, en } from '@faker-js/faker'
 import { getColumns, type Table, type TablesRelationalConfig } from 'drizzle-orm'
 import { defaultDatabase } from './database.js'
+import { changeSeed, currentSeed, onSeedChange } from './seed-state.js'
 import type { AnyModel, Row } from './model/model.js'
 import type { InsertRaw, RelationsOf } from './model/registry.js'
 
 // Faker is seeded once per process so a failing test can be replayed: print `factorySeed()`
 // and rerun with CALDERA_SEED=<seed>.
-let seed = Number(globalThis.process?.env?.CALDERA_SEED) || Math.floor(Math.random() * 2 ** 31)
 const faker = new Faker({ locale: [en] })
-faker.seed(seed)
+faker.seed(currentSeed())
 const sequences = new Map<object, number>()
+onSeedChange((value) => {
+  faker.seed(value)
+  sequences.clear()
+})
 
 export function factorySeed(): number {
-  return seed
+  return currentSeed()
 }
 
 /** Reseeds faker and resets every `seq` counter, making the next factory output reproducible. */
 export function setFactorySeed(value: number) {
-  seed = value
-  faker.seed(value)
-  sequences.clear()
+  changeSeed(value)
 }
 
 type Attrs<M extends AnyModel> = Partial<InsertRaw<M['~key']>>

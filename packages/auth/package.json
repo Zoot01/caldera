@@ -38,6 +38,7 @@
     "@caldera/db": "workspace:*",
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
+    "@libsql/client": "0.18.0",
     "better-auth": "1.7.14",
     "drizzle-kit": "1.0.0-rc.5",
     "drizzle-orm": "1.0.0-rc.5",

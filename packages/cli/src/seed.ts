@@ -1,5 +1,5 @@
 import { CalderaError } from '@caldera/core'
-import { runSeeders, type SeederDefinition, type SeedReport } from '@caldera/db/seeders'
+import type { SeederDefinition, SeedReport } from '@caldera/db/seeders'
 import { loadApp, projectEnv } from './describe.js'
 import { CONVENTIONS, exportsOfKind, seederFiles, type Project } from './project.js'
 
@@ -35,6 +35,8 @@ export async function seedProject(project: Project, options: SeedOptions = {}): 
   const app = await loadApp(project)
   await app.boot({ env })
   try {
+    // Loaded here, not at the top: the CLI must start in apps that never seed.
+    const { runSeeders } = await import('@caldera/db/seeders')
     return await runSeeders(seeders, { environment, force: options.force, seed: options.seed, only: options.only })
   } finally {
     await app.shutdown()
