@@ -24,7 +24,7 @@ export interface DevOptions {
 }
 
 export interface DevSession {
-  /** Resolves after the first generation. */
+  /** Resolves once types are generated and the watchers are running. */
   ready: Promise<void>
   stop(): Promise<void>
 }
@@ -36,9 +36,14 @@ export interface DevSession {
  */
 export function startDev(root: string, options: DevOptions = {}): DevSession {
   const emit = options.onEvent ?? (() => {})
+  // CALDERA_DEBUG_WATCH=1 logs raw file events and each regeneration, for diagnosing watcher trouble.
+  const debug = process.env.CALDERA_DEBUG_WATCH ? (message: string) => process.stderr.write(`[caldera dev ${new Date().toISOString()}] ${message}\n`) : () => {}
   const run = async () => {
+    const started = Date.now()
+    debug('generate: start')
     try {
       const result: GenerateResult = await generate(openProject(root))
+      debug(`generate: done in ${Date.now() - started}ms`)
       emit({ type: 'generated', changed: result.files.filter((f) => f.status !== 'unchanged').map((f) => f.path) })
     } catch (error) {
       emit({ type: 'error', changed: [], error: error instanceof Error ? error.message : String(error) })
@@ -54,14 +59,15 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     }, options.debounce ?? 100)
   }
 
-  const ready = (queued = run())
   const watchers: FSWatcher[] = []
   const children: ChildProcess[] = []
-  void ready.then(() => {
+  const firstRun = (queued = run())
+  const ready = firstRun.then(async () => {
     // Pages live outside src/, and adding one changes the generated page types.
     for (const dir of ['src', CONVENTIONS.pagesDir].filter((d) => existsSync(join(root, d)))) {
       watchers.push(
-        watch(join(root, dir), { recursive: true }, (_event, file) => {
+        watch(join(root, dir), { recursive: true }, (event, file) => {
+          debug(`fs ${event} ${dir}/${file ?? '?'}`)
           if (file && !String(file).includes(CONVENTIONS.generatedDir)) schedule()
         }),
       )
@@ -74,12 +80,14 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     }
     if (options.server ?? true) {
       const tsx = findBin(root, 'tsx')
-      if (!tsx) {
-        emit({ type: 'error', changed: [], error: new CalderaError('missing_dependency', 'tsx is not installed; install it or use --no-server.').message })
-        return
-      }
-      children.push(spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], { cwd: root, stdio: 'inherit' }))
+      if (tsx) children.push(spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], { cwd: root, stdio: 'inherit' }))
+      else emit({ type: 'error', changed: [], error: new CalderaError('missing_dependency', 'tsx is not installed; install it or use --no-server.').message })
     }
+    // File watchers (FSEvents on macOS) can miss changes made while they start up, or during the
+    // first generation. Let them settle, then regenerate once to pick up anything that slipped by.
+    await new Promise((r) => setTimeout(r, 100))
+    queued = queued.then(run)
+    await queued
   })
 
   return {

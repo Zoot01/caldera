@@ -21,13 +21,14 @@ afterAll(() => {
   for (const entry of existsSync(tmp) ? readdirSync(tmp) : []) if (entry.startsWith(PREFIX)) rmSync(join(tmp, entry), { recursive: true, force: true })
 })
 
-async function waitFor(events: DevEvent[], predicate: (e: DevEvent) => boolean) {
+async function waitFor(events: DevEvent[], predicate: (e: DevEvent) => boolean, step = 'event') {
+  const started = Date.now()
   for (let i = 0; i < 100; i++) {
     const found = events.find(predicate)
     if (found) return found
     await new Promise((r) => setTimeout(r, 50))
   }
-  throw new Error(`No matching dev event in ${JSON.stringify(events)}`)
+  throw new Error(`${step}: no matching dev event after ${Date.now() - started}ms in ${JSON.stringify(events)}`)
 }
 
 it('regenerates on every change, survives errors and recovers', async () => {
@@ -38,14 +39,14 @@ it('regenerates on every change, survives errors and recovers', async () => {
 
   events.length = 0
   writeFileSync(join(root, 'src/config/mail.ts'), `import { defineConfig } from '@caldera/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`)
-  await waitFor(events, (e) => e.type === 'generated' && e.changed.includes('.caldera/config.gen.ts'))
+  await waitFor(events, (e) => e.type === 'generated' && e.changed.includes('.caldera/config.gen.ts'), 'add mail.ts')
   expect(readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')).toContain('mail')
 
   events.length = 0
   writeFileSync(join(root, 'src/config/clash.ts'), `import { defineConfig } from '@caldera/core'\nexport const again = defineConfig('mail', () => ({}))\n`)
-  expect((await waitFor(events, (e) => e.type === 'error')).error).toMatch(/Config "mail" is defined in both/)
+  expect((await waitFor(events, (e) => e.type === 'error', 'add clash.ts')).error).toMatch(/Config "mail" is defined in both/)
 
   events.length = 0
   unlinkSync(join(root, 'src/config/clash.ts'))
-  await waitFor(events, (e) => e.type === 'generated')
+  await waitFor(events, (e) => e.type === 'generated', 'remove clash.ts')
 }, 30_000)
