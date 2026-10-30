@@ -1,10 +1,18 @@
-import { createInterface } from 'node:readline/promises'
+import { confirm, isCancel, select, text } from '@clack/prompts'
 import type { Readable, Writable } from 'node:stream'
 
 export interface Prompter {
-  text(question: string, defaultValue?: string): Promise<string>
-  select<T extends string>(question: string, options: readonly T[], defaultValue: T): Promise<T>
+  /** `validate` returns an error to show (and ask again), or undefined when the answer is fine. */
+  text(question: string, defaultValue?: string, validate?: (answer: string) => string | undefined): Promise<string>
+  select<T extends string>(question: string, options: readonly T[], defaultValue: T, hints?: Partial<Record<T, string>>): Promise<T>
   confirm(question: string, defaultValue: boolean): Promise<boolean>
+}
+
+/** The person pressed Ctrl+C (or Escape) at a question: nothing has been written yet. */
+export class PromptCancelled extends Error {
+  constructor() {
+    super('Cancelled.')
+  }
 }
 
 /**
@@ -17,31 +25,35 @@ export function isInteractive(env: NodeJS.ProcessEnv = process.env, stdin = proc
   return !automated.some((name) => env[name] !== undefined && env[name] !== '' && env[name] !== '0' && env[name] !== 'false')
 }
 
-export function readlinePrompter(input: Readable = process.stdin, output: Writable = process.stdout): Prompter {
-  const ask = async (question: string) => {
-    const rl = createInterface({ input, output })
-    try {
-      return (await rl.question(question)).trim()
-    } finally {
-      rl.close()
-    }
+/** Arrow-key selects, typed answers with placeholders, and inline validation (@clack/prompts). */
+export function clackPrompter(streams: { input?: Readable; output?: Writable } = {}): Prompter {
+  const answered = <T>(value: T | symbol): Exclude<T, symbol> => {
+    if (isCancel(value)) throw new PromptCancelled()
+    return value as Exclude<T, symbol>
   }
   return {
-    async text(question, defaultValue) {
-      const answer = await ask(`${question}${defaultValue ? ` (${defaultValue})` : ''}: `)
-      return answer || defaultValue || ''
+    async text(question, defaultValue, validate) {
+      return answered(
+        await text({
+          ...streams,
+          message: question,
+          ...(defaultValue ? { placeholder: defaultValue, defaultValue } : {}),
+          ...(validate ? { validate: (answer) => validate(answer || defaultValue || '') } : {}),
+        }),
+      )
     },
-    async select(question, options, defaultValue) {
-      for (;;) {
-        const answer = await ask(`${question} [${options.map((o) => (o === defaultValue ? `${o}*` : o)).join('/')}]: `)
-        if (!answer) return defaultValue
-        const match = options.find((o) => o === answer.toLowerCase())
-        if (match) return match
-      }
+    async select(question, options, defaultValue, hints = {}) {
+      return answered(
+        await select({
+          ...streams,
+          message: question,
+          options: options.map((value) => ({ value, label: value, ...(hints[value] ? { hint: hints[value] } : {}) })) as never,
+          initialValue: defaultValue,
+        }),
+      ) as typeof defaultValue
     },
     async confirm(question, defaultValue) {
-      const answer = (await ask(`${question} ${defaultValue ? '(Y/n)' : '(y/N)'}: `)).toLowerCase()
-      return answer ? answer.startsWith('y') : defaultValue
+      return answered(await confirm({ ...streams, message: question, initialValue: defaultValue }))
     },
   }
 }

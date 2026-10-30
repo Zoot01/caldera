@@ -1,5 +1,5 @@
 export { askCreateOptions } from './ask.js'
 export { createProject, CreateError, detectPackageManager, packageManagerVersion, unavailable } from './create.js'
-export { isInteractive, readlinePrompter } from './prompt.js'
+export { clackPrompter, isInteractive, PromptCancelled } from './prompt.js'
 export type { Prompter } from './prompt.js'
 export type { CreateOptions, CreateResult, PackageManager, Step } from './create.js'

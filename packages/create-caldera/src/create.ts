@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
@@ -20,6 +20,8 @@ export interface CreateOptions {
   link?: string
   /** Defaults to the real process environment; injectable for tests. */
   env?: NodeJS.ProcessEnv
+  /** Progress, for a terminal: each step as it starts (`running`) and ends. Skipped steps aren't reported. */
+  onStep?: (step: { name: Step['name']; status: 'running' | Exclude<Step['status'], 'skipped'> }) => void
 }
 
 export interface Step {
@@ -60,7 +62,7 @@ const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache
  * database, git) is best-effort: it's logged to .create.log, retried once, and on failure the
  * exact command to finish it is returned in `next`.
  */
-export function createProject(options: CreateOptions): CreateResult {
+export async function createProject(options: CreateOptions): Promise<CreateResult> {
   const env = options.env ?? process.env
   const directory = resolve(options.directory)
   const name = packageName(basename(directory))
@@ -109,46 +111,58 @@ export function createProject(options: CreateOptions): CreateResult {
   writeFileSync(log, `create-caldera ${new Date().toISOString()}\n`)
 
   const steps: Step[] = [{ name: 'files', status: 'done' }]
-  const attempt = (stepName: Step['name'], enabled: boolean, command: string[]) => {
+  options.onStep?.({ name: 'files', status: 'done' })
+  // Async, so a terminal can show progress (a spinner) while installing.
+  const attempt = async (stepName: Step['name'], enabled: boolean, command: string[]) => {
     const display = command.join(' ')
     if (!enabled) return void steps.push({ name: stepName, status: 'skipped', command: display })
+    options.onStep?.({ name: stepName, status: 'running' })
     for (let tries = 1; tries <= 2; tries++) {
       appendFileSync(log, `\n$ ${display}  (attempt ${tries})\n`)
-      const result = spawnSync(command[0]!, command.slice(1), { cwd: directory, env, encoding: 'utf8', shell: process.platform === 'win32' })
-      appendFileSync(log, `${result.stdout ?? ''}${result.stderr ?? ''}${result.error ? String(result.error) : ''}\nexit ${result.status}\n`)
+      const result = await runCommand(command, directory, env)
+      appendFileSync(log, `${result.output}\nexit ${result.status}\n`)
       if (result.status === 0) return void steps.push({ name: stepName, status: 'done' })
     }
     steps.push({ name: stepName, status: 'failed', command: display })
   }
+  const report = () => {
+    const step = steps.at(-1)!
+    if (step.status !== 'skipped') options.onStep?.({ name: step.name, status: step.status })
+  }
 
   const install = options.install ?? true
-  attempt('install', install, [pm, 'install'])
+  await attempt('install', install, [pm, 'install'])
+  report()
   const installed = steps.at(-1)!.status === 'done'
-  attempt('generate', installed, [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : []), 'caldera', 'generate'])
+  await attempt('generate', installed, [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : []), 'caldera', 'generate'])
+  report()
   // Migrations first, as in production: the initial one is generated and applied (and committed with
   // the app); tests build their database from the same migrations.
   const exec = [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : [])]
   const migrate = [...exec, 'caldera', 'db:migrate']
-  attempt('database', installed, [...exec, 'caldera', 'db:generate', '--', '--name', 'init'])
+  await attempt('database', installed, [...exec, 'caldera', 'db:generate', '--', '--name', 'init'])
   if (steps.at(-1)!.status === 'done') {
     steps.pop()
-    attempt('database', true, migrate)
+    await attempt('database', true, migrate)
+    report()
   } else {
+    report()
     // Not generated, so not applied either: finishing takes both.
     const step = steps.at(-1)!
     step.command = `${step.command} && ${migrate.join(' ')}`
   }
   const git = (options.git ?? true) && commandExists('git', env)
   if (git) {
-    attempt('git', true, ['git', 'init', '-q'])
+    await attempt('git', true, ['git', 'init', '-q'])
     if (steps.at(-1)!.status === 'done') {
       steps.pop()
-      attempt('git', true, ['git', 'add', '-A'])
+      await attempt('git', true, ['git', 'add', '-A'])
       if (steps.at(-1)!.status === 'done') {
         steps.pop()
-        attempt('git', true, ['git', 'commit', '-q', '-m', 'Initial commit from create-caldera'])
+        await attempt('git', true, ['git', 'commit', '-q', '-m', 'Initial commit from create-caldera'])
       }
     }
+    report()
   } else {
     steps.push({ name: 'git', status: 'skipped', command: 'git init && git add -A && git commit -m "Initial commit"' })
   }
@@ -160,6 +174,18 @@ export function createProject(options: CreateOptions): CreateResult {
     `${run} dev`,
   ]
   return { schemaVersion: 1, directory, name, packageManager: pm, frontend, steps, next, log }
+}
+
+/** Runs a command, collecting its output for .create.log (never thrown: a missing program is a failed step). */
+function runCommand(command: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<{ status: number | null; output: string }> {
+  return new Promise((resolve) => {
+    let output = ''
+    const child = spawn(command[0]!, command.slice(1), { cwd, env, shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
+    child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()))
+    child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()))
+    child.once('error', (error) => resolve({ status: null, output: `${output}${String(error)}` }))
+    child.once('close', (status) => resolve({ status, output }))
+  })
 }
 
 /** `--pm`, then the package manager that ran us, then what's installed, then npm. */

@@ -15,8 +15,8 @@ afterEach(() => rmSync(base, { recursive: true, force: true }))
 const offline = { install: false, git: false, env: { PATH: '' } }
 
 describe('createProject', () => {
-  it('writes the bundled template with the name filled in and a fresh APP_KEY', () => {
-    const result = createProject({ directory: join(base, 'My App'), ...offline, packageManager: 'pnpm' })
+  it('writes the bundled template with the name filled in and a fresh APP_KEY', async () => {
+    const result = await createProject({ directory: join(base, 'My App'), ...offline, packageManager: 'pnpm' })
     const dir = result.directory
     expect(result.name).toBe('my-app')
     for (const file of ['.gitignore', '.env', '.env.example', 'AGENTS.md', 'src/app.ts', 'src/http.ts', 'src/routes/home.ts', 'tests/home.test.ts']) {
@@ -27,7 +27,7 @@ describe('createProject', () => {
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).toContain('pnpm dev')
     const key = readFileSync(join(dir, '.env'), 'utf8').match(/^APP_KEY=(.+)$/m)![1]!
     expect(key).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    const other = createProject({ directory: join(base, 'second'), ...offline })
+    const other = await createProject({ directory: join(base, 'second'), ...offline })
     expect(readFileSync(join(other.directory, '.env'), 'utf8')).not.toContain(key)
     expect(readFileSync(join(dir, '.env.example'), 'utf8')).toContain('APP_KEY=\n')
     // pnpm 11 fails installs with unapproved build scripts; esbuild's is approved up front.
@@ -37,8 +37,8 @@ describe('createProject', () => {
     expect(existsSync(join(other.directory, 'pnpm-workspace.yaml'))).toBe(other.packageManager === 'pnpm')
   })
 
-  it('makes a Next.js app: Next renders app/, Caldera serves /api, imports follow bundler resolution', () => {
-    const result = createProject({ directory: join(base, 'next-app'), ...offline, packageManager: 'pnpm', frontend: 'next' })
+  it('makes a Next.js app: Next renders app/, Caldera serves /api, imports follow bundler resolution', async () => {
+    const result = await createProject({ directory: join(base, 'next-app'), ...offline, packageManager: 'pnpm', frontend: 'next' })
     const dir = result.directory
     expect(result.frontend).toBe('next')
     for (const file of ['next.config.ts', 'app/page.tsx', 'app/actions.ts', 'app/api/[[...route]]/route.ts', 'src/app.ts', 'src/http.ts', 'vitest.config.ts']) {
@@ -58,18 +58,18 @@ describe('createProject', () => {
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.next')
   })
 
-  it('never touches a non-empty folder, and suggests a free name', () => {
+  it('never touches a non-empty folder, and suggests a free name', async () => {
     const dir = join(base, 'taken')
     mkdirSync(dir)
     writeFileSync(join(dir, 'keep.txt'), 'mine')
-    expect(() => createProject({ directory: dir, ...offline })).toThrow(expect.objectContaining({ code: 'dir_not_empty', details: expect.objectContaining({ suggestion: 'taken-2' }) }))
+    await expect(createProject({ directory: dir, ...offline })).rejects.toThrow(expect.objectContaining({ code: 'dir_not_empty', details: expect.objectContaining({ suggestion: 'taken-2' }) }))
     expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('mine')
     mkdirSync(join(base, 'empty'))
-    expect(() => createProject({ directory: join(base, 'empty'), ...offline })).not.toThrow()
+    await expect(createProject({ directory: join(base, 'empty'), ...offline })).resolves.toBeDefined()
   })
 
-  it('reports skipped steps with the exact commands to finish setup, and exits successfully', () => {
-    const result = createProject({ directory: join(base, 'app'), ...offline, packageManager: 'npm' })
+  it('reports skipped steps with the exact commands to finish setup, and exits successfully', async () => {
+    const result = await createProject({ directory: join(base, 'app'), ...offline, packageManager: 'npm' })
     expect(result.steps.map((s) => [s.name, s.status])).toEqual([
       ['files', 'done'],
       ['install', 'skipped'],
@@ -80,15 +80,15 @@ describe('createProject', () => {
     expect(result.next).toEqual([`cd ${join(base, 'app')}`, 'npm install', 'npm exec -- caldera generate', 'npm exec -- caldera db:generate -- --name init && npm exec -- caldera db:migrate', 'npm run dev'])
   })
 
-  it('records the package manager version only when the package manager reported it', () => {
-    const withAgent = createProject({ directory: join(base, 'a'), ...offline, env: { PATH: '', npm_config_user_agent: 'pnpm/11.25.0 npm/? node/v24.14.1 darwin arm64' } })
+  it('records the package manager version only when the package manager reported it', async () => {
+    const withAgent = await createProject({ directory: join(base, 'a'), ...offline, env: { PATH: '', npm_config_user_agent: 'pnpm/11.25.0 npm/? node/v24.14.1 darwin arm64' } })
     expect(JSON.parse(readFileSync(join(withAgent.directory, 'package.json'), 'utf8')).packageManager).toBe('pnpm@11.25.0')
-    const without = createProject({ directory: join(base, 'b'), ...offline, packageManager: 'pnpm' })
+    const without = await createProject({ directory: join(base, 'b'), ...offline, packageManager: 'pnpm' })
     expect(JSON.parse(readFileSync(join(without.directory, 'package.json'), 'utf8'))).not.toHaveProperty('packageManager')
   })
 
-  it('installs @caldera packages from local tarballs in development, as npm would', () => {
-    const result = createProject({ directory: join(base, 'linked'), ...offline, packageManager: 'pnpm', link: repo })
+  it('installs @caldera packages from local tarballs in development, as npm would', async () => {
+    const result = await createProject({ directory: join(base, 'linked'), ...offline, packageManager: 'pnpm', link: repo })
     const manifest = JSON.parse(readFileSync(join(result.directory, 'package.json'), 'utf8'))
     expect(manifest.dependencies['@caldera/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-core-.+\.tgz$/)
     expect(manifest.devDependencies['@caldera/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-cli-/)
@@ -115,7 +115,7 @@ describe('detectPackageManager', () => {
 // End to end against the npm registry: CALDERA_E2E=1 pnpm vitest run packages/create-caldera
 describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
   it('creates, installs, generates, type-checks, tests and serves a working app', async () => {
-    const result = createProject({ directory: join(base, 'e2e-app'), packageManager: 'pnpm', link: repo, git: true })
+    const result = await createProject({ directory: join(base, 'e2e-app'), packageManager: 'pnpm', link: repo, git: true })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
 
@@ -180,7 +180,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
   }, 300_000)
   it('creates a Next.js app that type-checks, tests, builds and serves pages and the API', async () => {
-    const result = createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
+    const result = await createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
@@ -226,7 +226,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
   }, 600_000)
   it('runs on Cloudflare Workers after cloudflare:setup: D1, the database cache, R2 and assets under wrangler dev', async () => {
-    const result = createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false })
+    const result = await createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
@@ -281,7 +281,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
   }, 600_000)
   it.runIf(spawnSync('turso', ['--version']).status === 0)('deploys to Vercel after vercel:setup: vercel build, then pages, assets, a remote libSQL database and deferred jobs', async () => {
-    const result = createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false })
+    const result = await createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false })
     const dir = result.directory
     const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
     const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
