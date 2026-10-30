@@ -33,3 +33,7 @@ export type {
   UnionToIntersection,
 } from './provider.js'
 export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv, RegisteredHonoEnv } from './register.js'
+export { parseDuration } from './duration.js'
+export type { Duration } from './duration.js'
+export { createManager, defineDriver } from './manager.js'
+export type { DriverContext, DriverDefinition, InstanceConfig, InstanceDescription, Manager, ManagerConfig } from './manager.js'

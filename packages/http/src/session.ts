@@ -1,4 +1,6 @@
-import { CalderaError, defineProvider, type RegisterContext } from '@caldera/core'
+import { CalderaError, defineProvider, parseDuration, type RegisterContext } from '@caldera/core'
+
+export { parseDuration }
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { serialize } from 'hono/utils/cookie'
@@ -363,14 +365,6 @@ async function deriveKey(secret: string): Promise<CryptoKey> {
     false,
     ['encrypt', 'decrypt'],
   )
-}
-
-/** `'90s'`, `'30m'`, `'2h'`, `'7d'` or a number of seconds. */
-export function parseDuration(value: number | string): number {
-  if (typeof value === 'number') return value
-  const match = /^(\d+)\s*(s|m|h|d)$/.exec(value.trim())
-  if (!match) throw new CalderaError('invalid_duration', `Can't read "${value}" as a duration; use e.g. '30m', '2h' or '7d'.`)
-  return Number(match[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[match[2] as 's' | 'm' | 'h' | 'd']
 }
 
 function toBase64Url(bytes: Uint8Array): string {
