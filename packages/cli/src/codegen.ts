@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { CalderaError, type AnyConfigDefinition, type AnyEnvDefinition } from '@caldera/core'
 import { CONVENTIONS, configFiles, exportsOfKind, type Project } from './project.js'
+import { AGENTS_FILE, agentsFile } from './agents.js'
 import { loadModels } from './models.js'
 import { loadPolicies } from './policies.js'
 import { loadRouteGroups } from './routes.js'
@@ -90,11 +91,13 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     })
   }
 
+  const agents = await agentsFile(project)
   return [
     { path: `${dir}/config.gen.ts`, contents: configGen },
     { path: `${dir}/register.d.ts`, contents: registerGen },
     ...generated,
     { path: `${dir}/.gitignore`, contents: '*\n' },
+    ...(agents === undefined ? [] : [{ path: AGENTS_FILE, contents: agents }]),
   ]
 }
 

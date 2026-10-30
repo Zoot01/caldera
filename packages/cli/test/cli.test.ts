@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeAbilities, describeModel, generateProjectAuthSchema, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
+import { check, describeAbilities, describeModel, generateProjectAuthSchema, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -43,6 +43,7 @@ describe('caldera generate', () => {
       ['.caldera/register.d.ts', 'created'],
       ['.caldera/routes.gen.ts', 'created'],
       ['.caldera/.gitignore', 'created'],
+      ['AGENTS.md', 'updated'],
     ])
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
     expect(register).toContain(`declare module '@caldera/db'`)
@@ -312,4 +313,38 @@ describe('caldera auth:schema', () => {
     await generateProjectAuthSchema(openProject(authApp))
     expect((await generateProjectAuthSchema(openProject(authApp), { check: true })).status).toBe('unchanged')
   }, 60_000)
+})
+
+describe('AGENTS.md and caldera check', () => {
+  it('rebuilds only the generated section of AGENTS.md from the code', async () => {
+    await generate(openProject(root))
+    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
+    expect(agents).toMatch(/^# Fixture app\n\nHand-written guidance that must survive regeneration\./)
+    expect(agents).toMatch(/More hand-written notes after the markers\.\n$/)
+    expect(agents).toContain('| GET | `/posts/:post` | `posts.show` | `post.view` | src/routes/posts.ts:7 |')
+    expect(agents).toContain('| `user` | `users` | passwordHash |  | src/models/user.ts |')
+    expect(agents).toContain('| `post.view` | yes | `posts.show` | src/policies/post.ts |')
+    expect(agents).toContain('| `viewStats` | no |  | src/policies/post.ts |')
+  })
+
+  it('passes when everything is generated, and reports what drifted', async () => {
+    expect((await check(openProject(root))).issues.map((i) => i.file)).toEqual(['.caldera/config.gen.ts', '.caldera/register.d.ts', '.caldera/routes.gen.ts', '.caldera/.gitignore', 'AGENTS.md'])
+    await generate(openProject(root))
+    expect(await check(openProject(root))).toEqual({ schemaVersion: 1, ok: true, issues: [] })
+
+    writeFileSync(join(root, 'src/routes/health.ts'), `import { defineRoutes } from '@caldera/http'\nexport default defineRoutes('health').get('check', '/healthz', (c) => c.text('ok'))\n`)
+    const result = await check(openProject(root))
+    expect(result.ok).toBe(false)
+    expect(result.issues).toEqual([{ code: 'stale_generated', message: 'AGENTS.md is out of date with the code.', file: 'AGENTS.md', fix: 'caldera generate' }])
+
+    const { code, json } = cli('check')
+    expect(code).toBe(1)
+    expect(json.issues[0].fix).toBe('caldera generate')
+  })
+
+  it('turns configuration errors into issues instead of crashing', async () => {
+    writeFileSync(join(root, 'src/models/orphan.ts'), `import { defineModel } from '@caldera/db'\nimport { snakeCase, text } from 'drizzle-orm/pg-core'\nexport const Orphan = defineModel(snakeCase.table('orphans', { id: text().primaryKey() }), { name: 'orphan' })\n`)
+    const result = await check(openProject(root))
+    expect(result.issues).toEqual([expect.objectContaining({ code: 'model_definition', message: expect.stringMatching(/Model "orphan" .* isn't in src\/db\/relations\.ts/) })])
+  })
 })

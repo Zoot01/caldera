@@ -11,6 +11,7 @@ import { describeAbilities } from './policies.js'
 import { generateProjectAuthSchema } from './auth-schema.js'
 import { ejectStub, make, MAKE_KINDS, type MakeKind } from './make.js'
 import { STUBS } from './stubs.js'
+import { check } from './check.js'
 
 const VERSION = '0.0.0'
 
@@ -250,10 +251,24 @@ const stubEjectCommand = defineCommand({
     }),
 })
 
+const checkCommand = defineCommand({
+  meta: { name: 'check', description: 'Fail (exit 1) if generated types, AGENTS.md or the auth schema are out of date, or the app is misconfigured' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = await check(openProject(args.cwd))
+      const text = result.ok
+        ? '✓ Everything is up to date.'
+        : result.issues.map((i) => `✘ ${i.message}${i.fix ? `  (fix: ${i.fix})` : ''}`).join('\n')
+      return { data: result, text, exitCode: result.ok ? 0 : 1 }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
     generate: generateCommand,
+    check: checkCommand,
     describe: describeCommand,
     'route:list': routeListCommand,
     'model:show': modelShowCommand,
