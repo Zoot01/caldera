@@ -67,15 +67,33 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@caldera/db':
+        specifier: workspace:*
+        version: link:../db
       '@caldera/http':
         specifier: workspace:*
         version: link:../http
+      '@libsql/client':
+        specifier: 0.18.0
+        version: 0.18.0
+      '@types/pg':
+        specifier: ^8.15.0
+        version: 8.23.1
+      drizzle-orm:
+        specifier: 1.0.0-rc.5
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.7)
       hono:
         specifier: ^4.13.14
         version: 4.13.14
       ioredis:
         specifier: 6.0.0
         version: 6.0.0(supports-color@10.2.2)
+      miniflare:
+        specifier: 4.20260730.0
+        version: 4.20260730.0
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3

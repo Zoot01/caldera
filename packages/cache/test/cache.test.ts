@@ -1,15 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createCacheService, LockUnavailableError, type CacheService } from '../src/index.js'
+import { databaseCacheDriver } from '../src/database.js'
 import { redisDriver } from '../src/redis.js'
+import { databaseBackends } from './databases.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
 let redis: Awaited<ReturnType<typeof startRedis>> | undefined
+// Started here (top-level await), so describe.each below can list them.
+const databases = await databaseBackends()
 beforeAll(async () => {
   if (hasRedis) redis = await startRedis()
-})
+}, 60_000)
 afterAll(async () => {
   await redis?.stop()
+  await databases.stop()
 })
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -18,12 +23,19 @@ const stores = [
   ...(hasRedis
     ? [{ name: 'redis', make: () => createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis!.url } }, prefix: `t${Math.random()}` }, { drivers: [redisDriver] }) }]
     : []),
+  ...databases.backends.map((backend) => ({
+    name: backend.name,
+    make: async () => {
+      await backend.use()
+      return createCacheService({ default: 'db', stores: { db: { driver: 'database' } }, prefix: `t${Math.random()}` }, { drivers: [databaseCacheDriver] })
+    },
+  })),
 ]
 
 describe.each(stores)('cache on $name', ({ make }) => {
   let cache: CacheService
-  beforeAll(() => {
-    cache = make()
+  beforeAll(async () => {
+    cache = await make()
   })
   afterAll(async () => {
     await cache.manager.purge()
@@ -105,7 +117,7 @@ describe.each(stores)('cache on $name', ({ make }) => {
   })
 
   it('flush() only removes this cache’s keys', async () => {
-    const other = make()
+    const other = await make()
     await other.put('mine', 1)
     await cache.put('gone', 1)
     await cache.flush()

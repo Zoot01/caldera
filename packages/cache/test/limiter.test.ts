@@ -3,23 +3,31 @@ import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession
 import { Hono } from 'hono'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cacheProvider, createCacheService, defineLimiter, every, gcra, perMinute } from '../src/index.js'
+import { databaseCacheDriver } from '../src/database.js'
 import { redisDriver } from '../src/redis.js'
+import { databaseBackends } from './databases.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
 let redis: Awaited<ReturnType<typeof startRedis>> | undefined
 beforeAll(async () => {
   if (hasRedis) redis = await startRedis()
 })
+const databases = await databaseBackends()
 afterAll(async () => {
   await redis?.stop()
+  await databases.stop()
 })
 
-const backends = [{ name: 'memory', store: () => ({ driver: 'memory' }) }, ...(hasRedis ? [{ name: 'redis', store: () => ({ driver: 'redis', url: redis!.url }) }] : [])]
+const backends: { name: string; store: () => { driver: string; [k: string]: unknown }; setup?: () => Promise<unknown> }[] = [
+  { name: 'memory', store: () => ({ driver: 'memory' }) },
+  ...(hasRedis ? [{ name: 'redis', store: () => ({ driver: 'redis', url: redis!.url }) }] : []),
+  ...databases.backends.map((b) => ({ name: b.name, store: () => ({ driver: 'database' }), setup: () => b.use() })),
+]
 
 function makeHttp(store: { driver: string; [k: string]: unknown }) {
   const app = createApp({
     env: defineEnv({}),
-    providers: [cacheProvider(() => ({ default: 'main', stores: { main: store }, prefix: `t${Math.random()}` }), { drivers: [redisDriver] }), sessionProvider(() => ({ keys: ['k'.repeat(40)] }))],
+    providers: [cacheProvider(() => ({ default: 'main', stores: { main: store }, prefix: `t${Math.random()}` }), { drivers: [redisDriver, databaseCacheDriver] }), sessionProvider(() => ({ keys: ['k'.repeat(40)] }))],
   })
   const api = defineLimiter('api', { limits: [perMinute(5)], key: (c) => c.req.header('x-client') ?? 'anon' })
   const burst = defineLimiter('burst', { limits: [every(3, '1s'), perMinute(4)], key: () => 'one' })
@@ -34,7 +42,10 @@ function makeHttp(store: { driver: string; [k: string]: unknown }) {
   return { http: new Hono().use(app.middleware()).use(startSession()).route('/', router.app).onError(errorHandler({ report: () => {} })), router, api }
 }
 
-describe.each(backends)('limiters on $name', ({ store }) => {
+describe.each(backends)('limiters on $name', ({ store, setup }) => {
+  beforeAll(async () => {
+    await setup?.()
+  })
   it('allows the limit, then refuses with the envelope and headers', async () => {
     const { http } = makeHttp(store())
     for (let i = 4; i >= 0; i--) {
