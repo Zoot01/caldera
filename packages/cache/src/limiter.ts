@@ -205,7 +205,8 @@ function callerSource(): { file: string; line: number } | undefined {
   for (const frame of (new Error().stack ?? '').split('\n').slice(1)) {
     const match = frame.match(/\(?((?:file:\/\/)?[^\s()]+?):(\d+):\d+\)?\s*$/)
     if (!match) continue
-    const file = match[1]!.replace(/^file:\/\//, '')
+    // Loaders (tsx) give modules URLs with a query and percent-encoding: keep just the path.
+    const file = decodeURIComponent(match[1]!.replace(/^file:\/\//, '').replace(/\?.*$/, ''))
     if (file.includes('/packages/cache/src/') || file.includes('/packages/cache/dist/') || file.includes('/@caldera/cache/') || file.startsWith('node:') || file.includes('/node_modules/')) continue
     return { file, line: Number(match[2]) }
   }

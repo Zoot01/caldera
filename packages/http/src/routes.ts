@@ -191,7 +191,8 @@ function callerSource(): { source?: { file: string; line: number } } {
   for (const frame of stack.slice(1)) {
     const match = frame.match(/\(?((?:file:\/\/)?[^\s()]+?):(\d+):\d+\)?\s*$/)
     if (!match) continue
-    const file = match[1]!.replace(/^file:\/\//, '')
+    // Loaders (tsx) give modules URLs with a query and percent-encoding: keep just the path.
+    const file = decodeURIComponent(match[1]!.replace(/^file:\/\//, '').replace(/\?.*$/, ''))
     if (file.includes('/@caldera/http/') || file.includes('/packages/http/src/') || file.includes('/packages/http/dist/')) continue
     if (file.startsWith('node:') || file.includes('/node_modules/')) continue
     return { source: { file, line: Number(match[2]) } }
