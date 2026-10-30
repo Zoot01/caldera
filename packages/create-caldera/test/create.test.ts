@@ -261,4 +261,52 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-dev.pid!, 'SIGTERM')
     }
   }, 600_000)
+  it.runIf(spawnSync('turso', ['--version']).status === 0)('deploys to Vercel after vercel:setup: vercel build, then pages, assets, a remote libSQL database and deferred jobs', async () => {
+    const result = createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false })
+    const dir = result.directory
+    const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('pnpm', 'exec', 'caldera', 'vercel:setup'))
+    ok(run('pnpm', 'add', '@vercel/functions@3.4.0'))
+    writeFileSync(
+      join(dir, 'src/routes/signup.ts'),
+      `import { defineRoutes } from '@caldera/http'\nimport { inbox, notify } from '@caldera/notifications'\nimport { User } from '../models/user.js'\nimport { Welcome } from '../notifications/welcome.js'\n\nexport const signup = defineRoutes('signup')\n  .post('store', '/signup', async (c) => {\n    const user = await User.create(await c.req.json())\n    await notify(user, Welcome, { name: user.name, url: 'https://example.test' })\n    return c.json({ id: user.id })\n  })\n  .get('inbox', '/inbox/:id', async (c) => c.json(await inbox(await User.findOrFail(c.req.param('id'))).list()))\n`,
+    )
+    ok(run('pnpm', 'exec', 'caldera', 'generate'))
+    ok(run('pnpm', 'typecheck'))
+    // As Vercel gets it from git: nothing generated or built yet.
+    rmSync(join(dir, '.caldera'), { recursive: true, force: true })
+    mkdirSync(join(dir, '.vercel'), { recursive: true })
+    writeFileSync(join(dir, '.vercel/project.json'), JSON.stringify({ projectId: 'prj_e2e', orgId: 'team_e2e', settings: { framework: null, nodeVersion: '22.x' } }))
+    ok(run('npx', '-y', 'vercel@64.3.1', 'build', '--yes'))
+
+    const { spawn } = await import('node:child_process')
+    const turso = spawn('turso', ['dev', '--db-file', join(dir, 'local.db'), '--port', '3463'], { detached: true })
+    const saved = { ...process.env }
+    Object.assign(process.env, { APP_KEY: 'k'.repeat(43), DATABASE_URL: 'http://127.0.0.1:3463', QUEUE_CONNECTION: 'deferred', NODE_ENV: 'production' })
+    const { serveVercelOutput } = await import('./vercel-runtime.js')
+    const site = await serveVercelOutput(dir, 3464)
+    try {
+      const B = 'http://127.0.0.1:3464'
+      for (let i = 0; i < 40 && !(await fetch('http://127.0.0.1:3463/health').then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 250))
+      expect(await fetch(`${B}/users`).then((r) => r.json())).toEqual({ users: [] })
+      const html = await fetch(`${B}/`).then((r) => r.text())
+      const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)"/.exec(html)?.[1]
+      expect(script, html.slice(0, 400)).toBeDefined()
+      expect((await fetch(`${B}${script}`)).status).toBe(200)
+      const signup = await fetch(`${B}/signup`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:3464' }, body: JSON.stringify({ name: 'Vee', email: 'vee@example.test' }) })
+      const { id } = (await signup.json()) as { id: string }
+      // Deferred: the notification's jobs run after the response.
+      let notifications: unknown[] = []
+      for (let i = 0; i < 40 && notifications.length === 0; i++) {
+        await new Promise((r) => setTimeout(r, 100))
+        notifications = (await fetch(`${B}/inbox/${id}`).then((r) => r.json())) as unknown[]
+      }
+      expect(notifications).toMatchObject([{ type: 'users.welcome' }])
+    } finally {
+      await site.stop()
+      process.env = saved
+      process.kill(-turso.pid!, 'SIGTERM')
+    }
+  }, 600_000)
 })

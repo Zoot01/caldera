@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { cacheProvider } from '@caldera/cache'
 import { databaseCacheDriver } from '@caldera/cache/database'
 import { redisDriver } from '@caldera/cache/redis'
@@ -33,6 +34,9 @@ import { env } from './env.js'
 export const app = createApp({
   env,
   config,
+  // app.current(): the request being handled, wherever code runs. The deferred queue uses it to find
+  // the platform's waitUntil (Vercel, Workers), so queued work finishes after the response.
+  asyncContext: AsyncLocalStorage,
   providers: [
     // libSQL (DATABASE_URL), or D1 on Cloudflare Workers (the DB binding).
     databaseProvider({
