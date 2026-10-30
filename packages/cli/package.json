@@ -33,6 +33,7 @@
     "@caldera/events": "workspace:*",
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",
+    "@caldera/notifications": "workspace:*",
     "@caldera/queue": "workspace:*",
     "@caldera/schedule": "workspace:*",
     "@electric-sql/pglite": "0.5.13",

@@ -3,6 +3,7 @@ import { loadModels } from './models.js'
 import { pageFiles } from './pages.js'
 import { loadListeners } from './listeners.js'
 import { loadMails } from './mails.js'
+import { loadNotifications } from './notifications.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { describeAbilities } from './policies.js'
@@ -104,6 +105,23 @@ async function generatedSection(project: Project): Promise<string> {
   const mails = await loadMails(project)
   if (mails.length > 0) {
     parts.push(table('Mail', ['Mail', 'Export', 'Preview', 'Defined in'], mails.map(({ mail, exportName, file }) => [`\`${mail.name}\``, `\`${exportName}\``, mail.preview ? `/_caldera/mail/${mail.name}` : 'no preview props', file])))
+  }
+
+  const notifications = await loadNotifications(project)
+  if (notifications.length > 0) {
+    parts.push(
+      table(
+        'Notifications',
+        ['Notification', 'Export', 'Channels', 'Queued', 'Defined in'],
+        notifications.map(({ notification: n, exportName, file }) => [
+          `\`${n.name}\``,
+          `\`${exportName}\``,
+          Object.keys(n.channels).join(', ') + (n.via ? ' (via)' : ''),
+          n.queue ? 'yes' : 'no',
+          file,
+        ]),
+      ),
+    )
   }
 
   const abilities = await describeAbilities(project)

@@ -6,7 +6,7 @@ import { names, render, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
-export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener', 'schedule', 'mail'] as const
+export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener', 'schedule', 'mail', 'notification'] as const
 export type MakeKind = (typeof MAKE_KINDS)[number]
 
 interface Planned {
@@ -46,6 +46,8 @@ function plan(kind: MakeKind, n: Names & { page: string }, project: Project, opt
       return [{ path: `${CONVENTIONS.schedulesDir}/${n.kebab}.ts`, stub: 'schedule' }]
     case 'mail':
       return [{ path: `${CONVENTIONS.mailDir}/${n.kebab}.tsx`, stub: 'mail' }]
+    case 'notification':
+      return [{ path: `${CONVENTIONS.notificationsDir}/${n.kebab}.ts`, stub: 'notification' }]
   }
 }
 
@@ -57,6 +59,9 @@ function hints(kind: MakeKind, n: Names & { page: string }, options: { table: bo
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
   if (kind === 'mail') return [`Send it: \`await mail.to(user).send(${n.Name}Email, { name: user.name })\` from '@caldera/mail'. Preview: /_caldera/mail/${n.kebab}.`]
+  if (kind === 'notification') {
+    return [`Send it: \`await notify(user, ${n.Name}, { id })\` from '@caldera/notifications'. Its database channel needs \`caldera notifications:table\`; add a mail with \`caldera make:mail\`.`]
+  }
   if (kind === 'schedule') return [`\`caldera schedule:list\` shows its next run; \`caldera schedule:work\` (or a platform cron, see \`caldera schedule:sync\`) runs it.`]
   if (kind === 'event') return [`Emit it with \`await emit(${n.Name}, { id })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.`]
   if (kind === 'listener') return [`It runs on every emit of its event. For slow work, listen with a job instead: \`listen(Event, Job.fromEvent((e) => ({ ... })))\`.`]

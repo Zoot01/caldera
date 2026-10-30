@@ -142,6 +142,75 @@ export const calderaJobs = sqliteTable(
   (t) => [index('caldera_jobs_queue_available').on(t.queue, t.availableAt)],
 )
 `,
+  notification: `import { defineNotification } from '@caldera/notifications'
+import { z } from 'zod'
+
+export const {{ Name }} = defineNotification({
+  name: '{{ kebab }}',
+  payload: z.object({ id: z.string() }),
+  channels: {
+    // Shown in the app's inbox: \`await inbox(user).list()\`. Needs \`caldera notifications:table\`.
+    database: {
+      schema: z.object({ id: z.string(), message: z.string() }),
+      data: (to, { id }) => ({ id, message: '{{ Name }}' }),
+    },
+    // A mail from src/mail, to the notifiable's mail route:
+    // mail: (to, { id }) => ({ mail: {{ Name }}Email, props: { name: '...' } }),
+  },
+  // Which channels, per notifiable (default: all of them):
+  // via: (to) => ['database'],
+  // One job per channel, after the transaction commits:
+  // queue: true,
+})
+`,
+  'notifications-table': `import { bigint, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+
+/**
+ * Notifications for the \`database\` channel (@caldera/notifications/database): one row per send, read
+ * back with \`inbox(user)\`. Caldera reads and writes it; no model needed.
+ */
+export const calderaNotifications = pgTable(
+  'caldera_notifications',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    notifiableType: text('notifiable_type').notNull(),
+    notifiableId: text('notifiable_id').notNull(),
+    data: jsonb('data').notNull(),
+    readAt: bigint('read_at', { mode: 'number' }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    index('caldera_notifications_notifiable').on(t.notifiableType, t.notifiableId, t.createdAt),
+    index('caldera_notifications_unread').on(t.notifiableType, t.notifiableId).where(sql\`\${t.readAt} is null\`),
+  ],
+)
+`,
+  'notifications-table-sqlite': `import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+
+/**
+ * Notifications for the \`database\` channel (@caldera/notifications/database): one row per send, read
+ * back with \`inbox(user)\`. \`data\` is JSON text. Caldera reads and writes it; no model needed.
+ */
+export const calderaNotifications = sqliteTable(
+  'caldera_notifications',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    notifiableType: text('notifiable_type').notNull(),
+    notifiableId: text('notifiable_id').notNull(),
+    data: text('data').notNull(),
+    readAt: integer('read_at'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('caldera_notifications_notifiable').on(t.notifiableType, t.notifiableId, t.createdAt),
+    index('caldera_notifications_unread').on(t.notifiableType, t.notifiableId).where(sql\`\${t.readAt} is null\`),
+  ],
+)
+`,
   mail: `import { defineMail } from '@caldera/mail'
 import { Body, Container, Head, Html, Preview, Text } from '@react-email/components'
 import { z } from 'zod'

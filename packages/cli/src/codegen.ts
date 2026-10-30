@@ -8,6 +8,7 @@ import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
 import { loadListeners } from './listeners.js'
 import { loadMails } from './mails.js'
+import { loadNotifications } from './notifications.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
@@ -151,6 +152,20 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
         HEADER +
         used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file).replace(/\.tsx$/, '.js')}'\n`).join('') +
         `${used.length ? '\n' : ''}export const mails = [${mails.map((m) => `${alias(m.file)}.${m.exportName}`).join(', ')}] as const\n`,
+    })
+  }
+
+  // Passed to notificationsProvider({ notifications }) in app.ts (workers delivering queued notifications).
+  const notifications = await loadNotifications(project)
+  if (notifications.length > 0 || usesPackage(project, '@caldera/notifications')) {
+    const used = [...new Set(notifications.map((n) => n.file))]
+    const alias = (file: string) => `notifications${used.indexOf(file)}`
+    generated.push({
+      path: `${dir}/notifications.gen.ts`,
+      contents:
+        HEADER +
+        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+        `${used.length ? '\n' : ''}export const notifications = [${notifications.map((n) => `${alias(n.file)}.${n.exportName}`).join(', ')}] as const\n`,
     })
   }
 

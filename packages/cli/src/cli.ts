@@ -14,6 +14,7 @@ import { STUBS } from './stubs.js'
 import { check } from './check.js'
 import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
+import { notificationsTable } from './notifications.js'
 import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
 
 const VERSION = '0.0.0'
@@ -226,6 +227,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   listener: 'Create an event listener in src/listeners/ (needs --event)',
   schedule: 'Create a schedule in src/schedules/ (needs --job)',
   mail: 'Create a mail (React Email) in src/mail/',
+  notification: 'Create a notification in src/notifications/',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -326,6 +328,16 @@ const queueTableCommand = defineCommand({
   run: ({ args }) =>
     run(wantsJson(args.json), async () => {
       const result = queueTable(openProject(args.cwd), { force: args.force })
+      return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
+const notificationsTableCommand = defineCommand({
+  meta: { name: 'notifications:table', description: 'Create the notifications table in src/db/tables (for the database channel)' },
+  args: { ...shared, force: { type: 'boolean', description: 'Overwrite an existing file' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = notificationsTable(openProject(args.cwd), { force: args.force })
       return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
     }),
 })
@@ -470,6 +482,7 @@ export const main = defineCommand({
     'queue:failed': queueFailedCommand,
     'queue:retry': failedJobsAction('retry', 'Put failed jobs back on their queue (database queue driver)'),
     'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
+    'notifications:table': notificationsTableCommand,
     'schedule:list': scheduleListCommand,
     'schedule:run': scheduleRunCommand,
     'schedule:work': scheduleWorkCommand,

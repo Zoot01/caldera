@@ -21,6 +21,7 @@ export const CONVENTIONS = {
   listenersDir: 'src/listeners',
   schedulesDir: 'src/schedules',
   mailDir: 'src/mail',
+  notificationsDir: 'src/notifications',
   app: 'src/app.ts',
   inertia: 'src/inertia.ts',
   pagesDir: 'resources/pages',
@@ -100,6 +101,7 @@ export const jobFiles = (project: Project) => sourceFiles(project, CONVENTIONS.j
 export const listenerFiles = (project: Project) => sourceFiles(project, CONVENTIONS.listenersDir)
 export const scheduleFiles = (project: Project) => sourceFiles(project, CONVENTIONS.schedulesDir)
 export const mailFiles = (project: Project) => sourceFiles(project, CONVENTIONS.mailDir, { tsx: true })
+export const notificationFiles = (project: Project) => sourceFiles(project, CONVENTIONS.notificationsDir)
 
 /** Finds exported values tagged with a Caldera `kind`, e.g. `caldera.config`. */
 export function exportsOfKind<T>(module: Record<string, unknown>, kind: string): { exportName: string; value: T }[] {
