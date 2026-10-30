@@ -1,3 +1,4 @@
+import { CalderaError } from '@caldera/core'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { hc } from 'hono/client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
@@ -99,6 +100,13 @@ describe('routes and requests', () => {
     const missing = await server().request('/posts/404')
     expect(await missing.json()).toMatchObject({ error: { code: 'not_found', status: 404, message: 'Not found.' } })
     expect((await server().request('/nope')).status).toBe(404)
+
+    const modelMissing = new Hono()
+      .get('/', () => {
+        throw new CalderaError('not_found', 'No post found for "abc".')
+      })
+      .onError(errorHandler())
+    expect(await (await modelMissing.request('/')).json()).toMatchObject({ error: { code: 'not_found', status: 404, message: 'Not found.' } })
 
     const badJson = await server().request('/posts', { ...json({}), body: '{oops' })
     expect(await badJson.json()).toMatchObject({ error: { code: 'bad_request', status: 400 } })

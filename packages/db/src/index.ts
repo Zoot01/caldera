@@ -1,3 +1,7 @@
 export { CAPABILITIES, createDatabase, databaseProvider, defaultDatabase, setDefaultDatabase } from './database.js'
 export type { CreateDatabaseOptions, Database, DatabaseCapabilities, Driver, TransactionalClient } from './database.js'
 export { jsonCodec } from './json.js'
+export { defineModel, ModelNotFoundError } from './model/model.js'
+export type { AnyModel, Filter, Hooks, Insert, InsertOf, Model, ModelConfig, Page, QueryApi, Row, RowOf, Serialized, SerializeOut } from './model/model.js'
+export type { DatabaseRegister, ModelRegistry } from './model/registry.js'
+export type { ModelResult } from './model/result.js'
