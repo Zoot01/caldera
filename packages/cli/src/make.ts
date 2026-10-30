@@ -6,7 +6,7 @@ import { names, render, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
-export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page'] as const
+export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job'] as const
 export type MakeKind = (typeof MAKE_KINDS)[number]
 
 interface Planned {
@@ -36,6 +36,8 @@ function plan(kind: MakeKind, n: Names & { page: string }, project: Project, opt
       return [{ path: `src/providers/${n.kebab}.ts`, stub: 'provider' }]
     case 'page':
       return [{ path: `${CONVENTIONS.pagesDir}/${n.page}.tsx`, stub: 'page' }]
+    case 'job':
+      return [{ path: `${CONVENTIONS.jobsDir}/${n.kebab}.ts`, stub: 'job' }]
   }
 }
 
@@ -46,6 +48,7 @@ function hints(kind: MakeKind, n: Names & { page: string }, options: { table: bo
   }
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
+  if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera/queue'; \`caldera queue:work\` runs it.`]
   if (kind === 'page') return [`Render it from a route: \`c.render('${n.page}', { title: '${n.Name}' })\`.`]
   return []
 }

@@ -13,6 +13,7 @@ import { ejectStub, make, MAKE_KINDS, type MakeKind } from './make.js'
 import { STUBS } from './stubs.js'
 import { check } from './check.js'
 import { startDev } from './dev.js'
+import { startWorker } from './queue.js'
 
 const VERSION = '0.0.0'
 
@@ -213,6 +214,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   config: 'Create a config file in src/config/',
   provider: 'Create a provider in src/providers/',
   page: 'Create an Inertia page in resources/pages/ (e.g. Posts/Index)',
+  job: 'Create a queued job in src/jobs/',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -266,6 +268,45 @@ const checkCommand = defineCommand({
     }),
 })
 
+const queueWorkCommand = defineCommand({
+  meta: { name: 'queue:work', description: 'Process queued jobs (BullMQ and other drivers with workers) until stopped' },
+  args: {
+    ...shared,
+    queue: { type: 'string', description: 'Comma-separated queues to consume, in order (default: default)' },
+    concurrency: { type: 'string', description: 'Jobs handled at once (default 1)' },
+    connection: { type: 'string', description: 'Queue connection (default: the default one)' },
+  },
+  async run({ args }) {
+    const json = wantsJson(args.json)
+    // One line per event: JSON for agents and log collectors, short text in a terminal.
+    const print = (event: import('./queue.js').WorkerEvent) => {
+      if (json) return void process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`)
+      if (event.type === 'started') process.stdout.write(`Processing jobs: ${event.jobs?.join(', ') || '(none found in src/jobs)'}\n`)
+      else if (event.type === 'stopped') process.stdout.write('Worker stopped.\n')
+      else {
+        const mark = event.status === 'done' ? '✓' : event.status === 'retry' ? '↻' : '✘'
+        const detail = event.status === 'retry' ? ` retry in ${event.delaySeconds}s: ${event.error}` : event.status === 'failed' ? ` ${event.error}` : ''
+        process.stdout.write(`${mark} ${event.job} #${event.attempt}${detail}\n`)
+      }
+    }
+    try {
+      const worker = await startWorker(openProject(args.cwd), {
+        ...(args.queue ? { queues: args.queue.split(',').map((q) => q.trim()).filter(Boolean) } : {}),
+        ...(args.concurrency ? { concurrency: Number(args.concurrency) } : {}),
+        ...(args.connection ? { connection: args.connection } : {}),
+        onEvent: print,
+      })
+      await new Promise<void>((resolve) => {
+        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => void worker.stop().then(resolve))
+      })
+    } catch (error) {
+      await run(json, async () => {
+        throw error
+      })
+    }
+  },
+})
+
 const devCommand = defineCommand({
   meta: { name: 'dev', description: 'Run the app (tsx watch) and Vite, and keep generated types current as you edit' },
   args: {
@@ -297,6 +338,7 @@ export const main = defineCommand({
     generate: generateCommand,
     check: checkCommand,
     dev: devCommand,
+    'queue:work': queueWorkCommand,
     describe: describeCommand,
     'route:list': routeListCommand,
     'model:show': modelShowCommand,

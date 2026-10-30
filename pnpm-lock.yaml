@@ -107,6 +107,9 @@ importers:
       '@caldera/inertia':
         specifier: workspace:*
         version: link:../inertia
+      '@caldera/queue':
+        specifier: workspace:*
+        version: link:../queue
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13
@@ -125,6 +128,9 @@ importers:
       better-auth:
         specifier: 1.7.14
         version: 1.7.14(drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(zod@4.6.7)))(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))
+      bullmq:
+        specifier: 6.5.1
+        version: 6.5.1(ioredis@6.0.0)
       drizzle-kit:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(zod@4.6.7))
@@ -134,6 +140,9 @@ importers:
       hono:
         specifier: 4.13.14
         version: 4.13.14
+      ioredis:
+        specifier: 6.0.0
+        version: 6.0.0
       react:
         specifier: 19.3.1
         version: 19.3.1

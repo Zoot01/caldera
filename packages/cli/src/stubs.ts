@@ -81,6 +81,19 @@ export const {{ name }}Provider = defineProvider({
   }),
 })
 `,
+  job: `import { defineJob } from '@caldera/queue'
+import { z } from 'zod'
+
+export const {{ Name }} = defineJob({
+  name: '{{ kebab }}',
+  payload: z.object({ id: z.string() }),
+  tries: 3,
+  backoff: [10, 60],
+  async handle({ id }, ctx) {
+    // ctx.services has the app's services; ctx.signal aborts at the timeout.
+  },
+})
+`,
   page: `import { Head } from '@inertiajs/react'
 
 export default function {{ Name }}({ title }: { title: string }) {
