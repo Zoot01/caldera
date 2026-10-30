@@ -24,8 +24,11 @@ export type AppState = 'created' | 'booting' | 'booted' | 'shutting-down' | 'shu
 export type AppServices<P extends readonly AnyProvider[]> = UnionToIntersection<ServicesOf<P[number]>>
 export type AppRequestServices<P extends readonly AnyProvider[]> = UnionToIntersection<RequestServicesOf<P[number]>>
 
-/** The Hono env an app's middleware provides: `new Hono<HonoEnvOf<typeof app>>()`. */
-export type HonoEnvOf<A> = A extends CalderaApp<any, any, infer P> ? { Variables: AppServices<P> & AppRequestServices<P> & object } : never
+/**
+ * The Hono env an app's middleware provides: `new Hono<HonoEnvOf<typeof app>>()`. Every service,
+ * plus `config` (the app's resolved config, as `app.config`).
+ */
+export type HonoEnvOf<A> = A extends CalderaApp<any, infer C, infer P> ? { Variables: AppServices<P> & AppRequestServices<P> & { config: ConfigMap<C> } & object } : never
 
 export interface RequestScope {
   readonly context: Context
@@ -54,7 +57,7 @@ export interface CalderaApp<E extends AnyEnvDefinition, C extends readonly AnyCo
   boot(options?: BootOptions): Promise<CalderaApp<E, C, P>>
   /** Runs provider `shutdown` hooks in reverse boot order. Node/Bun only. */
   shutdown(): Promise<void>
-  /** Hono middleware that boots lazily (edge) and puts every service on `c.var`. */
+  /** Hono middleware that boots lazily (edge) and puts every service, and `config`, on `c.var`. */
   middleware(): MiddlewareHandler<HonoEnvOf<CalderaApp<E, C, P>>>
   /** The current request scope. Requires `asyncContext`. */
   current(): RequestScope | undefined
@@ -174,7 +177,10 @@ export function createApp<
     middleware() {
       return async (c, next) => {
         if (state !== 'booted') await app.boot({ env: envSourceFor(c) })
-        const { services } = booted!
+        const { services, config } = booted!
+        // The config too, so route files and middleware read it without importing the app (which
+        // `caldera generate` can't load before it has generated the files the app imports).
+        c.set('config' as never, config as never)
         for (const key of Object.keys(services)) c.set(key as never, services[key] as never)
         for (const provider of order) {
           for (const [key, factory] of Object.entries(provider.request ?? {})) {

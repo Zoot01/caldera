@@ -56,4 +56,5 @@ node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <n
 - Optional backends (ioredis, bullmq, aws4fetch, nodemailer…) live in their own entry points (`@caldera/queue/bullmq`, `@caldera/storage/s3`, `@caldera/mail/smtp`) and are passed as `drivers: [...]`, so edge bundles never see them.
 - The CLI loads a project with tsx (`openProject()`), in its own module graph: the project's packages are separate copies from the CLI's. Process-wide state goes on `globalThis` (`Symbol.for(...)`), errors are recognised by shape, and anything that must share the app's instances is loaded through `project.importPackage()`.
 - Packages don't depend on each other just to recognise errors or objects: match a `code`, a `kind`, or a `Symbol.for(...)` on `globalThis`.
+- Template and kit code (routes, middleware, models) never imports `src/app.ts`: `caldera generate` loads those files before the generated files `app.ts` imports exist, so a fresh app or clone couldn't generate. Services and the resolved config are on `c.var` (`c.var.config.auth`).
 - Commit per feature, with a message that says what changed and why.

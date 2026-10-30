@@ -162,6 +162,7 @@ describe('middleware', () => {
           requestId: c.var.requestId,
           user: c.var.currentUserId,
           db: c.var.db.url,
+          configDb: c.var.config.database.url,
           scopedRequestId: app.current()?.context.req.header('x-request-id') ?? null,
         })
       })
@@ -173,7 +174,7 @@ describe('middleware', () => {
     expect(app.state).toBe('created')
     const res = await http.request('/whoami?user=ann', { headers: { 'x-request-id': 'r1' } }, validEnv)
     expect(app.state).toBe('booted')
-    expect(await res.json()).toEqual({ requestId: 'r1', user: 'primary:ann', db: validEnv.DATABASE_URL, scopedRequestId: 'r1' })
+    expect(await res.json()).toEqual({ requestId: 'r1', user: 'primary:ann', db: validEnv.DATABASE_URL, configDb: validEnv.DATABASE_URL, scopedRequestId: 'r1' })
   })
 
   it('keeps request-scoped services and app.current() isolated between concurrent requests', async () => {
@@ -191,6 +192,8 @@ describe('middleware', () => {
     new Hono<HonoEnvOf<typeof app>>().get('/', (c) => {
       expectTypeOf(c.var.db).toEqualTypeOf<FakeDb>()
       expectTypeOf(c.var.requestId).toEqualTypeOf<string>()
+      // The resolved config, as app.config.
+      expectTypeOf(c.var.config).toEqualTypeOf(app.config)
       // @ts-expect-error not a registered service
       void c.var.mailer
       return c.text('ok')

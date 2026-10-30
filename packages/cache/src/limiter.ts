@@ -75,6 +75,17 @@ export class RateLimitedError extends CalderaError {
   }
 }
 
+/**
+ * Did the request fail (not counting refusals)? By status, or by the error it threw: an Inertia form
+ * post that fails validation answers with a redirect back (303), yet the login still failed.
+ */
+function failed(c: Context): boolean {
+  const thrown = (c.error as { status?: unknown; code?: unknown } | undefined) ?? undefined
+  if (thrown?.code === 'rate_limited') return false
+  const status = typeof thrown?.status === 'number' ? thrown.status : thrown ? 500 : c.res.status
+  return Math.max(status, c.res.status) >= 400 && c.res.status !== 429
+}
+
 export function defineLimiter(name: string, options: LimiterOptions): Limiter {
   if (options.limits.length === 0) throw new CalderaError('limiter_invalid', `Limiter "${name}" needs at least one limit.`)
   const count = options.count ?? 'all'
@@ -121,7 +132,7 @@ export function defineLimiter(name: string, options: LimiterOptions): Limiter {
         }
         await next()
         for (const [header, value] of Object.entries(headers)) if (!header.startsWith('retry') && !c.res.headers.has(header)) safeSet(c, header, value)
-        if (count === 'failures' && c.res.status >= 400 && c.res.status !== 429) {
+        if (count === 'failures' && failed(c)) {
           const result = await cache.throttle({ limits: limitKeys(key), cost })
           if (!result.allowed) await block(cache, key)
         }

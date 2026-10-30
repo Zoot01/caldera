@@ -16,6 +16,25 @@ afterEach(() => rmSync(base, { recursive: true, force: true }))
 
 const offline = { install: false, git: false, env: { PATH: '' } }
 
+/** The starter kit end to end over HTTP: registering signs in, and the dashboard renders. */
+async function registersAndSignsIn(base: string) {
+  const password = 'correct-horse-battery'
+  const res = await fetch(`${base}/register`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({ name: 'Ann', email: 'ann@example.test', password, passwordConfirmation: password }),
+  })
+  expect(res.status, await res.clone().text()).toBe(303)
+  expect(res.headers.get('location')).toBe('/dashboard')
+  const cookie = res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  const dashboard = await fetch(`${base}/dashboard`, { redirect: 'manual', headers: { cookie, accept: 'text/html' } })
+  expect(dashboard.status).toBe(200)
+  expect(await dashboard.text()).toContain('Dashboard')
+  // Signed out, the dashboard sends people to the login page.
+  expect((await fetch(`${base}/dashboard`, { redirect: 'manual', headers: { accept: 'text/html' } })).headers.get('location')).toBe('/login')
+}
+
 describe('createProject', () => {
   it('writes the bundled template with the name filled in and a fresh APP_KEY', async () => {
     const result = await createProject({ directory: join(base, 'My App'), ...offline, packageManager: 'pnpm' })
@@ -96,6 +115,39 @@ describe('createProject', () => {
     expect(nextManifest.dependencies['@base-ui/react']).toBeUndefined()
     expect(nextManifest.dependencies['@caldera/inertia']).toBeUndefined()
     expect(readFileSync(join(next.directory, 'AGENTS.md'), 'utf8')).not.toContain('coss ui')
+  })
+
+  it('makes the starter kit: Better Auth wired in, auth and settings pages, layouts, and tests', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'starter-kit'), ...offline })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    for (const file of ['src/auth.ts', 'src/middleware.ts', 'src/routes/auth.ts', 'src/routes/settings.ts', 'src/db/auth-schema.ts', 'resources/pages/auth/Login.tsx', 'resources/pages/settings/Profile.tsx', 'resources/layouts/app/app-header-layout.tsx', 'resources/layouts/auth/auth-split-layout.tsx', 'resources/components/ui/sidebar.tsx', 'tests/auth/authentication.test.ts']) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    expect(read('src/app.ts')).toMatch(/import \{ auth \} from '\.\/auth'[\s\S]*providers: \[\n[^\n]*\n    auth,/)
+    expect(read('src/auth.ts')).toContain("provider: 'sqlite'")
+    expect(read('src/db/schema.ts')).toContain("from '@caldera/auth/sqlite'")
+    expect(read('AGENTS.md')).toContain('Auth (the starter kit)')
+    // No public list of users (the blank kit's /users route) once there are accounts.
+    expect(read('src/routes/home.ts')).not.toContain('/users')
+    expect(JSON.parse(read('package.json')).dependencies).toMatchObject({ 'better-auth': expect.any(String), '@caldera/auth': expect.any(String), '@base-ui/react': expect.any(String) })
+    // The blank kit has none of it.
+    const blank = await createProject({ directory: join(base, 'blank-kit'), ...offline, kit: 'blank' })
+    expect(existsSync(join(blank.directory, 'src/auth.ts'))).toBe(false)
+    expect(readFileSync(join(blank.directory, 'src/app.ts'), 'utf8')).not.toContain("from './auth'")
+    expect(readFileSync(join(blank.directory, 'AGENTS.md'), 'utf8')).not.toContain('Auth (the starter kit)')
+  })
+
+  it('gives a starter app on Postgres the Postgres auth tables and adapter', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'starter-pg'), ...offline, database: 'postgres' })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    expect(read('src/auth.ts')).toContain("provider: 'pg'")
+    expect(read('src/db/schema.ts')).toContain("from '@caldera/auth'\n")
+    expect(read('src/db/auth-schema.ts')).toContain("from 'drizzle-orm/pg-core'")
+    expect(read('src/app.ts')).toContain("from 'drizzle-orm/node-postgres'")
+    // Test files share the one test database: run one at a time (also in the Next.js variant's own config).
+    expect(read('vitest.config.ts')).toContain('fileParallelism: false')
+    const next = await createProject({ directory: join(base, 'next-pg-tests'), ...offline, frontend: 'next', database: 'postgres' })
+    expect(readFileSync(join(next.directory, 'vitest.config.ts'), 'utf8')).toMatch(/test: \{ fileParallelism: false \}, oxc/)
   })
 
   it('keeps Caldera’s own tables in step with `caldera queue:table` and friends, for both dialects', () => {
@@ -217,6 +269,9 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     expect(typecheck.status, typecheck.stdout + typecheck.stderr).toBe(0)
     const tests = run('test')
     expect(tests.status, tests.stdout + tests.stderr).toBe(0)
+    // The starter's auth tables are what `caldera auth:schema` generates from its Better Auth config.
+    const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
+    expect(JSON.parse(schema.stdout).status, schema.stdout + schema.stderr).toBe('unchanged')
 
     const { spawn } = await import('node:child_process')
     const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
@@ -229,10 +284,11 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
 
     // `caldera dev`: the codegen watcher, the server under tsx watch, and Vite.
-    const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3456' }, detached: true })
+    const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3456', APP_URL: 'http://localhost:3456' }, detached: true })
     try {
-      const body = await poll(() => fetch('http://localhost:3456/users').then((r) => r.json()))
-      expect(body).toEqual({ users: [] }) // the database step created the table
+      // The database step created the tables: registering works.
+      await poll(() => fetch('http://localhost:3456/login').then((r) => (r.ok ? true : undefined)))
+      await registersAndSignsIn('http://localhost:3456')
       // The page loads its scripts from the Vite dev server, which compiles the entry.
       const html = await poll(() => fetch('http://localhost:3456/').then((r) => r.text()).then((t) => (t.includes('@vite/client') ? t : undefined)))
       // With the CSP nonce, so the strict CSP lets the dev server's scripts run.
@@ -377,7 +433,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
   }, 600_000)
   it.runIf(spawnSync('turso', ['--version']).status === 0)('deploys to Vercel (--target vercel): vercel build, then pages, assets, a remote libSQL database and deferred jobs', async () => {
-    const result = await createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false, target: 'vercel' })
+    // The blank kit (it keeps the /users route this uses).
+    const result = await createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false, target: 'vercel', kit: 'blank' })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
@@ -442,14 +499,12 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       ok(run('exec', 'caldera', 'db:migrate'))
       ok(run('typecheck'))
       ok(run('test'))
-      const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465' }, detached: true })
+      const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
+      expect(JSON.parse(schema.stdout), schema.stdout + schema.stderr).toMatchObject({ status: 'unchanged', dialect: 'pg' })
+      const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465', APP_URL: 'http://localhost:3465' }, detached: true })
       try {
-        let body: unknown
-        for (let i = 0; i < 60 && body === undefined; i++) {
-          body = await fetch('http://localhost:3465/users').then((r) => r.json()).catch(() => undefined)
-          if (body === undefined) await new Promise((r) => setTimeout(r, 500))
-        }
-        expect(body).toEqual({ users: [] })
+        for (let i = 0; i < 60 && !(await fetch('http://localhost:3465/login').then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 500))
+        await registersAndSignsIn('http://localhost:3465')
       } finally {
         process.kill(-dev.pid!, 'SIGTERM')
       }

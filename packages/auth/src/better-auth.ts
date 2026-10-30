@@ -1,5 +1,5 @@
-import { BootError, CalderaError, defineProvider, type RegisteredConfig, type RegisteredEnv } from '@caldera/core'
-import { defaultDatabase } from '@caldera/db'
+import { BootError, CalderaError, defineProvider, type ProviderDefinition, type RegisteredConfig, type RegisteredEnv, type Singleton } from '@caldera/core'
+import { defaultDatabase, type Database } from '@caldera/db'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import type { AuthUser } from './policy.js'
 
@@ -47,13 +47,17 @@ export interface BetterAuthProviderOptions<A extends BetterAuthLike> {
  * Registers `auth` (the Better Auth instance) and declares the request-scoped `user` and
  * `authSession` (null until `authenticate()` runs on a route), so `c.var.user` is typed.
  */
-export function betterAuthProvider<A extends BetterAuthLike>(options: BetterAuthProviderOptions<A>) {
+// The return type is written out so declaration files keep `AuthUser` as a reference: inferred, it
+// would be resolved to `{ id: string }` at build time, before the app's AuthRegister exists.
+export function betterAuthProvider<A extends BetterAuthLike>(
+  options: BetterAuthProviderOptions<A>,
+): ProviderDefinition<'auth', { auth: Singleton<A>; authUserModel: { find(id: string): Promise<unknown> } | null }, { user: AuthUser | null; authSession: AuthSession | null }> {
   return defineProvider({
     name: 'auth',
     register: (app) => ({
       auth: app.singleton(() => {
         const trustedOrigins = [...(options.trustedOrigins ?? [])]
-        const auth = options.create({ db: defaultDatabase().client, env: app.env, config: app.config, trustedOrigins })
+        const auth = options.create({ db: joiningClient(defaultDatabase()), env: app.env, config: app.config, trustedOrigins })
         if (options.trustedOrigins) assertSameOrigins(trustedOrigins, (auth.options as { trustedOrigins?: unknown } | undefined)?.trustedOrigins)
         return auth
       }),
@@ -62,6 +66,23 @@ export function betterAuthProvider<A extends BetterAuthLike>(options: BetterAuth
     request: {
       user: (): AuthUser | null => null,
       authSession: (): AuthSession | null => null,
+    },
+  })
+}
+
+/**
+ * The Drizzle client Better Auth gets: every call goes to the transaction open in this async context
+ * (`db.current()`), else the root client. Better Auth's writes so join a transaction the app opened
+ * (signing someone up while creating their team commits or rolls back as one), and a test's
+ * transaction, instead of racing it on another connection ("database is locked" on SQLite) and
+ * surviving its rollback.
+ */
+function joiningClient(database: Database): unknown {
+  return new Proxy(database.client as object, {
+    get(_root, property) {
+      const current = database.current() as object
+      const value = Reflect.get(current, property, current) as unknown
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(current) : value
     },
   })
 }
@@ -108,6 +129,23 @@ export function authRoutes(basePath = '/api/auth'): Hono {
     syncAppSession(c, response)
     return response
   })
+}
+
+/**
+ * For routes that call Better Auth themselves (`auth.api.signInEmail({ body, headers, asResponse: true })`)
+ * and answer with their own response, usually a redirect: copies Better Auth's cookies (the session
+ * token) onto `to`, and keeps the app session in step as `authRoutes()` does. Returns `to`.
+ *
+ * ```ts
+ * const res = await c.var.auth.api.signInEmail({ body: { email, password }, headers: c.req.raw.headers, asResponse: true })
+ * if (!res.ok) throw new ValidationError({ email: ['These credentials do not match our records.'] })
+ * return withAuthCookies(c, res, intended(c, '/dashboard'))
+ * ```
+ */
+export function withAuthCookies<R extends Response>(c: Context, from: Response, to: R): R {
+  for (const cookie of from.headers.getSetCookie()) to.headers.append('set-cookie', cookie)
+  syncAppSession(c, from)
+  return to
 }
 
 interface AppSession {

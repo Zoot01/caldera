@@ -5,6 +5,7 @@ import { createInertiaApp, router } from '@inertiajs/react'
 import '../.caldera/broadcast.client.gen.js'
 import { initializeAppearance } from '@/hooks/use-appearance'
 import './app.css'
+import { layout } from './layout.js'
 import { title } from './title.js'
 
 // Realtime: useChannel()/usePresence() from @caldera/broadcast/react connect with the `broadcast`
@@ -17,4 +18,4 @@ initializeAppearance()
 
 // Pages are found in ./pages by name: c.render('Home') loads pages/Home.tsx. Pages rendered on the
 // server (resources/ssr.tsx) are hydrated here.
-createInertiaApp({ title })
+createInertiaApp({ title, layout })
