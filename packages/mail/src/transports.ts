@@ -60,18 +60,51 @@ export interface Outbox {
   /** Every message sent through this mailer, newest last. */
   readonly messages: readonly (Message & { id: string; sentAt: string })[]
   clear(): void
+  /**
+   * Under `caldera dev`: what every process sent, queue workers included (the shared outbox).
+   * Attachments carry their size, not content. Empty elsewhere.
+   */
+  shared?(): Promise<OutboxEntry[]>
 }
 
-/** Keeps messages in memory (an outbox) instead of sending them; `log` also prints a line per message. */
+/** A message as the shared outbox file keeps it. */
+export interface OutboxEntry extends Omit<Message, 'attachments'> {
+  id: string
+  sentAt: string
+  attachments: { filename: string; contentType: string; size: number }[]
+}
+
+/**
+ * The shared dev outbox, when a Caldera dev process installed one (`caldera dev`, `queue:work`): file
+ * I/O lives there, so this package stays free of Node imports for edge bundles.
+ */
+interface SharedOutbox {
+  append(entry: OutboxEntry): void | Promise<void>
+  read(): Promise<OutboxEntry[]>
+}
+const sharedOutbox = () => (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.dev.mailOutbox')] as SharedOutbox | undefined
+
+/**
+ * Keeps messages in memory (an outbox) instead of sending them; `log` also prints a line per message.
+ * Under `caldera dev` each message also goes to the shared outbox, so the dev server's page shows
+ * what a queue worker in another process sent.
+ */
 export function memoryTransport(options: { log?: boolean; limit?: number } = {}): MailTransport & Outbox {
   const messages: (Message & { id: string; sentAt: string })[] = []
   return {
     messages,
     clear: () => void messages.splice(0),
+    shared: async () => (await sharedOutbox()?.read()) ?? [],
     async send(message) {
       const id = crypto.randomUUID()
-      messages.push({ ...message, id, sentAt: new Date().toISOString() })
+      const sentAt = new Date().toISOString()
+      messages.push({ ...message, id, sentAt })
       if (messages.length > (options.limit ?? 200)) messages.shift()
+      try {
+        await sharedOutbox()?.append({ ...message, id, sentAt, attachments: message.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })) })
+      } catch {
+        // The shared outbox is a development aid; the message is already in this outbox.
+      }
       if (options.log) console.log(`[mail] "${message.subject}" → ${message.to.map(formatAddress).join(', ')} (${message.attachments.length} attachment(s); see /_caldera/mail/outbox)`)
       return { id }
     },

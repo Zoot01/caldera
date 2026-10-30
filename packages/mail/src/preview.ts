@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { renderMail } from './mail.js'
+import type { OutboxEntry } from './transports.js'
 import { formatAddress } from './message.js'
 import type { MailService } from './service.js'
 
@@ -26,14 +27,18 @@ export function mailPreviewRoutes(options: { enabled: (c: Context) => boolean })
       const rows = mails.map((m) => `<tr><td><a href="/_caldera/mail/${encodeURIComponent(m.name)}">${escape(m.name)}</a></td><td>${m.preview ? 'preview props' : '<em>no PreviewProps</em>'}</td></tr>`).join('')
       return c.html(page('Mail', `<h1>Mail</h1><p><a href="/_caldera/mail/outbox">Outbox</a></p><table><tr><th>Mail</th><th></th></tr>${rows}</table>`))
     })
-    .get('/_caldera/mail/outbox', (c) => {
+    .get('/_caldera/mail/outbox', async (c) => {
       const outbox = serviceOf(c).outbox()
       if (!outbox) return c.html(page('Outbox', '<h1>Outbox</h1><p>The default mailer sends for real; switch to <code>log</code> or <code>memory</code> to collect mail here.</p>'))
+      // This process's messages, plus (under caldera dev) what other processes, like a queue worker, sent.
+      const own: OutboxEntry[] = outbox.messages.map((m) => ({ ...m, attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })) }))
+      const byId = new Map([...(outbox.shared ? await outbox.shared() : []), ...own].map((m) => [m.id, m]))
+      const messages = [...byId.values()].sort((a, b) => a.sentAt.localeCompare(b.sentAt))
       const id = c.req.query('id')
-      const found = id ? outbox.messages.find((m) => m.id === id) : undefined
+      const found = id ? messages.find((m) => m.id === id) : undefined
       if (found) return c.html(found.html)
-      if (c.req.header('accept')?.includes('application/json')) return c.json({ messages: outbox.messages.map(({ html: _h, attachments, ...m }) => ({ ...m, attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })) })) })
-      const rows = [...outbox.messages].reverse().map((m) => `<tr><td>${escape(m.sentAt)}</td><td><a href="/_caldera/mail/outbox?id=${m.id}">${escape(m.subject)}</a></td><td>${escape(m.to.map(formatAddress).join(', '))}</td></tr>`).join('')
+      if (c.req.header('accept')?.includes('application/json')) return c.json({ messages: messages.map(({ html: _h, ...m }) => m) })
+      const rows = [...messages].reverse().map((m) => `<tr><td>${escape(m.sentAt)}</td><td><a href="/_caldera/mail/outbox?id=${m.id}">${escape(m.subject)}</a></td><td>${escape(m.to.map(formatAddress).join(', '))}</td></tr>`).join('')
       return c.html(page('Outbox', `<h1>Outbox</h1><table><tr><th>Sent</th><th>Subject</th><th>To</th></tr>${rows || '<tr><td colspan="3">Nothing sent yet.</td></tr>'}</table>`))
     })
     .get('/_caldera/mail/:name', async (c) => {

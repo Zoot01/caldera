@@ -3,7 +3,7 @@ import { createQueue, setDefaultQueue } from '@caldera/queue'
 import { createStorage, setDefaultStorage } from '@caldera/storage'
 import { AwsClient } from 'aws4fetch'
 import { Hono } from 'hono'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMail, MailSendError, mailPreviewRoutes, mailProvider, renderMail, sendMailJobOf, type Message } from '../src/index.js'
 import { sesTransport } from '../src/ses.js'
 import { postmarkTransport, resendTransport } from '../src/transports.js'
@@ -221,5 +221,38 @@ describe('preview routes', () => {
     await app.services.mail.to('ann@example.test').send(WelcomeEmail, props)
     expect(await (await dev.request('/_caldera/mail/outbox')).text()).toContain('Welcome, Ann')
     expect((await make(false).request('/_caldera/mail')).status).toBe(404)
+  })
+})
+
+describe('the shared dev outbox (caldera dev and queue workers)', () => {
+  it('shows mail other processes sent, next to this one’s, at /_caldera/mail/outbox', async () => {
+    // What `caldera dev` installs (backed by a file there); here, shared between "processes" in memory.
+    const store: unknown[] = []
+    const key = Symbol.for('caldera.dev.mailOutbox')
+    ;(globalThis as { [k: symbol]: unknown })[key] = { append: (entry: unknown) => void store.push(JSON.parse(JSON.stringify(entry))), read: async () => store }
+    try {
+      // Two "processes": the web server's mail service and a worker's, both on the log mailer.
+      const make = () => createMail({ default: 'log', mailers: { log: { driver: 'log' } }, from: 'app@example.test' })
+      const web = make()
+      const worker = make()
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+      await web.to('ann@example.test').send(WelcomeEmail, props)
+      await worker.to('bob@example.test').send(InvoiceEmail, { number: 'INV-9', size: 3 })
+      log.mockRestore()
+      expect(web.outbox()!.messages).toHaveLength(1)
+      const app = createApp({ env: defineEnv({}), providers: [mailProvider(() => ({ default: 'log', mailers: { log: { driver: 'log' } }, from: 'app@example.test' }))] })
+      await app.boot({ env: {} })
+      // The page's own service is a third instance: everything comes from the shared outbox.
+      const http = new Hono().use(app.middleware()).route('/', mailPreviewRoutes({ enabled: () => true }))
+      const listed = (await (await http.request('/_caldera/mail/outbox', { headers: { accept: 'application/json' } })).json()) as { messages: { subject: string; to: { email: string }[]; attachments: { size: number }[] }[] }
+      expect(listed.messages.map((m) => [m.subject, m.to[0]!.email])).toEqual([
+        ['Welcome, Ann', 'ann@example.test'],
+        ['Invoice INV-9', 'bob@example.test'],
+      ])
+      expect(listed.messages[1]!.attachments).toEqual([{ filename: 'big.bin', contentType: 'application/octet-stream', size: 3 }])
+      expect(await (await http.request('/_caldera/mail/outbox')).text()).toContain('Invoice INV-9')
+    } finally {
+      delete (globalThis as { [k: symbol]: unknown })[key]
+    }
   })
 })
