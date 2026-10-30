@@ -23,6 +23,9 @@ const ResetPassword = defineRequest({
   body: z.object({ token: z.string().min(1), password: newPassword, passwordConfirmation: z.string() }).refine(matches, mismatch),
 })
 const ConfirmPassword = defineRequest({ body: z.object({ password: z.string().min(1, 'Enter your password.') }) })
+const TwoFactorChallenge = defineRequest({
+  body: z.object({ code: z.string().trim().optional(), recoveryCode: z.string().trim().optional(), remember: z.boolean().default(false) }),
+})
 
 // Five failed attempts a minute per email and address; a success doesn't count.
 const login = defineLimiter('login', {
@@ -32,7 +35,12 @@ const login = defineLimiter('login', {
   message: 'Too many sign-in attempts. Try again in a minute.',
 })
 
+// Five codes a minute per address, on top of Better Auth's own lockout (ten wrong codes lock the account).
+const twoFactor = defineLimiter('two-factor', { limits: [perMinute(5)], count: 'failures', message: 'Too many attempts. Try again in a minute.' })
+
 const headers = (c: { req: { raw: Request } }) => c.req.raw.headers
+// Better Auth's cookie between the password and the second factor (10 minutes).
+const inTwoFactorChallenge = (c: { req: { header(name: string): string | undefined } }) => /(?:^|;\s*)(?:__Secure-)?better-auth\.two_factor=/.test(c.req.header('cookie') ?? '')
 
 export const auth = defineRoutes('auth')
   .get('register', '/register', { middleware: [mw.guest()] }, (c) => c.render('auth/Register', {}))
@@ -44,12 +52,30 @@ export const auth = defineRoutes('auth')
     if (c.var.config.auth.mustVerifyEmail) return redirect(c, '/login').with('status', 'Check your inbox: click the link we sent to confirm your email, then sign in.')
     return withAuthCookies(c, res, redirect(c, c.var.config.auth.home))
   })
-  .get('login', '/login', { middleware: [mw.guest()] }, (c) => c.render('auth/Login', { canResetPassword: true, canRegister: true }))
+  .get('login', '/login', { middleware: [mw.guest()] }, (c) => c.render('auth/Login', { canResetPassword: true, canRegister: true, passkeys: c.var.config.auth.passkeys }))
   .post('login.store', '/login', { middleware: [mw.guest()], throttle: login, request: Login }, async (c) => {
     const { email, password, remember } = c.req.valid('json')
     const res = await c.var.auth.api.signInEmail({ body: { email, password, rememberMe: remember }, headers: headers(c), asResponse: true })
     if (res.status === 403) throw new ValidationError({ email: ['Confirm your email address first: we’ve sent you a new link.'] })
     if (!res.ok) throw new ValidationError({ email: ['These credentials don’t match our records.'] })
+    // Two-factor on: the password was right, and Better Auth wants the second factor before signing in.
+    if (((await res.clone().json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect) return withAuthCookies(c, res, redirect(c, '/two-factor-challenge'))
+    return withAuthCookies(c, res, intended(c, c.var.config.auth.home))
+  })
+  // Where the browser goes after signing in with a passkey (Better Auth's endpoint set the session).
+  .get('login.redirect', '/login/redirect', { middleware: [mw.auth()] }, (c) => intended(c, c.var.config.auth.home))
+  .get('two-factor.login', '/two-factor-challenge', { middleware: [mw.guest()] }, (c) => {
+    if (!inTwoFactorChallenge(c)) return redirect(c, '/login')
+    return c.render('auth/TwoFactorChallenge', {})
+  })
+  .post('two-factor.login.store', '/two-factor-challenge', { middleware: [mw.guest()], throttle: twoFactor, request: TwoFactorChallenge }, async (c) => {
+    if (!inTwoFactorChallenge(c)) return redirect(c, '/login').with('status', 'That sign-in took too long. Please sign in again.')
+    const { code, recoveryCode, remember } = c.req.valid('json')
+    // `remember`: this browser skips the second factor for 30 days.
+    const res = recoveryCode
+      ? await c.var.auth.api.verifyBackupCode({ body: { code: recoveryCode, trustDevice: remember }, headers: headers(c), asResponse: true })
+      : await c.var.auth.api.verifyTOTP({ body: { code: code ?? '', trustDevice: remember }, headers: headers(c), asResponse: true })
+    if (!res.ok) throw new ValidationError(recoveryCode ? { recoveryCode: ['That recovery code is invalid or used.'] } : { code: ['That code is invalid.'] })
     return withAuthCookies(c, res, intended(c, c.var.config.auth.home))
   })
   .post('logout', '/logout', { middleware: [mw.auth()] }, async (c) => {

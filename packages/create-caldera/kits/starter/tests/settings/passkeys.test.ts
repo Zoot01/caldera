@@ -1,0 +1,41 @@
+import { defaultDatabase } from '@caldera/db'
+import { setupApp } from '@caldera/testing'
+import { expect, it } from 'vitest'
+import { app } from '../../src/app.js'
+import { http } from '../../src/http.js'
+import { passkey } from '../../src/db/schema.js'
+import { createUser } from '../helpers.js'
+
+const t = setupApp(app)
+
+// Adding a passkey and signing in with one need a browser's authenticator (WebAuthn); the browser
+// tests cover those. Here: the settings page and removing one.
+
+it('lists the person’s passkeys on the security page', async () => {
+  const client = await t.client(http).actingAs(await createUser(t))
+  ;(await client.visit('/settings/security')).assertInertia('settings/Security', (props) => expect(props.passkeys).toEqual([]))
+})
+
+it('offers passkey sign-in on the login page', async () => {
+  ;(await t.client(http).visit('/login')).assertInertia('auth/Login', { passkeys: true })
+})
+
+it('can’t remove a passkey that isn’t theirs', async () => {
+  const bob = await createUser(t, { name: 'Bob', email: 'bob@example.test' })
+  const id = crypto.randomUUID()
+  // Stored as a registration would (its key material is never read here).
+  await defaultDatabase().current().insert(passkey).values({ id, name: 'Bob’s phone', publicKey: 'key', userId: bob.id, credentialID: 'cred', counter: 0, deviceType: 'singleDevice', backedUp: false, createdAt: new Date() })
+  const client = await t.client(http).actingAs(await createUser(t))
+  ;(await client.delete(`/settings/passkeys/${id}`)).assertNotFound()
+  ;(await client.delete('/settings/passkeys/not-an-id')).assertNotFound()
+  expect(await defaultDatabase().current().select().from(passkey)).toHaveLength(1)
+})
+
+it('starts registration only for signed-in people', async () => {
+  const guest = await t.client(http).get('/api/auth/passkey/generate-register-options')
+  expect(guest.status).toBe(401)
+  const client = await t.client(http).actingAs(await createUser(t))
+  const options = await client.get('/api/auth/passkey/generate-register-options')
+  expect(options.status).toBe(200)
+  expect(JSON.parse(options.text())).toMatchObject({ rp: { id: 'localhost' }, user: { name: 'ann@example.test' } })
+})

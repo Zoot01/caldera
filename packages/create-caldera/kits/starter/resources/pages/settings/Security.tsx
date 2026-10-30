@@ -2,10 +2,13 @@ import { Head, useForm, usePage } from '@inertiajs/react'
 import type { FormEvent } from 'react'
 import { FormField } from '@/components/form-field'
 import { Heading } from '@/components/heading'
+import { type PasskeySummary, Passkeys } from '@/components/passkeys'
+import { TwoFactor, type TwoFactorState } from '@/components/two-factor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-export default function Security() {
+// twoFactor and passkeys are null when turned off in src/config/auth.ts.
+export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactorState | null; passkeys: PasskeySummary[] | null }) {
   const status = usePage().flash.status
   const form = useForm({ currentPassword: '', password: '', passwordConfirmation: '' })
   const submit = (event: FormEvent) => {
@@ -42,6 +45,8 @@ export default function Security() {
           </div>
         </form>
       </div>
+      {twoFactor && <TwoFactor state={twoFactor} />}
+      {passkeys && <Passkeys passkeys={passkeys} />}
     </>
   )
 }

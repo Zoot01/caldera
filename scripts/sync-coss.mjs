@@ -22,7 +22,7 @@ const KIT = join(KITS, 'blank')
 // so it only lists (and gets) components the blank kit doesn't have.
 const USES = {
   blank: ['card', 'toggle-group'],
-  starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'menu', 'sidebar', 'spinner'],
+  starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner'],
 }
 
 const scratch = mkdtempSync(join(tmpdir(), 'caldera-coss-'))

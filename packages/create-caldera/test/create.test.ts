@@ -120,11 +120,15 @@ describe('createProject', () => {
   it('makes the starter kit: Better Auth wired in, auth and settings pages, layouts, and tests', async () => {
     const { directory: dir } = await createProject({ directory: join(base, 'starter-kit'), ...offline })
     const read = (file: string) => readFileSync(join(dir, file), 'utf8')
-    for (const file of ['src/auth.ts', 'src/middleware.ts', 'src/routes/auth.ts', 'src/routes/settings.ts', 'src/db/auth-schema.ts', 'resources/pages/auth/Login.tsx', 'resources/pages/settings/Profile.tsx', 'resources/layouts/app/app-header-layout.tsx', 'resources/layouts/auth/auth-split-layout.tsx', 'resources/components/ui/sidebar.tsx', 'tests/auth/authentication.test.ts']) {
+    for (const file of ['src/auth.ts', 'src/middleware.ts', 'src/routes/auth.ts', 'src/routes/settings.ts', 'src/db/auth-schema.ts', 'resources/pages/auth/Login.tsx', 'resources/pages/settings/Profile.tsx', 'resources/layouts/app/app-header-layout.tsx', 'resources/layouts/auth/auth-split-layout.tsx', 'resources/components/ui/sidebar.tsx', 'tests/auth/authentication.test.ts', 'resources/pages/auth/TwoFactorChallenge.tsx', 'resources/components/passkeys.tsx', 'tests/settings/two-factor.test.ts']) {
       expect(existsSync(join(dir, file)), file).toBe(true)
     }
     expect(read('src/app.ts')).toMatch(/import \{ auth \} from '\.\/auth'[\s\S]*providers: \[\n[^\n]*\n    auth,/)
     expect(read('src/auth.ts')).toContain("provider: 'sqlite'")
+    // Two-factor and passkeys are on, and their tables are in the schema.
+    expect(read('src/auth.ts')).toMatch(/twoFactor\(\{[\s\S]*passkey\(\{/)
+    expect(read('src/db/auth-schema.ts')).toMatch(/snakeCase\.table\('twoFactor'[\s\S]*snakeCase\.table\('passkey'/)
+    expect(read('src/config/auth.ts')).toMatch(/twoFactor: true,[\s\S]*passkeys: true,/)
     expect(read('src/db/schema.ts')).toContain("from '@caldera/auth/sqlite'")
     expect(read('AGENTS.md')).toContain('Auth (the starter kit)')
     // No public list of users (the blank kit's /users route) once there are accounts.

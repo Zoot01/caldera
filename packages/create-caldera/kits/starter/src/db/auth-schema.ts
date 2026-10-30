@@ -39,5 +39,29 @@ export function authSchema(users: { id: AnySQLiteColumn }) {
     updatedAt: integer({ mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
   })
 
-  return { session, account, verification }
+  const twoFactor = snakeCase.table('twoFactor', {
+    id: text().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    secret: text().notNull(),
+    backupCodes: text().notNull(),
+    userId: text().notNull().references((): AnySQLiteColumn => users.id, { onDelete: 'cascade' }),
+    verified: integer({ mode: 'boolean' }).default(true),
+    failedVerificationCount: integer().default(0),
+    lockedUntil: integer({ mode: 'timestamp_ms' }),
+  })
+
+  const passkey = snakeCase.table('passkey', {
+    id: text().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    name: text(),
+    publicKey: text().notNull(),
+    userId: text().notNull().references((): AnySQLiteColumn => users.id, { onDelete: 'cascade' }),
+    credentialID: text().notNull(),
+    counter: integer().notNull(),
+    deviceType: text().notNull(),
+    backedUp: integer({ mode: 'boolean' }).notNull(),
+    transports: text(),
+    createdAt: integer({ mode: 'timestamp_ms' }),
+    aaguid: text(),
+  })
+
+  return { session, account, verification, twoFactor, passkey }
 }

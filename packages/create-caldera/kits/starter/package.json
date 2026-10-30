@@ -1,7 +1,9 @@
 {
   "//": "Merged into the app's package.json by create-caldera (dependencies, devDependencies, scripts).",
   "dependencies": {
+    "@better-auth/passkey": "^1.7.14",
     "@caldera/auth": "^0.0.0",
-    "better-auth": "^1.7.14"
+    "better-auth": "^1.7.14",
+    "uqr": "^0.1.3"
   }
 }
