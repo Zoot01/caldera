@@ -10,13 +10,18 @@ export const D1_MIGRATIONS_DIR = 'migrations'
 /** The newest compatibility date the Wrangler Caldera suggests (4.151) runs locally. */
 export const COMPATIBILITY_DATE = '2026-07-30'
 
-const workerSource = (ext: string) => `import { setViteManifest } from '@caldera/inertia'
+const workerSource = (ext: string, ssr: boolean) => `import { setSsrRender, setViteManifest } from '@caldera/inertia'
 import { handleQueueBatch, type MessageBatchLike } from '@caldera/queue'
 import { handleScheduled } from '@caldera/schedule'
 import { jobs } from '../.caldera/jobs.gen${ext}'
 import { app } from './app${ext}'
 import { http } from './http${ext}'
+${ssr ? `// @ts-ignore: written by \`vite build --ssr\` (pnpm build), before wrangler bundles the Worker.
+import render from '../build/ssr/ssr.js'
 
+// Server-side rendering: the SSR build, bundled into the Worker.
+setSsrRender(render)
+` : ''}
 interface Env {
   /** wrangler.json \`assets\`: public/, including the Vite build. */
   ASSETS: { fetch(input: Request | URL): Promise<Response> }
@@ -81,14 +86,15 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
   }
   writeFileSync(project.path(WRANGLER_FILE), `${JSON.stringify(config, null, 2)}\n`)
   mkdirSync(project.path('src'), { recursive: true })
-  writeFileSync(project.path(WORKER_FILE), workerSource(project.importExtension))
+  const ssr = existsSync(project.path('resources/ssr.tsx')) || existsSync(project.path('resources/ssr.ts'))
+  writeFileSync(project.path(WORKER_FILE), workerSource(project.importExtension, ssr))
   writeFileSync(project.path('.dev.vars.example'), '# Local secrets for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put APP_KEY`.\nAPP_KEY=\n')
   return {
     schemaVersion: 1 as const,
     created: files,
     hints: [
       'Install Wrangler: `pnpm add -D wrangler@4.151.0` (or npm/yarn/bun).',
-      'Local: copy .dev.vars.example to .dev.vars (set APP_KEY), `caldera d1:migrations`, `wrangler d1 migrations apply DB --local`, `vite build`, `wrangler dev`.',
+      'Local: copy .dev.vars.example to .dev.vars (set APP_KEY), `caldera d1:migrations`, `wrangler d1 migrations apply DB --local`, `pnpm build`, `wrangler dev`.',
       `Deploy: \`wrangler d1 create ${name}\` (put its id in wrangler.json), \`wrangler r2 bucket create ${name}-files\`, \`wrangler queues create ${name}-jobs\`, \`wrangler secret put APP_KEY\`, \`wrangler d1 migrations apply DB --remote\`, \`vite build\`, \`wrangler deploy\`.`,
       'Sending mail needs a domain onboarded to Cloudflare Email Service; until then, MAIL_MAILER=log.',
     ],

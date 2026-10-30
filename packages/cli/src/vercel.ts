@@ -18,9 +18,9 @@ export { default } from '../${VERCEL_BUNDLE}'
 
 // Bundled into .caldera/vercel/function.mjs: the app's code compiled (TS, TSX, generated files);
 // packages stay imports, so Vercel traces and ships them as usual.
-const bundleEntry = (http: string) => `import { waitUntil } from '@vercel/functions'
+const bundleEntry = (http: string, ssr: string | undefined) => `import { waitUntil } from '@vercel/functions'
 import { http } from ${JSON.stringify(http)}
-
+${ssr ? `import { setSsrRender } from '@caldera/inertia'\nimport render from ${JSON.stringify(ssr)}\n\n// Server-side rendering: the SSR build (vite build --ssr), bundled into the function.\nsetSsrRender(render)\n` : ''}
 export default {
   fetch: (request) => http.fetch(request, undefined, { waitUntil, passThroughOnException() {}, props: {} }),
 }
@@ -36,12 +36,14 @@ export function vercelSetup(project: Project, options: { force?: boolean } = {})
   const existing = files.filter((f) => existsSync(project.path(f)))
   if (existing.length && !options.force) throw new CalderaError('file_exists', `Refusing to overwrite ${existing.join(', ')}. Pass --force to replace.`, { files: existing })
   const inertia = existsSync(project.path('vite.config.ts')) || existsSync(project.path('vite.config.js'))
+  const ssr = existsSync(project.path('resources/ssr.tsx')) || existsSync(project.path('resources/ssr.ts'))
   const config = {
     $schema: 'https://openapi.vercel.sh/vercel.json',
     // Not a framework preset: the build is ours, and api/index.ts is the app.
     framework: null,
     // Generates .caldera/ (not committed) and bundles the app for api/index.js.
-    buildCommand: inertia ? 'caldera vercel:build && vite build' : 'caldera vercel:build',
+    // With SSR, the SSR build comes first: vercel:build bundles it into the function.
+    buildCommand: ssr ? 'caldera generate && vite build && vite build --ssr && caldera vercel:build' : inertia ? 'caldera vercel:build && vite build' : 'caldera vercel:build',
     outputDirectory: 'public',
     // Functions can't read the static output, so the Vite manifest ships with the function.
     ...(inertia ? { functions: { [VERCEL_FUNCTION]: { includeFiles: 'public/build/.vite/manifest.json' } } } : {}),
@@ -131,8 +133,9 @@ export async function vercelBuild(project: Project, generateFirst: () => Promise
   const { build } = await import('esbuild')
   const http = project.path('src/http.ts')
   if (!existsSync(http)) throw new CalderaError('missing_file', 'vercel:build bundles src/http.ts (the app\'s Hono app), which is missing.', { file: 'src/http.ts' })
+  const ssr = existsSync(project.path('build/ssr/ssr.js')) ? project.path('build/ssr/ssr.js') : undefined
   const result = await build({
-    stdin: { contents: bundleEntry(http), resolveDir: project.root, loader: 'js', sourcefile: 'vercel-function.js' },
+    stdin: { contents: bundleEntry(http, ssr), resolveDir: project.root, loader: 'js', sourcefile: 'vercel-function.js' },
     bundle: true,
     platform: 'node',
     format: 'esm',
@@ -150,5 +153,5 @@ export async function vercelBuild(project: Project, generateFirst: () => Promise
     metafile: true,
   })
   const inputs = Object.keys(result.metafile.inputs).filter((file) => !file.includes('node_modules'))
-  return { schemaVersion: 1 as const, bundle: VERCEL_BUNDLE, modules: inputs.length, warnings: result.warnings.map((w) => w.text) }
+  return { schemaVersion: 1 as const, bundle: VERCEL_BUNDLE, modules: inputs.length, ssr: Boolean(ssr), warnings: result.warnings.map((w) => w.text) }
 }
