@@ -28,6 +28,7 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 - **Redis:** cache, rate limiting, BullMQ and `caldera queue:work` tests start a throwaway `redis-server` on a free port (`test/redis-server.ts`). They're skipped when `redis-server` isn't installed (`brew install redis`). Don't mock Redis.
 - **Postgres:** PGlite in-process for most tests; the database queue tests start a real Postgres cluster (`initdb` + `pg_ctl`, `test/postgres-server.ts`) to prove concurrent claiming, skipped without `brew install postgresql`. **SQLite:** libsql and `node:sqlite`.
 - **S3:** the storage tests start SeaweedFS's S3 gateway in Docker (`chrislusf/seaweedfs`, `test/s3-server.ts`) with SigV4 enforced; MinIO no longer publishes free images. Its config is copied into the container (`docker cp`), since Docker Desktop doesn't share macOS temp folders. Skipped without Docker. **R2** is tested on Miniflare.
+- **SMTP:** the mail tests send through Mailpit in Docker (`axllent/mailpit`, `test/mailpit.ts`) and read messages back from its API. Resend, Postmark and SES are checked against their documented request formats (no local servers exist), with SES signatures re-computed.
 - **Browsers:** pages are checked in a real browser with the gstack `/browse` skill against an app created in the sandbox below.
 
 ## Sandbox for created apps: `~/Documents/testing-caldera`
@@ -50,6 +51,7 @@ node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <n
 ## Conventions
 
 - Every `define*` returns plain data with a `kind`, so the CLI, codegen and AGENTS.md generation can find it.
-- Optional backends (ioredis, bullmq…) are optional peer dependencies, imported on first use.
+- Optional backends (ioredis, bullmq, aws4fetch, nodemailer…) live in their own entry points (`@caldera/queue/bullmq`, `@caldera/storage/s3`, `@caldera/mail/smtp`) and are passed as `drivers: [...]`, so edge bundles never see them.
+- The CLI loads a project with tsx (`openProject()`), in its own module graph: the project's packages are separate copies from the CLI's. Process-wide state goes on `globalThis` (`Symbol.for(...)`), errors are recognised by shape, and anything that must share the app's instances is loaded through `project.importPackage()`.
 - Packages don't depend on each other just to recognise errors or objects: match a `code`, a `kind`, or a `Symbol.for(...)` on `globalThis`.
 - Commit per feature, with a message that says what changed and why.
