@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono'
-import { secureHeaders, type NONCE } from 'hono/secure-headers'
+import { NONCE, secureHeaders } from 'hono/secure-headers'
 import { ForbiddenError } from './errors.js'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -54,17 +54,36 @@ function originOf(url: string | undefined): string | undefined {
   }
 }
 
+type CspDirectives = Record<string, (string | typeof NONCE)[]>
+
+/**
+ * A "strict CSP" (the shape Google recommends): only scripts carrying this request's nonce run, and
+ * scripts they load inherit that trust (`'strict-dynamic'`), which covers Vite's module imports and
+ * HMR without listing origins. `https:` and `'unsafe-inline'` are ignored by browsers that support
+ * nonces; they only keep very old browsers working. Styles, images and connections stay open.
+ */
+export const STRICT_CSP: CspDirectives = {
+  scriptSrc: [NONCE, "'strict-dynamic'", 'https:', "'unsafe-inline'"],
+  objectSrc: ["'none'"],
+  baseUri: ["'none'"],
+  frameAncestors: ["'none'"],
+}
+
 export interface SecurityHeadersOptions {
   /** Send HSTS. Turn on in production behind HTTPS. */
   hsts?: boolean
-  /** Content-Security-Policy directives (Hono format). Use `NONCE` for per-request script nonces. */
-  csp?: Record<string, (string | typeof NONCE)[]>
-  /** Report CSP violations without enforcing. */
+  /**
+   * Content-Security-Policy directives (Hono format), merged over `STRICT_CSP` per directive.
+   * The nonce is `c.var.secureHeadersNonce`; Caldera's page and asset tags use it. `false` sends none.
+   */
+  csp?: false | CspDirectives
+  /** Report CSP violations without enforcing them. */
   cspReportOnly?: boolean
 }
 
-/** Secure defaults, on by default (unlike AdonisJS Shield): nosniff, no framing, strict referrer, COOP. */
+/** Secure defaults, on by default (unlike AdonisJS Shield): nosniff, no framing, strict referrer, COOP, strict CSP. */
 export function securityHeaders(options: SecurityHeadersOptions = {}): MiddlewareHandler {
+  const csp = options.csp === false ? undefined : { ...STRICT_CSP, ...options.csp }
   return secureHeaders({
     xContentTypeOptions: 'nosniff',
     xFrameOptions: 'DENY',
@@ -73,10 +92,6 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
     crossOriginResourcePolicy: 'same-origin',
     strictTransportSecurity: options.hsts ? 'max-age=31536000; includeSubDomains' : false,
     xXssProtection: false,
-    ...(options.csp
-      ? options.cspReportOnly
-        ? { contentSecurityPolicyReportOnly: { frameAncestors: ["'none'"], ...options.csp } }
-        : { contentSecurityPolicy: { frameAncestors: ["'none'"], ...options.csp } }
-      : {}),
+    ...(csp ? (options.cspReportOnly ? { contentSecurityPolicyReportOnly: csp } : { contentSecurityPolicy: csp }) : {}),
   } as Parameters<typeof secureHeaders>[0])
 }

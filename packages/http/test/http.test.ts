@@ -215,5 +215,18 @@ describe('security', () => {
     expect(res.headers.get('x-frame-options')).toBe('DENY')
     expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin')
     expect(res.headers.get('strict-transport-security')).toBeNull()
+    expect(res.headers.get('content-security-policy')).toMatch(
+      /^script-src 'nonce-[\w+/=]+' 'strict-dynamic' https: 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'$/,
+    )
+  })
+
+  it('merges app CSP directives over the strict default, or turns it off', async () => {
+    const custom = new Hono().use(securityHeaders({ csp: { imgSrc: ["'self'"], frameAncestors: ["'self'"] } })).get('/', (c) => c.text('ok'))
+    const policy = (await custom.request('/')).headers.get('content-security-policy')!
+    expect(policy).toContain("img-src 'self'")
+    expect(policy).toContain("frame-ancestors 'self'")
+    expect(policy).toContain("'strict-dynamic'")
+    const off = new Hono().use(securityHeaders({ csp: false })).get('/', (c) => c.text('ok'))
+    expect((await off.request('/')).headers.get('content-security-policy')).toBeNull()
   })
 })
