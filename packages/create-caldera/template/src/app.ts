@@ -41,7 +41,7 @@ export const app = createApp({
     // libSQL (DATABASE_URL), or D1 on Cloudflare Workers (the DB binding).
     databaseProvider({
       driver: (app) => (app.env.DB ? 'd1' : 'sqlite'),
-      connect: (app) => (app.env.DB ? d1(app.env.DB as never, { relations }) : drizzle({ connection: { url: app.config.database.url }, relations })),
+      connect: (app) => (app.env.DB ? d1(app.env.DB as never, { relations }) : drizzle({ connection: { url: app.config.database.url, authToken: app.config.database.authToken }, relations })),
     }),
     sessionProvider((app) => app.config.session),
     // Messages from lang/; c.var.i18n is this request's translator (user, cookie, Accept-Language).

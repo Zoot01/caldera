@@ -76,29 +76,46 @@ export async function vercelIssues(
   if (!existsSync(project.path(VERCEL_PRODUCTION_ENV))) {
     return [{ code: 'vercel_env_unknown', severity: 'warning', message: `${VERCEL_FILE} is here, but not the production env, so Vercel-specific problems can't be checked.`, fix: 'vercel pull --environment=production' }]
   }
-  const env = parseEnv(readFileSync(project.path(VERCEL_PRODUCTION_ENV), 'utf8')) as Record<string, unknown>
-  // Only the production env: local .env values would hide what production lacks.
-  const app = await boot({ ...env, VERCEL: '1' }, { local: false })
+  const pulled = parseEnv(readFileSync(project.path(VERCEL_PRODUCTION_ENV), 'utf8')) as Record<string, string>
+  // Vercel hides sensitive values (now the default for production) from `vercel pull`.
+  const hidden = Object.keys(pulled).filter((key) => pulled[key] === '[SENSITIVE]')
+  const known = Object.fromEntries(Object.entries(pulled).filter(([key]) => !hidden.includes(key)))
+  // With every value known, only the production env; otherwise local values stand in for the hidden
+  // ones (so the app boots), and a check whose deciding variable is hidden is skipped, not guessed.
+  const app = await boot({ ...known, VERCEL: '1' }, { local: hidden.length > 0 })
+  const decidedBy = (...keys: string[]) => !keys.some((key) => hidden.includes(key))
+  const skipped: string[] = []
   const issues: WorkersIssue[] = []
   try {
     const c = app.config
     const pick = (section: { default?: string } & Record<string, any>, key: string) => section?.[key]?.[section.default ?? '']?.driver as string | undefined
     const url = String(c.database?.url ?? '')
-    if (/^(file:|:memory:)/.test(url) || url === '') {
+    if (!decidedBy('DATABASE_URL')) skipped.push('database')
+    else if (/^(file:|:memory:)/.test(url) || url === '') {
       issues.push({ code: 'vercel_local_database', severity: 'error', message: `On Vercel DATABASE_URL is "${url || '(unset)'}": a function's disk doesn't last between requests. Use a hosted database (Turso libsql://…, or Postgres).`, file: 'src/config/database.ts' })
     }
     const queue = pick(c.queue, 'connections')
-    if (queue === 'database' || queue === 'bullmq') {
+    if (!decidedBy('QUEUE_CONNECTION')) skipped.push('queue')
+    else if (queue === 'database' || queue === 'bullmq') {
       issues.push({ code: 'vercel_queue', severity: 'error', message: `On Vercel the default queue connection uses the ${queue} driver, which needs a long-running worker (\`caldera queue:work\`) that Vercel doesn't run. Use deferred (after the response), or QStash; or run the worker elsewhere.`, file: 'src/config/queue.ts', fix: 'set QUEUE_CONNECTION=deferred in the Vercel project' })
     }
-    if (pick(c.storage, 'disks') === 'local') {
+    if (!decidedBy('S3_BUCKET')) skipped.push('storage')
+    else if (pick(c.storage, 'disks') === 'local') {
       issues.push({ code: 'vercel_local_disk', severity: 'error', message: `On Vercel the default disk "${c.storage.default}" is local; functions have a read-only filesystem. Use s3 (Amazon S3, Cloudflare R2, Tigris…).`, file: 'src/config/storage.ts' })
     }
-    if (pick(c.cache, 'stores') === 'memory') {
+    if (!decidedBy('REDIS_URL')) skipped.push('cache')
+    else if (pick(c.cache, 'stores') === 'memory') {
       issues.push({ code: 'vercel_memory_cache', severity: 'warning', message: 'On Vercel the default cache store is memory: each function instance has its own, so rate limits and locks aren’t shared. Use the database store, or Redis.', file: 'src/config/cache.ts' })
     }
   } finally {
     await app.shutdown()
+  }
+  if (hidden.length) {
+    issues.push({
+      code: 'vercel_env_hidden',
+      severity: 'warning',
+      message: `Vercel doesn't reveal sensitive production values to \`vercel pull\` (${hidden.join(', ')}), so ${skipped.length ? `the ${skipped.join(', ')} checks were skipped` : 'checks used the readable values'}. Mark plain settings (QUEUE_CONNECTION, MAIL_MAILER…) as not sensitive to check them.`,
+    })
   }
   return issues
 }

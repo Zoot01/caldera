@@ -77,3 +77,21 @@ it('reports what can’t run on Vercel, from the pulled production env only', as
     ['vercel_memory_cache', 'warning'],
   ])
 })
+
+it('skips checks whose variables Vercel hides from vercel pull, and says so', async () => {
+  const dir = fresh()
+  writeFileSync(join(dir, 'vercel.json'), '{}\n')
+  mkdirSync(join(dir, '.vercel'), { recursive: true })
+  writeFileSync(join(dir, '.vercel/.env.production.local'), 'DATABASE_URL="[SENSITIVE]"\nQUEUE_CONNECTION="database"\n')
+  let local: boolean | undefined
+  const issues = await vercelIssues(openProject(dir), async (env, options) => {
+    local = options?.local
+    return {
+      config: { database: { url: 'file:local.db' }, queue: { default: 'db', connections: { db: { driver: env.QUEUE_CONNECTION } } }, storage: {}, cache: {} },
+      shutdown: async () => {},
+    }
+  })
+  expect(local).toBe(true)
+  expect(issues.map((i) => i.code)).toEqual(['vercel_queue', 'vercel_env_hidden'])
+  expect(issues[1]!.message).toContain('(DATABASE_URL), so the database checks were skipped')
+})

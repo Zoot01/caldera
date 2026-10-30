@@ -9,6 +9,8 @@ export const env = defineEnv({
   APP_URL: z.url().default('http://localhost:3000'),
   APP_KEY: secret(z.string().min(32)),
   DATABASE_URL: z.string().default('file:local.db'),
+  // For a hosted libSQL database (Turso): `turso db tokens create <db>`.
+  DATABASE_AUTH_TOKEN: secret(z.string().optional().transform((s) => s || undefined)),
   PORT: z.coerce.number().default(3000),
   QUEUE_CONNECTION: z.enum(['sync', 'deferred', 'database', 'redis', 'cloudflare']).default('sync'),
   // Empty means "no Redis": the cache stays in memory and the redis queue isn't configured.
