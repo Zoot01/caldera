@@ -129,8 +129,13 @@ export function notFoundHandler(): NotFoundHandler {
 
 function toHttpError(error: unknown): HttpError | undefined {
   if (error instanceof HttpError) return error
-  // e.g. ModelNotFoundError from `@caldera/db`; same body as any 404 so it reveals nothing.
-  if (error instanceof CalderaError && error.code === 'not_found') return new NotFoundError()
+  // Errors from other Caldera packages, matched by code so http doesn't depend on them.
+  // not_found always gets the generic body, so it reveals nothing about the record.
+  if (error instanceof CalderaError) {
+    if (error.code === 'not_found') return new NotFoundError()
+    if (error.code === 'forbidden') return new ForbiddenError(error.message)
+    if (error.code === 'unauthenticated') return new UnauthenticatedError(error.message)
+  }
   if (error instanceof ZodError) return ValidationError.fromZod(error)
   if (error instanceof HTTPException) {
     const status = error.status as ContentfulStatusCode

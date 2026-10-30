@@ -2,6 +2,7 @@ import type { RegisteredHonoEnv } from '@caldera/core'
 import { Hono, type Context, type Env, type MiddlewareHandler } from 'hono'
 import type { HandlerResponse, MergePath, ParamKeys, Schema, ToSchema, TypedResponse } from 'hono/types'
 import { bindingMiddleware, describeBindings, type BindEnv, type Bindings } from './bind.js'
+import { ForbiddenError } from './errors.js'
 import { DEFAULT_PRIORITY, sortByPriority, type NamedMiddleware } from './middleware.js'
 import { requestJsonSchemas, requestMiddleware, type AnyRequest, type InputOf } from './request.js'
 
@@ -15,6 +16,11 @@ export interface RouteOptions<R extends AnyRequest | undefined, B extends Bindin
   request?: R
   /** Route model binding: `{ post: Post }` loads `:post` into a typed `c.var.post`, or 404s. */
   bind?: B
+  /**
+   * Runs after binding: return `false` (or throw) to deny. With `@caldera/auth`,
+   * `authorize: allows(Post, 'update', 'post')` checks the bound row against its policy.
+   */
+  authorize?: (c: Context) => unknown
   middleware?: NamedMiddleware[]
   description?: string
 }
@@ -102,6 +108,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
         ...groupMiddleware,
         ...(routeOptions.middleware ?? []),
         ...(routeOptions.bind ? [{ name: 'bind', options: undefined, handler: bindingMiddleware(routeOptions.bind, fullPath) }] : []),
+        ...(routeOptions.authorize ? [{ name: 'authorize', options: undefined, handler: authorizeMiddleware(routeOptions.authorize) }] : []),
         ...(routeOptions.request ? requestMiddleware(routeOptions.request).map((m) => ({ ...m, options: undefined })) : []),
       ]
       const priority = [...groupMiddleware, ...(routeOptions.middleware ?? [])][0]?.priority ?? DEFAULT_PRIORITY
@@ -136,6 +143,13 @@ export function defineRoutes<const G extends string, const Prefix extends string
     delete: add('delete'),
   }
   return group as unknown as RouteGroup<G, E, {}, Prefix, {}>
+}
+
+function authorizeMiddleware(check: (c: Context) => unknown): MiddlewareHandler {
+  return async (c, next) => {
+    if ((await check(c)) === false) throw new ForbiddenError()
+    await next()
+  }
 }
 
 export function joinPath(prefix: string, path: string): string {

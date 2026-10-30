@@ -82,7 +82,7 @@ describe('writes', () => {
     const created = await User.create({ name: 'Bo', email: 'bo@example.test', passwordHash: 'x', ...({ role: 'admin' } as object) })
     expect(created.role).toBe('member')
     // @ts-expect-error role is guarded
-    void User.create({ name: 'C', email: 'c@example.test', passwordHash: 'x', role: 'admin' })
+    void (() => User.create({ name: 'C', email: 'c@example.test', passwordHash: 'x', role: 'admin' }))
   })
 
   it('runs -ing hooks before the write and -ed hooks after commit only', async () => {
