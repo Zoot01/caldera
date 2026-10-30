@@ -64,12 +64,18 @@ importers:
         specifier: 2.7.0
         version: 2.7.0
     devDependencies:
+      '@caldera/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@caldera/http':
         specifier: workspace:*
         version: link:../http
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13
+      better-auth:
+        specifier: 1.7.14
+        version: 1.7.14(drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(zod@4.6.7)))(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(zod@4.6.7))(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)))
       drizzle-kit:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.5.13)(zod@4.6.7))

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeModel, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
+import { describeAbilities, describeModel, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -41,6 +41,9 @@ describe('caldera generate', () => {
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
     expect(register).toContain(`declare module '@caldera/db'`)
     expect(register).toContain('    posts: typeof models0.default\n    users: typeof models1.User\n')
+    expect(register).toContain(`declare module '@caldera/auth'`)
+    expect(register).toContain('    user: Row<typeof models1.User>\n')
+    expect(register).toContain('    post: typeof policies0.PostPolicy\n')
     const routes = readFileSync(join(root, '.caldera/routes.gen.ts'), 'utf8')
     expect(routes).toContain('export const router = createRouter(routes0.default, routes1.posts)')
     const barrel = readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')
@@ -137,8 +140,9 @@ describe('caldera route:list', () => {
     expect(routes.map((r) => `${r.method} ${r.path} ${r.name}`)).toEqual(['GET /health health.check', 'GET /posts posts.index', 'GET /posts/:post posts.show'])
     const show = routes.find((r) => r.name === 'posts.show')!
     expect(show.params).toEqual(['post'])
-    expect(show.source).toEqual({ file: 'src/routes/posts.ts', line: 8 })
-    expect(show.input.params).toMatchObject({ type: 'object', required: ['post'] })
+    expect(show.source).toEqual({ file: 'src/routes/posts.ts', line: 7 })
+    expect(show.bindings).toEqual({ post: 'post' })
+    expect(show.authorize).toEqual({ ability: 'post.view', param: 'post' })
   })
 
   it('reports duplicate route names across files', async () => {
@@ -250,4 +254,27 @@ describe('caldera db:seed', () => {
     const result = spawnSync(process.execPath, [bin, 'db:seed', '--cwd', seedApp, '--json'], { encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' } })
     expect(JSON.parse(result.stdout).error).toMatchObject({ code: 'confirmation_required' })
   }, 60_000)
+})
+
+describe('caldera abilities', () => {
+  it('lists policy abilities with the routes they guard, and standalone abilities', async () => {
+    const data = await describeAbilities(openProject(root))
+    expect(data.policies).toEqual([
+      {
+        model: 'post',
+        file: 'src/policies/post.ts',
+        before: false,
+        scope: false,
+        prefetch: false,
+        abilities: [
+          { name: 'post.view', ability: 'view', takesRow: true, guest: true, routes: ['posts.show'] },
+          { name: 'post.update', ability: 'update', takesRow: true, guest: false, routes: [] },
+        ],
+      },
+    ])
+    expect(data.abilities).toEqual([{ name: 'viewStats', guest: false, file: 'src/policies/post.ts' }])
+    const { code, json } = cli('abilities')
+    expect(code).toBe(0)
+    expect(json.policies[0].model).toBe('post')
+  })
 })

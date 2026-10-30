@@ -33,11 +33,13 @@ export function allows<M extends AnyModel, const A extends AbilityOf<M>>(
   ability: A,
   ...param: PolicyArgs<M, A> extends [] ? [] : [param: string]
 ): (c: Context) => Promise<true> {
-  return async (c) => {
+  const check = async (c: Context): Promise<true> => {
     const gate = (c.var as { gate?: Gate }).gate
     if (!gate) throw new Error('allows() needs authorizationProvider() in the app (it provides c.var.gate).')
     const row = param[0] === undefined ? [] : [(c.var as Record<string, unknown>)[param[0]]]
     await (gate.authorize as unknown as (m: AnyModel, a: string, ...r: unknown[]) => Promise<void>)(model, ability, ...row)
     return true
   }
+  // Read by the route manifest, so `caldera route:list` and `caldera abilities` show what guards a route.
+  return Object.assign(check, { ability: `${model.name}.${ability}`, param: param[0] ?? null })
 }

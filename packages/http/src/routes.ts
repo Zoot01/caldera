@@ -35,6 +35,8 @@ export interface RouteRecord {
   input: Record<string, unknown>
   /** Bound parameters and what loads them (model name, or `custom`). */
   bindings?: Record<string, string>
+  /** The ability that guards the route (from `allows()`), or `custom` for any other check. */
+  authorize?: { ability: string; param: string | null } | 'custom'
   description?: string
   source?: { file: string; line: number }
 }
@@ -124,6 +126,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
         middleware: ordered.filter((m) => m.name !== 'validate').map((m) => ({ name: m.name, options: m.options ?? null })),
         input: routeOptions.request ? requestJsonSchemas(routeOptions.request) : {},
         ...(routeOptions.bind ? { bindings: describeBindings(routeOptions.bind) } : {}),
+        ...(routeOptions.authorize ? { authorize: describeAuthorize(routeOptions.authorize) } : {}),
         ...(routeOptions.description ? { description: routeOptions.description } : {}),
         ...callerSource(),
       })
@@ -143,6 +146,11 @@ export function defineRoutes<const G extends string, const Prefix extends string
     delete: add('delete'),
   }
   return group as unknown as RouteGroup<G, E, {}, Prefix, {}>
+}
+
+function describeAuthorize(check: Function): RouteRecord['authorize'] {
+  const tagged = check as { ability?: unknown; param?: unknown }
+  return typeof tagged.ability === 'string' ? { ability: tagged.ability, param: typeof tagged.param === 'string' ? tagged.param : null } : 'custom'
 }
 
 function authorizeMiddleware(check: (c: Context) => unknown): MiddlewareHandler {

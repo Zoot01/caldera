@@ -7,6 +7,7 @@ import { listRoutes } from './routes.js'
 import { runMigrations, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
 import { seedProject } from './seed.js'
+import { describeAbilities } from './policies.js'
 
 const VERSION = '0.0.0'
 
@@ -158,6 +159,22 @@ const dbSeedCommand = defineCommand({
     }),
 })
 
+const abilitiesCommand = defineCommand({
+  meta: { name: 'abilities', description: 'List every policy ability and standalone ability, with the routes each one guards' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const data = await describeAbilities(openProject(args.cwd))
+      const text = [
+        ...data.policies.flatMap((p) =>
+          p.abilities.map((a) => `${a.name.padEnd(24)} ${a.guest ? 'guests ok' : 'signed in'}${a.routes.length ? `  ← ${a.routes.join(', ')}` : ''}`),
+        ),
+        ...data.abilities.map((a) => `${a.name.padEnd(24)} ${a.guest ? 'guests ok' : 'signed in'}  (standalone)`),
+      ].join('\n')
+      return { data, text: text || 'No policies found in src/policies.' }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
@@ -169,6 +186,7 @@ export const main = defineCommand({
     'db:generate': migrationCommand('generate', 'Generate SQL migrations from your Drizzle schema (drizzle-kit generate)'),
     'db:migrate': migrationCommand('migrate', 'Apply pending migrations (drizzle-kit migrate)'),
     'db:seed': dbSeedCommand,
+    abilities: abilitiesCommand,
     'db:push': migrationCommand('push', 'Push the schema straight to the database, for prototyping (drizzle-kit push)'),
   },
 })

@@ -23,13 +23,15 @@
   },
   "dependencies": {
     "@caldera/core": "workspace:*",
+    "@caldera/db": "workspace:*",
     "citty": "0.2.2",
-    "jiti": "2.7.0",
-    "@caldera/db": "workspace:*"
+    "jiti": "2.7.0"
   },
   "devDependencies": {
+    "@caldera/auth": "workspace:*",
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
+    "better-auth": "1.7.14",
     "drizzle-kit": "1.0.0-rc.5",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",

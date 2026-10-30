@@ -10,6 +10,8 @@ export interface RouteRecord {
   params: string[]
   middleware: { name: string; options: unknown }[]
   input: Record<string, unknown>
+  bindings?: Record<string, string>
+  authorize?: { ability: string; param: string | null } | 'custom'
   description?: string
   source?: { file: string; line: number }
 }

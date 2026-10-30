@@ -15,3 +15,16 @@ export async function nestedHidden() {
   void post!.author.passwordHash
   return name
 }
+
+// Only types once `caldera generate` registers the user model and policies.
+import { createGate } from '@caldera/auth'
+
+export async function gateChecks(post: Awaited<ReturnType<typeof Post.findOrFail>>) {
+  const gate = createGate({ user: null })
+  const name: string | undefined = gate.user?.name
+  // @ts-expect-error passwordHash is hidden, so it's not on the auth user either
+  void gate.user?.passwordHash
+  // @ts-expect-error not an ability of the post policy
+  void (() => gate.can(Post, 'destroy', post))
+  return [name, await gate.can(Post, 'update', post)]
+}
