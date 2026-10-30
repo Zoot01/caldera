@@ -13,7 +13,7 @@ import { ejectStub, make, MAKE_KINDS, type MakeKind } from './make.js'
 import { STUBS } from './stubs.js'
 import { check } from './check.js'
 import { startDev } from './dev.js'
-import { startWorker } from './queue.js'
+import { failedJobs, queueTable, startWorker } from './queue.js'
 import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
 
 const VERSION = '0.0.0'
@@ -313,6 +313,56 @@ const queueWorkCommand = defineCommand({
   },
 })
 
+const queueTableCommand = defineCommand({
+  meta: { name: 'queue:table', description: 'Create the database queue table in src/db/tables (for the database driver)' },
+  args: { ...shared, force: { type: 'boolean', description: 'Overwrite an existing file' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = queueTable(openProject(args.cwd), { force: args.force })
+      return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
+const queueFailedCommand = defineCommand({
+  meta: { name: 'queue:failed', description: 'List failed jobs (database queue driver)' },
+  args: { ...shared, connection: { type: 'string', description: 'Queue connection (default: the default one)' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const { driver, shutdown } = await failedJobs(openProject(args.cwd), args.connection)
+      try {
+        const jobs = await driver.failed()
+        const text = jobs.map((j) => `${j.failedAt}  ${j.id}  ${j.job} (${j.queue}, ${j.attempts} attempts): ${j.error ?? ''}`).join('\n')
+        return { data: { schemaVersion: 1, jobs }, text: text || 'No failed jobs.' }
+      } finally {
+        await shutdown()
+      }
+    }),
+})
+
+function failedJobsAction(name: 'retry' | 'forget', description: string) {
+  return defineCommand({
+    meta: { name: `queue:${name}`, description },
+    args: {
+      ...shared,
+      ids: { type: 'positional', description: 'Failed job ids (from queue:failed)', required: false },
+      all: { type: 'boolean', description: 'Every failed job' },
+      connection: { type: 'string', description: 'Queue connection (default: the default one)' },
+    },
+    run: ({ args }) =>
+      run(wantsJson(args.json), async () => {
+        const ids = (args._ as string[] | undefined)?.filter(Boolean) ?? []
+        if (!args.all && ids.length === 0) throw new CalderaError('missing_argument', `Pass job ids or --all. Usage: caldera queue:${name} <id...> | --all`, { missing: ['ids'] })
+        const { driver, shutdown } = await failedJobs(openProject(args.cwd), args.connection)
+        try {
+          const count = await driver[name](args.all ? undefined : ids)
+          return { data: { schemaVersion: 1, [name === 'retry' ? 'retried' : 'forgotten']: count }, text: `${name === 'retry' ? 'Queued again' : 'Deleted'}: ${count} job${count === 1 ? '' : 's'}.` }
+        } finally {
+          await shutdown()
+        }
+      }),
+  })
+}
+
 const scheduleListCommand = defineCommand({
   meta: { name: 'schedule:list', description: 'List schedules in src/schedules with their next run' },
   args: shared,
@@ -409,6 +459,10 @@ export const main = defineCommand({
     check: checkCommand,
     dev: devCommand,
     'queue:work': queueWorkCommand,
+    'queue:table': queueTableCommand,
+    'queue:failed': queueFailedCommand,
+    'queue:retry': failedJobsAction('retry', 'Put failed jobs back on their queue (database queue driver)'),
+    'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
     'schedule:list': scheduleListCommand,
     'schedule:run': scheduleRunCommand,
     'schedule:work': scheduleWorkCommand,

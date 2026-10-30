@@ -1,4 +1,7 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { CalderaError } from '@caldera/core'
+import { dialectOf, resolveStub } from './make.js'
 import { loadApp, projectEnv } from './describe.js'
 import { CONVENTIONS, exportsOfKind, jobFiles, type Project } from './project.js'
 
@@ -80,4 +83,42 @@ export async function startWorker(
       emit({ type: 'stopped' })
     },
   }
+}
+
+export const QUEUE_TABLE_FILE = 'src/db/tables/caldera-jobs.ts'
+
+/** `caldera queue:table`: writes the database queue's table for this app's dialect; your migrations create it. */
+export function queueTable(project: Project, options: { force?: boolean } = {}) {
+  if (existsSync(project.path(QUEUE_TABLE_FILE)) && !options.force) {
+    throw new CalderaError('file_exists', `Refusing to overwrite ${QUEUE_TABLE_FILE}. Pass --force to replace.`, { files: [QUEUE_TABLE_FILE] })
+  }
+  const stub = dialectOf(project) === 'sqlite' ? 'queue-table-sqlite' : 'queue-table'
+  mkdirSync(dirname(project.path(QUEUE_TABLE_FILE)), { recursive: true })
+  writeFileSync(project.path(QUEUE_TABLE_FILE), resolveStub(project, stub).template)
+  return {
+    schemaVersion: 1 as const,
+    created: [QUEUE_TABLE_FILE],
+    hints: ['Create it with `caldera db:generate` then `caldera db:migrate` (or `caldera db:push` in development), and set the queue connection to `database`.'],
+  }
+}
+
+interface FailedJobsDriver {
+  failed(): Promise<{ id: string; job: string; queue: string; attempts: number; error: string | null; failedAt: string }[]>
+  retry(ids?: readonly string[]): Promise<number>
+  forget(ids?: readonly string[]): Promise<number>
+}
+
+/** Boots the app and returns the connection's failed-jobs store (the database driver keeps them). */
+export async function failedJobs(project: Project, connection?: string): Promise<{ driver: FailedJobsDriver; shutdown(): Promise<void> }> {
+  const app = await loadApp(project)
+  await app.boot({ env: projectEnv(project) })
+  const queue = (app as unknown as { services: { queue?: { manager: { defaultName: string; use(name: string): unknown } } } }).services.queue
+  if (!queue) throw new CalderaError('queue_not_configured', `${CONVENTIONS.app} has no queue: add queueProvider() to its providers.`)
+  const name = connection ?? queue.manager.defaultName
+  const driver = queue.manager.use(name) as Partial<FailedJobsDriver>
+  if (typeof driver.failed !== 'function') {
+    await app.shutdown()
+    throw new CalderaError('failed_jobs_unsupported', `queue.${name} doesn't keep failed jobs. The database driver does; BullMQ keeps them in Redis (see its dashboard).`, { connection: name })
+  }
+  return { driver: driver as FailedJobsDriver, shutdown: () => app.shutdown() }
 }

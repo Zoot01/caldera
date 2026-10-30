@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createQueue } from '@caldera/queue'
 import { bullmqDriver } from '@caldera/queue/bullmq'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { generate, make, openProject } from '../src/index.js'
+import { failedJobs, generate, make, openProject, queueTable } from '../src/index.js'
 import { Greet } from './fixtures/queue-app/src/jobs/greet.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
@@ -79,4 +79,31 @@ it('make:job creates a job in src/jobs', async () => {
   expect(result.created).toEqual(['src/jobs/send-welcome-email.ts'])
   expect(readFileSync(join(dir, 'src/jobs/send-welcome-email.ts'), 'utf8')).toContain(`export const SendWelcomeEmail = defineJob({\n  name: 'send-welcome-email',`)
   rmSync(dir, { recursive: true, force: true })
+})
+
+it('queue:table writes the jobs table for the app’s dialect, and won’t overwrite it', () => {
+  const dir = join(tmp, `${PREFIX}table-${Math.random().toString(36).slice(2)}`)
+  cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  expect(queueTable(openProject(dir)).created).toEqual(['src/db/tables/caldera-jobs.ts'])
+  expect(readFileSync(join(dir, 'src/db/tables/caldera-jobs.ts'), 'utf8')).toContain("bigint('available_at', { mode: 'number' }).notNull()")
+  expect(() => queueTable(openProject(dir))).toThrow(/Refusing to overwrite/)
+  writeFileSync(join(dir, 'drizzle.config.ts'), "export default { dialect: 'turso' }\n")
+  queueTable(openProject(dir), { force: true })
+  expect(readFileSync(join(dir, 'src/db/tables/caldera-jobs.ts'), 'utf8')).toContain("import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'")
+  rmSync(dir, { recursive: true, force: true })
+})
+
+it.runIf(hasRedis)('queue:failed explains connections that keep no failed jobs', async () => {
+  const dir = join(tmp, `${PREFIX}failed-${Math.random().toString(36).slice(2)}`)
+  cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  await generate(openProject(dir))
+  process.env.REDIS_URL = redis!.url
+  process.env.OUT_DIR = dir
+  try {
+    await expect(failedJobs(openProject(dir))).rejects.toThrow(/queue.redis doesn't keep failed jobs. The database driver does/)
+  } finally {
+    delete process.env.REDIS_URL
+    delete process.env.OUT_DIR
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

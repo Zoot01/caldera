@@ -62,7 +62,7 @@ function hints(kind: MakeKind, n: Names & { page: string }, options: { table: bo
   return []
 }
 
-function dialectOf(project: Project): 'pg' | 'sqlite' {
+export function dialectOf(project: Project): 'pg' | 'sqlite' {
   const file = project.path('drizzle.config.ts')
   if (!existsSync(file)) return 'pg'
   return /dialect:\s*['"](sqlite|turso)['"]/.test(readFileSync(file, 'utf8')) ? 'sqlite' : 'pg'

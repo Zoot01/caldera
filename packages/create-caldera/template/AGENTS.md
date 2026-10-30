@@ -25,7 +25,7 @@ Pages get their data from the route that renders them: no API layer. A page's pr
 | Schedules (cron, each dispatches a job) | `src/schedules/*.ts` | `caldera make:schedule <Name> --job <Job>` |
 | Factories / seeders | `src/db/factories/`, `src/db/seeders/` | `caldera make:factory`, `caldera make:seeder` |
 
-Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). With `REDIS_URL` and `QUEUE_CONNECTION=redis` they go to BullMQ, and `pnpm worker` (`caldera queue:work`) runs them; the cache moves to Redis too. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.
+Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). In production set `QUEUE_CONNECTION=database` (jobs in the `caldera_jobs` table, `src/db/tables/caldera-jobs.ts`) or `redis` (BullMQ, with `REDIS_URL`; the cache moves to Redis too), and run `pnpm worker` (`caldera queue:work`). Failed database jobs: `caldera queue:failed`, `queue:retry <id>|--all`, `queue:forget`. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.
 
 Schedules run from `pnpm scheduler` (`caldera schedule:work`) on a server, or `* * * * * caldera schedule:run` in a crontab. On Cloudflare, export `scheduled: (controller, env) => handleScheduled(app, controller, env)`; on Vercel, set `CRON_SECRET`. `caldera schedule:sync --target cloudflare|vercel` writes the platform's cron config. `caldera schedule:list` shows next runs.
 
