@@ -50,6 +50,8 @@ Tests (`pnpm test`, Vitest): `const t = setupApp(app)` from `@caldera/testing` a
 
 Vercel: `caldera vercel:setup` adds `vercel.json` (your build, `public/` on the CDN, everything else rewritten to the app) and `api/index.ts` (the app as a Node.js function, with Vercel's `waitUntil`); add `@vercel/functions`. In the Vercel project set a hosted `DATABASE_URL` (Turso or Postgres), `QUEUE_CONNECTION=deferred`, `S3_*` for files and a mailer; `vercel pull --environment=production` then `caldera check` reports what wouldn't work there. Schedules: `caldera schedule:sync --target vercel`.
 
+Server-side rendering: first loads are rendered on the server from `resources/ssr.tsx` (`ssr: viteSsr()` in `src/inertia.ts`), then hydrated; Inertia visits stay JSON. In development Vite renders them (with HMR); `pnpm build` also builds `build/ssr/ssr.js`, which `pnpm start` renders in-process (no second server); `cloudflare:setup` and `vercel:setup` bundle it. Pages render on the server, so don't touch `window`, `document` or `localStorage` while rendering: do it in `useEffect` or event handlers. If SSR fails or takes over 2s, the page renders in the browser instead and the error is logged.
+
 Security headers are on by default in `src/http.ts`, including a strict CSP: only scripts with this request's nonce run (and what they load). Page and Vite tags get the nonce automatically; any inline `<script>` you add in a custom `rootView` needs `nonce="${nonce}"`. Don't loosen `script-src`; add other directives with `securityHeaders({ csp: { imgSrc: [...] } })`.
 
 `.caldera/` is generated: never edit it. Run `caldera generate` after adding env, config, routes, models, policies or pages (`caldera dev` does it on save).

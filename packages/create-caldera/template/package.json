@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "caldera dev",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr",
     "start": "tsx src/server.ts",
     "generate": "caldera generate",
     "db:push": "caldera db:push",

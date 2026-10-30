@@ -156,7 +156,12 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     // Production: built assets from the manifest, served from public/build.
     const build = run('build')
     expect(build.status, build.stdout + build.stderr).toBe(0)
-    const start = spawn('pnpm', ['start'], { cwd: dir, env: { ...process.env, PORT: '3457', NODE_ENV: 'production' }, detached: true })
+    // As in production: without this test runner's VITEST variables, which mark a test run.
+    const productionEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('VITEST')))
+    const start = spawn('pnpm', ['start'], { cwd: dir, env: { ...productionEnv, PORT: '3457', NODE_ENV: 'production' }, detached: true })
+    let serverOutput = ''
+    start.stdout?.on('data', (chunk: Buffer) => (serverOutput += chunk.toString()))
+    start.stderr?.on('data', (chunk: Buffer) => (serverOutput += chunk.toString()))
     try {
       const html = await poll(() => fetch('http://localhost:3457/').then((r) => r.text()))
       const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)" nonce="[\w+/=]+">/.exec(html ?? '')?.[1]
@@ -164,6 +169,9 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       expect(html).toMatch(/<link rel="stylesheet" href="\/build\/assets\/[^"]+\.css" nonce="[\w+/=]+">/)
       const asset = await fetch(`http://localhost:3457${script}`)
       expect(asset.status).toBe(200)
+      // Server-side rendered from build/ssr/ssr.js, in-process: the content is in the HTML.
+      expect(html, serverOutput).toContain('<div data-server-rendered="true" id="app"><main>')
+      expect(html).toContain('<title data-inertia="">Welcome · e2e-app</title>')
       // A visit with the old asset version is told to reload the page.
       const stale = await fetch('http://localhost:3457/', { headers: { 'x-inertia': 'true', 'x-inertia-version': 'old' } })
       expect(stale.status).toBe(409)
@@ -257,6 +265,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)"/.exec(html)?.[1]
       expect(script, html.slice(0, 500)).toBeDefined()
       expect((await fetch(`http://127.0.0.1:3462${script}`)).status).toBe(200)
+      // The SSR build is bundled into the Worker: rendered on workerd.
+      expect(html).toContain('<div data-server-rendered="true" id="app"><main>')
     } finally {
       process.kill(-dev.pid!, 'SIGTERM')
     }
