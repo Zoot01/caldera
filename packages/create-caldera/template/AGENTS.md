@@ -47,6 +47,20 @@ Security headers are on by default in `src/http.ts`, including a strict CSP: onl
 
 `.caldera/` is generated: never edit it. Run `caldera generate` after adding env, config, routes, models, policies or pages (`caldera dev` does it on save).
 
+## MCP server
+
+`.mcp.json` registers `caldera mcp` (stdio), so Claude Code and other MCP clients get these tools in this project:
+
+- **Read the app:** `describe`, `routes`, `db_schema`, `model`, `abilities`, `schedules`, `mail_list`, `i18n_missing`, `check`.
+- **Debug:**
+  - `last_errors` (500s from `caldera dev`, with stacks pointing at your `.ts` lines) and `logs` (the dev server's output)
+  - `route_call` (a request to the app in-process; add `x-inertia: true` for a page's props as JSON)
+  - `db_query` (one SQL statement, always rolled back and read-only)
+  - `mail_render`
+- **Change things:** `generate`, and `make` (a dry run showing the files it would write).
+
+Writes are off by default. Add `"--allow-writes"` to the args to allow non-GET `route_call`, `make` with `write: true`, and `db_seed`.
+
 ## Commands agents should use
 
 - `caldera describe --json`: env schema, config (secrets redacted), providers and services
