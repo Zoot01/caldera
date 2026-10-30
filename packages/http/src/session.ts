@@ -31,6 +31,8 @@ export interface Session {
 
   /** Validation errors flashed by the previous request, every message per field. */
   errors(bag?: string): Readonly<Record<string, string[]>>
+  /** Names of the error bags flashed by the previous request (`default` unless a form named one). */
+  errorBags(): string[]
   flashErrors(fields: Record<string, string[]>, bag?: string): void
   /** Input flashed after a failed plain-form submission, for refilling the form. */
   old<T = unknown>(key: string): T | undefined
@@ -190,6 +192,7 @@ export function createSession(record: SessionRecord | null): InternalSession {
     },
 
     errors: (bag = 'default') => currentErrors[bag] ?? {},
+    errorBags: () => Object.keys(currentErrors),
     flashErrors(fields, bag = 'default') {
       nextErrors = { ...nextErrors, [bag]: fields }
       touch()

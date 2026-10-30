@@ -1,0 +1,252 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createApp, defineEnv } from '@caldera/core'
+import { back, errorHandler, redirect, sessionOf, sessionProvider, startSession, ValidationError } from '@caldera/http'
+import { Hono } from 'hono'
+import { secureHeaders, NONCE } from 'hono/secure-headers'
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
+import { always, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps } from '../src/index.js'
+
+// What `caldera generate` writes from resources/pages and src/inertia.ts.
+declare module '../src/inertia.js' {
+  interface PageRegistry {
+    'Posts/Index': { posts: { id: number; title: string }[]; stats?: { total: number }; filters?: string[]; auth: { user: string | null }; errors: Record<string, string> }
+    Home: { greeting: string }
+  }
+  interface InertiaRegister {
+    shared: { auth: { user: string | null } }
+  }
+}
+
+const KEY = 'test-key-0123456789-0123456789-0123'
+const calls: string[] = []
+
+function makeHttp(options: Parameters<typeof defineInertia>[0] = {}) {
+  const app = createApp({ env: defineEnv({}), providers: [sessionProvider(() => ({ keys: [KEY] }))] })
+  const inertia = defineInertia({ version: 'v1', share: () => ({ auth: { user: 'ann' } }), ...options })
+  return new Hono()
+    .use(app.middleware())
+    .use(startSession())
+    .use(inertia.middleware())
+    .get('/posts', (c) =>
+      c.render('Posts/Index', {
+        posts: () => (calls.push('posts'), [{ id: 1, title: '</script><script>alert(1)</script>' }]),
+        stats: defer(() => (calls.push('stats'), { total: 1 })),
+        filters: optional(() => (calls.push('filters'), ['draft'])),
+      }),
+    )
+    .get('/home', (c) => c.render('Home', { greeting: 'hi' }))
+    .post('/posts', () => {
+      throw new ValidationError({ title: ['Too short'] })
+    })
+    .post('/saved', (c) => back(c).with('success', 'Saved'))
+    .get('/hop', (c) => redirect(c, '/home'))
+    .put('/legacy', (c) => c.redirect('/home'))
+    .post('/anchor', (c) => c.redirect('/home#comments'))
+    .post('/empty', (c) => c.body(null))
+    .get('/away', (c) => location(c, 'https://billing.example/'))
+    .onError(errorHandler())
+}
+
+const inertiaHeaders = { 'x-inertia': 'true', 'x-inertia-version': 'v1' }
+
+type Http = { request: Hono["request"] }
+
+async function visit(http: Http, path: string, headers: Record<string, string> = {}, init: RequestInit = {}) {
+  return http.request(`http://localhost${path}`, { ...init, headers: { ...inertiaHeaders, ...headers } })
+}
+
+describe('rendering', () => {
+  it('serves the first visit as HTML with the page embedded safely', async () => {
+    const res = await makeHttp({ title: 'Blog' }).request('/posts')
+    const html = await res.text()
+    expect(res.headers.get('content-type')).toContain('text/html')
+    expect(res.headers.get('vary')).toContain('X-Inertia')
+    expect(html).toContain('<title>Blog</title>')
+    expect(html).toContain('<div id="app"></div>')
+    expect(html).not.toContain('</script><script>alert(1)')
+    const json = html.match(/<script data-page="app" type="application\/json">(.*?)<\/script>/s)![1]!
+    const page = JSON.parse(json) as PageObject
+    expect(page).toMatchObject({ component: 'Posts/Index', url: '/posts', version: 'v1', sharedProps: ['auth'] })
+    expect(page.props.posts).toEqual([{ id: 1, title: '</script><script>alert(1)</script>' }])
+  })
+
+  it('answers Inertia visits with the page object as JSON', async () => {
+    const res = await visit(makeHttp(), '/posts?page=2')
+    expect(res.headers.get('x-inertia')).toBe('true')
+    const page = (await res.json()) as PageObject
+    expect(page.url).toBe('/posts?page=2')
+    expect(page.props.auth).toEqual({ user: 'ann' })
+    expect(page.props.errors).toEqual({})
+  })
+
+  it('leaves optional and deferred props out of the first load, listing deferred ones by group', async () => {
+    calls.length = 0
+    const page = (await (await visit(makeHttp(), '/posts')).json()) as PageObject
+    expect(Object.keys(page.props).sort()).toEqual(['auth', 'errors', 'posts'])
+    expect(page.deferredProps).toEqual({ default: ['stats'] })
+    expect(calls).toEqual(['posts'])
+  })
+
+  it('computes only the requested props on a partial reload, plus always props', async () => {
+    calls.length = 0
+    const headers = { 'x-inertia-partial-component': 'Posts/Index', 'x-inertia-partial-data': 'stats,filters' }
+    const page = (await (await visit(makeHttp(), '/posts', headers)).json()) as PageObject
+    expect(page.props).toEqual({ stats: { total: 1 }, filters: ['draft'], errors: {} })
+    expect(calls.sort()).toEqual(['filters', 'stats'])
+  })
+
+  it('ignores partial headers meant for another component', async () => {
+    const headers = { 'x-inertia-partial-component': 'Other', 'x-inertia-partial-data': 'stats' }
+    const page = (await (await visit(makeHttp(), '/posts', headers)).json()) as PageObject
+    expect(page.props.posts).toBeDefined()
+    expect(page.props.stats).toBeUndefined()
+  })
+
+  it('supports except and dot paths into literal objects', async () => {
+    const http = new Hono().use(defineInertia().middleware()).get('/', (c) =>
+      c.render('Home', { greeting: 'hi', nav: { main: () => ['a'], footer: () => ['b'] }, pinned: always('yes') } as never),
+    )
+    const only = { 'x-inertia': 'true', 'x-inertia-partial-component': 'Home', 'x-inertia-partial-data': 'nav.footer' }
+    expect((await (await http.request('/', { headers: only })).json()).props).toEqual({ nav: { footer: ['b'] }, pinned: 'yes', errors: {} })
+    const except = { 'x-inertia': 'true', 'x-inertia-partial-component': 'Home', 'x-inertia-partial-except': 'nav' }
+    expect((await (await http.request('/', { headers: except })).json()).props).toEqual({ greeting: 'hi', pinned: 'yes', errors: {} })
+  })
+
+  it('forces a full reload when the asset version changed', async () => {
+    const res = await visit(makeHttp(), '/posts', { 'x-inertia-version': 'old' })
+    expect(res.status).toBe(409)
+    expect(res.headers.get('x-inertia-location')).toBe('http://localhost/posts')
+  })
+
+  it('adds the CSP nonce to asset tags', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    const assets = viteAssets({ entry: 'resources/app.tsx', hotFile: join(dir, 'none'), manifest: { 'resources/app.tsx': { file: 'assets/app-1.js', isEntry: true } } })
+    const http = new Hono()
+      .use(secureHeaders({ contentSecurityPolicy: { scriptSrc: [NONCE] } }))
+      .use(defineInertia({ assets }).middleware())
+      .get('/', (c) => c.render('Home', { greeting: 'hi' }))
+    const res = await http.request('/')
+    const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy')!)![1]
+    expect(await res.text()).toContain(`<script type="module" src="/build/assets/app-1.js" nonce="${nonce}"></script>`)
+    rmSync(dir, { recursive: true })
+  })
+})
+
+/** Follows redirects like the Inertia client: same headers, cookie jar kept. */
+function client(http: Http) {
+  let cookie = ''
+  return async (path: string, init: RequestInit = {}) => {
+    const headers = { ...inertiaHeaders, referer: 'http://localhost/posts', ...(cookie ? { cookie } : {}), ...(init.headers as Record<string, string>) }
+    const res = await http.request(`http://localhost${path}`, { ...init, headers })
+    const set = res.headers.get('set-cookie')
+    if (set) cookie = set.split(';')[0]!
+    return res
+  }
+}
+
+describe('errors and flash', () => {
+  it('shows validation errors on the page the form came from, first message per field', async () => {
+    const send = client(makeHttp())
+    const failed = await send('/posts', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } })
+    expect(failed.status).toBe(303)
+    expect(failed.headers.get('location')).toBe('/posts')
+    const page = (await (await send('/posts')).json()) as PageObject
+    expect(page.props.errors).toEqual({ title: 'Too short' })
+    expect(((await (await send('/posts')).json()) as PageObject).props.errors).toEqual({})
+  })
+
+  it('nests errors under the error bag the form asked for', async () => {
+    const send = client(makeHttp())
+    await send('/posts', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json', 'x-inertia-error-bag': 'createPost' } })
+    expect(((await (await send('/posts')).json()) as PageObject).props.errors).toEqual({ createPost: { title: 'Too short' } })
+  })
+
+  it('puts flash data on the page object, and keeps it through extra redirects', async () => {
+    const send = client(makeHttp())
+    await send('/saved', { method: 'POST' })
+    expect((await send('/hop')).status).toBe(302)
+    const page = (await (await send('/home')).json()) as PageObject
+    expect(page.flash).toEqual({ success: 'Saved' })
+    expect(((await (await send('/home')).json()) as PageObject).flash).toBeUndefined()
+  })
+})
+
+describe('redirects', () => {
+  it('turns 302 into 303 after PUT, PATCH and DELETE', async () => {
+    const res = await visit(makeHttp(), '/legacy', {}, { method: 'PUT' })
+    expect(res.status).toBe(303)
+    expect(res.headers.get('location')).toBe('/home')
+  })
+
+  it('hands redirects with a fragment to the client', async () => {
+    const res = await visit(makeHttp(), '/anchor', {}, { method: 'POST' })
+    expect(res.status).toBe(409)
+    expect(res.headers.get('x-inertia-redirect')).toBe('/home#comments')
+  })
+
+  it('treats an empty response as "go back"', async () => {
+    const res = await visit(makeHttp(), '/empty', { referer: 'http://localhost/posts' }, { method: 'POST' })
+    expect(res.status).toBe(303)
+    expect(res.headers.get('location')).toBe('/posts')
+  })
+
+  it('location() makes Inertia do a full visit, and plain requests a redirect', async () => {
+    const res = await visit(makeHttp(), '/away')
+    expect(res.status).toBe(409)
+    expect(res.headers.get('x-inertia-location')).toBe('https://billing.example/')
+    expect((await makeHttp().request('/away')).status).toBe(302)
+  })
+})
+
+describe('viteAssets', () => {
+  let dir: string
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  const manifest = {
+    'resources/app.tsx': { file: 'assets/app-abc.js', isEntry: true, imports: ['_vendor.js'], css: ['assets/app-def.css'] },
+    '_vendor.js': { file: 'assets/vendor-123.js', css: ['assets/vendor-456.css'] },
+  }
+
+  it('builds tags from the manifest: styles, preloads, then the entry', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    const assets = viteAssets({ entry: 'resources/app.tsx', manifest, hotFile: join(dir, 'vite.hot') })
+    expect((await assets.tags()).split('\n')).toEqual([
+      '<link rel="stylesheet" href="/build/assets/app-def.css">',
+      '<link rel="stylesheet" href="/build/assets/vendor-456.css">',
+      '<link rel="modulepreload" href="/build/assets/vendor-123.js">',
+      '<script type="module" src="/build/assets/app-abc.js"></script>',
+    ])
+    expect(await assets.version()).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('points at the dev server while it runs', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'vite.hot'), 'http://localhost:5173\n')
+    const assets = viteAssets({ entry: 'resources/app.tsx', manifest, hotFile: join(dir, 'vite.hot') })
+    expect(await assets.tags()).toBe(
+      '<script type="module" src="http://localhost:5173/@vite/client"></script>\n<script type="module" src="http://localhost:5173/resources/app.tsx"></script>',
+    )
+    expect(await assets.version()).toBe('dev')
+  })
+
+  it('explains a missing entry', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    const assets = viteAssets({ entry: 'resources/other.tsx', manifest, hotFile: join(dir, 'vite.hot') })
+    await expect(assets.tags()).rejects.toThrow(/isn't in the Vite manifest/)
+  })
+})
+
+it('types c.render from the page registry, minus shared props and errors', () => {
+  expectTypeOf<RenderProps<'Home'>>().toEqualTypeOf<{ greeting: string | (() => string | Promise<string>) | import('../src/props.js').Prop<string> }>()
+  new Hono().get('/', (c) => {
+    // @ts-expect-error unknown page
+    void c.render('Nope', {})
+    // @ts-expect-error missing required prop
+    void c.render('Home', {})
+    return c.render('Posts/Index', { posts: [], stats: defer(async () => ({ total: 0 })) })
+  })
+  void sessionOf
+})

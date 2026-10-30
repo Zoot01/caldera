@@ -22,5 +22,5 @@ export type { AnyRouteGroup, RouteGroup, RouteOptions, RouteRecord } from './rou
 export { originCheck, securityHeaders } from './security.js'
 export type { OriginCheckOptions, SecurityHeadersOptions } from './security.js'
 export { back, previousUrl, redirect, Redirect } from './redirect.js'
-export { createSessionCodec, isSessionStarted, parseDuration, sessionOf, sessionProvider, startSession } from './session.js'
+export { appendHeader, createSessionCodec, isSessionStarted, parseDuration, sessionOf, sessionProvider, startSession } from './session.js'
 export type { Session, SessionCodec, SessionOptions } from './session.js'
