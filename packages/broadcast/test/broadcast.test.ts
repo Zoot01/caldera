@@ -7,11 +7,14 @@ import { createQueue, setDefaultQueue } from '@caldera/queue'
 import { drizzle } from 'drizzle-orm/pglite'
 import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
-import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import { broadcastProvider, broadcastRoutes, createBroadcaster, defineChannel, setDefaultBroadcaster, type Broadcaster } from '../src/index.js'
+import { broadcastProvider, broadcastRoutes, createBroadcaster, defineChannel, setDefaultBroadcaster, signSubscription, type Broadcaster } from '../src/index.js'
+import { createHub, type HubConnection } from '../src/hub.js'
 import { md5 } from '../src/md5.js'
+import { startBroadcastServer } from '../src/server.js'
 import { hasDocker, SOKETI_APP, startSoketi } from './soketi.js'
+import { startWorkerdHub } from './workerd.js'
 
 // pusher-js is CommonJS whose types describe its ES build: the default import is the class at runtime.
 const Pusher = PusherModule as unknown as typeof import('pusher-js').default
@@ -211,13 +214,27 @@ describe('broadcast events', () => {
   })
 })
 
-// A real Pusher-compatible server (Soketi, in Docker) and the real pusher-js client.
-describe.runIf(hasDocker)('over a real pusher-protocol server (Soketi)', { timeout: 30_000 }, () => {
+// Real pusher-protocol servers, and the real pusher-js client: Soketi (in Docker) as the reference,
+// and Caldera's own hub on Node (`caldera broadcast:serve`), which must behave the same.
+const servers = [
+  ...(hasDocker ? [{ name: 'Soketi', start: startSoketi }] : []),
+  {
+    name: 'caldera broadcast:serve',
+    start: async () => {
+      const server = await startBroadcastServer({ ...SOKETI_APP, port: 0 })
+      return { host: '127.0.0.1', port: server.port, stop: server.close }
+    },
+  },
+  // On workerd, publishes from elsewhere reach the Durable Object through broadcastHubRoute.
+  { name: 'the Durable Object hub (workerd)', start: startWorkerdHub },
+]
+
+describe.each(servers)('over $name', { timeout: 30_000 }, ({ start }) => {
   let soketi: Awaited<ReturnType<typeof startSoketi>>
   let setup: ReturnType<typeof makeApp>
   const clients: InstanceType<typeof Pusher>[] = []
   beforeAll(async () => {
-    soketi = await startSoketi()
+    soketi = await start()
     setup = makeApp({ driver: 'pusher', host: soketi.host, port: soketi.port, ...SOKETI_APP })
     await setup.app.boot()
     setDefaultBroadcaster(setup.broadcaster())
@@ -301,4 +318,79 @@ describe.runIf(hasDocker)('over a real pusher-protocol server (Soketi)', { timeo
     ;(bobRoom as unknown as { trigger(event: string, data: unknown): boolean }).trigger('client-typing', { at: 1 })
     expect(await whisper).toEqual({ at: 1 })
   })
+
+  it('announces a member once per user, and when their last tab leaves', async () => {
+    const watcher = await connect('carol')
+    const room = watcher.subscribe('presence-rooms.r2')
+    await subscribed(room)
+    const events: string[] = []
+    room.bind('pusher:member_added', (m: { id: string }) => events.push(`+${m.id}`))
+    room.bind('pusher:member_removed', (m: { id: string }) => events.push(`-${m.id}`))
+    const [tab1, tab2] = [await connect('dan'), await connect('dan')]
+    await subscribed(tab1.subscribe('presence-rooms.r2'))
+    await subscribed(tab2.subscribe('presence-rooms.r2'))
+    tab1.unsubscribe('presence-rooms.r2')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(events).toEqual(['+dan'])
+    tab2.disconnect()
+    await vi.waitFor(() => expect(events).toEqual(['+dan', '-dan']))
+  })
+
+  it('refuses a publish with a bad signature', async () => {
+    const forged = createBroadcaster({ default: 'p', connections: { p: { driver: 'pusher', host: soketi.host, port: soketi.port, ...SOKETI_APP, secret: 'wrong' } } })
+    await expect(forged.send('news', 'x', {})).rejects.toThrow(/refused the broadcast \(401\)/)
+  })
+})
+
+describe('the hub', () => {
+  it('keeps no state of its own, so a Durable Object woken from hibernation carries on', async () => {
+    const inbox = new Map<string, string[]>()
+    const connections = new Set<HubConnection>()
+    const make = (socketId: string): HubConnection => {
+      inbox.set(socketId, [])
+      return { state: { socketId, channels: {} }, send: (m) => inbox.get(socketId)!.push(m), close: () => {}, save: () => {} }
+    }
+    const options = { ...SOKETI_APP, connections: () => connections }
+    const before = createHub(options)
+    const [ann, bob] = [make('1.1'), make('2.2')]
+    connections.add(ann).add(bob)
+    for (const [connection, user] of [[ann, 'ann'], [bob, 'bob']] as const) {
+      const channelData = JSON.stringify({ user_id: user, user_info: { name: user } })
+      const { auth } = await signSubscription(SOKETI_APP.key, SOKETI_APP.secret, connection.state.socketId, 'presence-rooms.1', channelData)
+      await before.receive(connection, JSON.stringify({ event: 'pusher:subscribe', data: { channel: 'presence-rooms.1', auth, channel_data: channelData } }))
+    }
+    // Evicted: a new hub, the same sockets (their attachments).
+    const after = createHub(options)
+    connections.delete(ann)
+    after.close(ann)
+    expect(JSON.parse(inbox.get('2.2')!.at(-1)!)).toEqual({ event: 'pusher_internal:member_removed', channel: 'presence-rooms.1', data: '{"user_id":"ann"}' })
+  })
+
+  it('refuses a forged subscription, and client events where they aren’t allowed', async () => {
+    const sent: string[] = []
+    const connection: HubConnection = { state: { socketId: '1.1', channels: {} }, send: (m) => sent.push(m), close: () => {}, save: () => {} }
+    const hub = createHub({ ...SOKETI_APP, connections: () => [connection] })
+    await hub.receive(connection, JSON.stringify({ event: 'pusher:subscribe', data: { channel: 'private-posts.1', auth: `${SOKETI_APP.key}:forged` } }))
+    expect(JSON.parse(sent.pop()!)).toMatchObject({ event: 'pusher:subscription_error', channel: 'private-posts.1', data: { type: 'AuthError', status: 401 } })
+    await hub.receive(connection, JSON.stringify({ event: 'pusher:subscribe', data: { channel: 'news' } }))
+    await hub.receive(connection, JSON.stringify({ event: 'client-typing', channel: 'news', data: {} }))
+    expect(JSON.parse(sent.pop()!)).toMatchObject({ event: 'pusher:error' })
+    expect(connection.state.channels).toEqual({ news: null })
+  })
+
+  it('on Workers, publishes through the binding and points browsers at the app’s origin', async () => {
+    const worker = await startWorkerdHub()
+    const client = new Pusher(SOKETI_APP.key, { cluster: '', wsHost: worker.host, wsPort: worker.port, forceTLS: false, enabledTransports: ['ws'] })
+    try {
+      const channel = client.subscribe('news')
+      await new Promise((resolve) => channel.bind('pusher:subscription_succeeded', resolve))
+      const received = new Promise((resolve) => channel.bind('headline', resolve))
+      const res = await fetch(new URL('/publish', worker.url), { method: 'POST', body: JSON.stringify({ channels: ['news'], event: 'headline', data: '{"text":"From the Worker"}' }) })
+      expect(await res.json()).toEqual({ ok: true, client: { key: SOKETI_APP.key, cluster: '', wsHost: '127.0.0.1', wsPort: worker.port, forceTLS: false, enabledTransports: ['ws', 'wss'] } })
+      expect(await received).toEqual({ text: 'From the Worker' })
+    } finally {
+      client.disconnect()
+      await worker.stop()
+    }
+  }, 30_000)
 })

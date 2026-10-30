@@ -9,6 +9,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./hub": {
+      "types": "./dist/hub.d.ts",
+      "default": "./dist/hub.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts",
+      "default": "./dist/cloudflare.js"
     }
   },
   "files": [
@@ -30,7 +42,8 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera/core": "workspace:*",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@caldera/auth": "workspace:*",
@@ -43,6 +56,9 @@
     "hono": "^4.13.14",
     "pusher-js": "8.6.0",
     "typescript": "5.9.3",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@types/ws": "^8.18.1",
+    "esbuild": "0.28.2",
+    "miniflare": "4.20260730.0"
   }
 }

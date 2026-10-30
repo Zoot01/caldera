@@ -246,7 +246,10 @@ export function createBroadcaster<const N extends string>(
       if (!SOCKET_ID.test(socketId)) throw new CalderaError('broadcast_socket_invalid', `"${socketId}" isn't a socket id.`)
       return manager.use().sign(socketId, result.channel, result.member ? JSON.stringify(result.member) : undefined)
     },
-    client: (connection) => manager.use(connection).client(),
+    client(connection) {
+      const c = options.current?.()
+      return manager.use(connection).client(c ? new URL(c.req.url) : undefined)
+    },
     async flush() {
       while (pending.size) await Promise.all([...pending])
     },

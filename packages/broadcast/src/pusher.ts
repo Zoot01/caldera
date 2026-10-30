@@ -1,6 +1,6 @@
 import { CalderaError, defineDriver } from '@caldera/core'
 import { z } from 'zod'
-import { hmacHex, signSubscription, type BroadcastCapabilities, type BroadcastDriver } from './driver.js'
+import { hmacHex, signSubscription, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage } from './driver.js'
 import { md5 } from './md5.js'
 
 const schema = z.object({
@@ -34,27 +34,11 @@ export const pusherDriver = defineDriver<BroadcastDriver, BroadcastCapabilities,
     if (!config.host && !config.cluster) throw new CalderaError('broadcast_pusher_host', 'The pusher driver needs `cluster` (hosted Pusher) or `host` (Soketi, Reverb, your own server).')
     const scheme = config.scheme ?? (config.host ? 'http' : 'https')
     const base = config.host ? `${scheme}://${config.host}${config.port ? `:${config.port}` : ''}` : `https://api-${config.cluster}.pusher.com`
-    const post = async (path: string, body: string) => {
-      const query = new URLSearchParams({ auth_key: config.key, auth_timestamp: String(Math.floor(Date.now() / 1000)), auth_version: '1.0', body_md5: md5(body) })
-      query.sort()
-      const signature = await hmacHex(config.secret, `POST\n${path}\n${decodeURIComponent(query.toString())}`)
-      const response = await fetch(`${base}${path}?${query}&auth_signature=${signature}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body,
-        signal: AbortSignal.timeout(config.timeoutMs),
-      })
-      if (!response.ok) {
-        throw new CalderaError('broadcast_failed', `${base} refused the broadcast (${response.status}): ${(await response.text()).slice(0, 300)}`, { status: response.status })
-      }
-    }
+    const post = signedPost({ base, appId: config.appId, key: config.key, secret: config.secret, timeoutMs: config.timeoutMs }, (url, init) => fetch(url, init))
     return {
       async publish(message) {
         // The API takes at most 100 channels per event.
-        for (let i = 0; i < message.channels.length; i += 100) {
-          const body = JSON.stringify({ name: message.event, channels: message.channels.slice(i, i + 100), data: message.data, ...(message.socketId ? { socket_id: message.socketId } : {}) })
-          await post(`/apps/${config.appId}/events`, body)
-        }
+        await post(message)
       },
       sign: (socketId, channel, channelData) => signSubscription(config.key, config.secret, socketId, channel, channelData),
       client() {
@@ -67,3 +51,38 @@ export const pusherDriver = defineDriver<BroadcastDriver, BroadcastCapabilities,
     }
   },
 })
+
+/**
+ * Publishes through the pusher HTTP API: `POST /apps/{appId}/events`, signed with the app secret.
+ * `send` is `fetch`, or a Durable Object stub's fetch (the durable-object driver, without a network hop).
+ */
+export function signedPost(target: { base: string; appId: string; key: string; secret: string; timeoutMs: number }, send: (url: string, init: RequestInit) => Promise<Response>) {
+  const one = async (body: string) => {
+    const path = `/apps/${target.appId}/events`
+    const query = new URLSearchParams({ auth_key: target.key, auth_timestamp: String(Math.floor(Date.now() / 1000)), auth_version: '1.0', body_md5: md5(body) })
+    query.sort()
+    const signature = await hmacHex(target.secret, `POST\n${path}\n${decodeURIComponent(query.toString())}`)
+    const response = await send(`${target.base}${path}?${query}&auth_signature=${signature}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+      signal: AbortSignal.timeout(target.timeoutMs),
+    })
+    const text = await response.text()
+    // Soketi answers some refusals (a bad signature) with 200 and `{ error, code }` in the body.
+    let refused: { error?: unknown; code?: unknown } | undefined
+    try {
+      refused = JSON.parse(text) as typeof refused
+    } catch {}
+    const status = response.ok && refused?.error ? Number(refused.code) || 500 : response.status
+    if (!response.ok || refused?.error) {
+      throw new CalderaError('broadcast_failed', `${target.base} refused the broadcast (${status}): ${text.slice(0, 300)}`, { status })
+    }
+  }
+  return async (message: BroadcastMessage) => {
+    // The API takes at most 100 channels per event.
+    for (let i = 0; i < message.channels.length; i += 100) {
+      await one(JSON.stringify({ name: message.event, channels: message.channels.slice(i, i + 100), data: message.data, ...(message.socketId ? { socket_id: message.socketId } : {}) }))
+    }
+  }
+}

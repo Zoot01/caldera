@@ -66,6 +66,9 @@ importers:
       '@caldera/core':
         specifier: workspace:*
         version: link:../core
+      ws:
+        specifier: ^8.21.3
+        version: 8.22.0
     devDependencies:
       '@caldera/auth':
         specifier: workspace:*
@@ -85,12 +88,21 @@ importers:
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.2
       drizzle-orm:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.7)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       hono:
         specifier: ^4.13.14
         version: 4.13.14
+      miniflare:
+        specifier: 4.20260730.0
+        version: 4.20260730.0
       pusher-js:
         specifier: 8.6.0
         version: 8.6.0

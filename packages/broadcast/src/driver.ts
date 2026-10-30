@@ -41,8 +41,8 @@ export interface BroadcastDriver {
    * `channel_data` for presence. Drivers that deliver nothing (log, null) return an unsigned answer.
    */
   sign(socketId: string, channel: string, channelData?: string): Promise<{ auth: string; channel_data?: string }>
-  /** The browser's connection options, or undefined when there's nothing to connect to. */
-  client(): ClientConfig | undefined
+  /** The browser's connection options, or undefined when there's nothing to connect to. `url` is the page's request, for hosts on the app's own origin. */
+  client(url?: URL): ClientConfig | undefined
 }
 
 /** Writes every broadcast to the console: development without a realtime server. */
