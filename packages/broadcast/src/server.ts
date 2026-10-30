@@ -5,7 +5,7 @@ import { createHub, newSocketId, type HubConnection } from './hub.js'
 export interface BroadcastServerOptions {
   appId: string
   key: string
-  secret: string
+  secret: string | Promise<string>
   port: number
   /** Default 127.0.0.1; `0.0.0.0` to accept other machines. */
   host?: string

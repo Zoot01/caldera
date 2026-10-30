@@ -244,8 +244,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     ok(run('pnpm', 'exec', 'caldera', 'd1:migrations'))
     ok(run('pnpm', 'exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'))
     ok(run('pnpm', 'build'))
-    // As cloudflare:setup's .dev.vars.example asks: the realtime hub's credentials too.
-    writeFileSync(join(dir, '.dev.vars'), `APP_KEY=${'k'.repeat(43)}\nBROADCAST_APP_ID=e2e\nBROADCAST_KEY=e2e-key\nBROADCAST_SECRET=${'s'.repeat(32)}\n`)
+    writeFileSync(join(dir, '.dev.vars'), `APP_KEY=${'k'.repeat(43)}\n`)
     const check = run('pnpm', 'exec', 'caldera', 'check', '--json')
     expect(JSON.parse(check.stdout).issues.filter((i: { code: string }) => i.code.startsWith('workers_'))).toEqual([])
 
@@ -270,7 +269,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       expect(html).toContain('<div data-server-rendered="true" id="app"><main>')
       // Realtime: the page points browsers at this origin, where the BroadcastHub Durable Object answers.
       expect(html).toMatch(/(?:"|&quot;)wsHost(?:"|&quot;):(?:"|&quot;)127\.0\.0\.1/)
-      const socket = new WebSocket('ws://127.0.0.1:3462/app/e2e-key?protocol=7')
+      const socket = new WebSocket('ws://127.0.0.1:3462/app/e2e-workers-key?protocol=7')
       const hello = await new Promise<string>((resolve, reject) => {
         socket.onmessage = (event) => resolve(String(event.data))
         socket.onerror = () => reject(new Error('no WebSocket'))
@@ -303,7 +302,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     const { spawn } = await import('node:child_process')
     const turso = spawn('turso', ['dev', '--db-file', join(dir, 'local.db'), '--port', '3463'], { detached: true })
     const saved = { ...process.env }
-    Object.assign(process.env, { APP_KEY: 'k'.repeat(43), DATABASE_URL: 'http://127.0.0.1:3463', QUEUE_CONNECTION: 'deferred', BROADCAST_CONNECTION: 'null', NODE_ENV: 'production' })
+    Object.assign(process.env, { APP_KEY: 'k'.repeat(43), DATABASE_URL: 'http://127.0.0.1:3463', QUEUE_CONNECTION: 'deferred', NODE_ENV: 'production' })
     const { serveVercelOutput } = await import('./vercel-runtime.js')
     const site = await serveVercelOutput(dir, 3464)
     try {

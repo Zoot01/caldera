@@ -89,8 +89,7 @@ export function createProject(options: CreateOptions): CreateResult {
   writeFileSync(
     join(directory, '.env'),
     readFileSync(join(directory, '.env.example'), 'utf8')
-      .replace('APP_KEY=', `APP_KEY=${randomBytes(32).toString('base64url')}`)
-      .replace('BROADCAST_SECRET=', `BROADCAST_SECRET=${randomBytes(24).toString('base64url')}`),
+      .replace('APP_KEY=', `APP_KEY=${randomBytes(32).toString('base64url')}`),
   )
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, any>

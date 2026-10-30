@@ -1,6 +1,6 @@
 import { CalderaError, defineDriver } from '@caldera/core'
 import { z } from 'zod'
-import { signSubscription, type BroadcastCapabilities, type BroadcastDriver } from './driver.js'
+import { deriveSecret, resolveSecret, signSubscription, type BroadcastCapabilities, type BroadcastDriver } from './driver.js'
 import { createHub, newSocketId, type ConnectionState, type Hub, type HubConnection } from './hub.js'
 import { signedPost } from './pusher.js'
 
@@ -21,11 +21,15 @@ export interface DurableObjectNamespaceLike {
   idFromName(name: string): unknown
   get(id: unknown): { fetch(input: string | Request, init?: RequestInit): Promise<Response> }
 }
-/** The env the hub reads: the same app id, key and secret as the durable-object connection. */
+/**
+ * The env the hub reads: the app id and key (wrangler.json vars) and APP_KEY, from which it derives
+ * the secret the app signs with (or BROADCAST_SECRET, to set one).
+ */
 export interface BroadcastHubEnv {
   BROADCAST_APP_ID: string
   BROADCAST_KEY: string
-  BROADCAST_SECRET: string
+  APP_KEY?: string
+  BROADCAST_SECRET?: string
 }
 
 const workers = globalThis as unknown as {
@@ -50,15 +54,16 @@ export class BroadcastHub {
     private readonly ctx: HubState,
     env: BroadcastHubEnv,
   ) {
-    for (const name of ['BROADCAST_APP_ID', 'BROADCAST_KEY', 'BROADCAST_SECRET'] as const) {
-      if (!env[name]) throw new CalderaError('broadcast_hub_env', `BroadcastHub needs ${name} (a secret: \`wrangler secret put ${name}\`, or [vars]).`)
+    for (const name of ['BROADCAST_APP_ID', 'BROADCAST_KEY'] as const) {
+      if (!env[name]) throw new CalderaError('broadcast_hub_env', `BroadcastHub needs ${name} (wrangler.json vars; \`caldera cloudflare:setup\` adds it).`)
     }
+    if (!env.BROADCAST_SECRET && !env.APP_KEY) throw new CalderaError('broadcast_hub_env', 'BroadcastHub needs APP_KEY (`wrangler secret put APP_KEY`), to derive the secret the app signs with.')
     // pusher-js pings after a quiet spell; answered by the runtime, so the object can stay asleep.
     ctx.setWebSocketAutoResponse(new workers.WebSocketRequestResponsePair('{"event":"pusher:ping","data":{}}', '{"event":"pusher:pong","data":{}}'))
     this.hub = createHub({
       appId: env.BROADCAST_APP_ID,
       key: env.BROADCAST_KEY,
-      secret: env.BROADCAST_SECRET,
+      secret: env.BROADCAST_SECRET || deriveSecret(env.APP_KEY!),
       connections: () => ctx.getWebSockets().map((socket) => this.connection(socket)),
     })
   }
@@ -131,7 +136,9 @@ const schema = z.object({
   binding: z.custom<DurableObjectNamespaceLike>((value) => typeof (value as DurableObjectNamespaceLike | undefined)?.idFromName === 'function', 'a Durable Object namespace binding (env.BROADCAST_HUB)'),
   appId: z.string().min(1),
   key: z.string().min(1),
-  secret: z.string().min(1),
+  /** Optional: derived from `appKey` (APP_KEY), as the hub derives it. */
+  secret: z.string().min(1).optional(),
+  appKey: z.string().min(1).optional(),
   maxPayloadBytes: z.number().int().positive().default(10_240),
   timeoutMs: z.number().int().positive().default(5000),
 })
@@ -147,9 +154,11 @@ export const durableObjectDriver = defineDriver<BroadcastDriver, BroadcastCapabi
   capabilities: (config) => ({ presence: true, clientEvents: true, maxPayloadBytes: config.maxPayloadBytes }),
   create(config) {
     const stub = () => config.binding.get(config.binding.idFromName('hub'))
+    const secret = resolveSecret(config, 'The durable-object driver')
+    secret.catch(() => {})
     return {
-      publish: signedPost({ base: 'https://broadcast-hub', appId: config.appId, key: config.key, secret: config.secret, timeoutMs: config.timeoutMs }, (url, init) => stub().fetch(url, init)),
-      sign: (socketId, channel, channelData) => signSubscription(config.key, config.secret, socketId, channel, channelData),
+      publish: signedPost({ base: 'https://broadcast-hub', appId: config.appId, key: config.key, secret, timeoutMs: config.timeoutMs }, (url, init) => stub().fetch(url, init)),
+      sign: (socketId, channel, channelData) => signSubscription(config.key, secret, socketId, channel, channelData),
       client(url) {
         if (!url) return undefined
         const tls = url.protocol === 'https:'

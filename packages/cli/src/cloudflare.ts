@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CalderaError } from '@caldera/core'
+import { broadcastNowhere } from './broadcast.js'
 import { CONVENTIONS, type Project } from './project.js'
 
 export const WRANGLER_FILE = 'wrangler.json'
@@ -97,7 +98,8 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
     triggers: { crons: schedules ? ['* * * * *'] : [] },
     // One Durable Object holds every realtime connection (WebSocket hibernation: idle ones cost nothing).
     ...(broadcast ? { durable_objects: { bindings: [{ name: 'BROADCAST_HUB', class_name: 'BroadcastHub' }] }, migrations: [{ tag: 'v1', new_sqlite_classes: ['BroadcastHub'] }] } : {}),
-    vars: { NODE_ENV: 'production', QUEUE_CONNECTION: 'cloudflare', MAIL_MAILER: 'cloudflare', ...(broadcast ? { BROADCAST_CONNECTION: 'cloudflare' } : {}) },
+    // The hub's app id and key are public (browsers send the key); its secret is derived from APP_KEY.
+    vars: { NODE_ENV: 'production', QUEUE_CONNECTION: 'cloudflare', MAIL_MAILER: 'cloudflare', ...(broadcast ? { BROADCAST_CONNECTION: 'cloudflare', BROADCAST_APP_ID: name, BROADCAST_KEY: `${name}-key` } : {}) },
   }
   writeFileSync(project.path(WRANGLER_FILE), `${JSON.stringify(config, null, 2)}\n`)
   mkdirSync(project.path('src'), { recursive: true })
@@ -105,8 +107,7 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
   writeFileSync(project.path(WORKER_FILE), workerSource(project.importExtension, ssr, broadcast))
   writeFileSync(
     project.path('.dev.vars.example'),
-    '# Local secrets for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put APP_KEY`.\nAPP_KEY=\n' +
-      (broadcast ? '# The realtime hub (any values; the secret signs subscriptions and publishes).\nBROADCAST_APP_ID=\nBROADCAST_KEY=\nBROADCAST_SECRET=\n' : ''),
+    '# Local secrets for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put APP_KEY`.\nAPP_KEY=\n',
   )
   return {
     schemaVersion: 1 as const,
@@ -116,7 +117,7 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
       'Local: copy .dev.vars.example to .dev.vars (set APP_KEY), `caldera d1:migrations`, `wrangler d1 migrations apply DB --local`, `pnpm build`, `wrangler dev`.',
       `Deploy: \`wrangler d1 create ${name}\` (put its id in wrangler.json), \`wrangler r2 bucket create ${name}-files\`, \`wrangler queues create ${name}-jobs\`, \`wrangler secret put APP_KEY\`, \`wrangler d1 migrations apply DB --remote\`, \`vite build\`, \`wrangler deploy\`.`,
       'Sending mail needs a domain onboarded to Cloudflare Email Service; until then, MAIL_MAILER=log.',
-      ...(broadcast ? ['Realtime: `wrangler secret put BROADCAST_APP_ID`, `BROADCAST_KEY` and `BROADCAST_SECRET` (the hub and the app share them); the BroadcastHub Durable Object deploys with the Worker.'] : []),
+      ...(broadcast ? ['Realtime: the BroadcastHub Durable Object deploys with the Worker; it and the app derive their shared secret from APP_KEY.'] : []),
     ],
   }
 }
@@ -206,6 +207,7 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
     if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
       issues.push({ code: 'workers_broadcast_local', severity: 'error', message: `On Workers the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}, this machine. Use the durable-object driver (cloudflare:setup adds the BroadcastHub), or hosted Pusher.`, file: 'src/config/broadcast.ts', fix: `set BROADCAST_CONNECTION=cloudflare in ${file} vars` })
     }
+    issues.push(...(await broadcastNowhere(project, c.broadcast, 'Workers')))
     const store = pick(c.cache, 'stores')
     if (store === 'redis') {
       issues.push({ code: 'workers_redis', severity: 'error', message: 'On Workers the default cache store is redis (ioredis over TCP). Use the database store (D1) instead.', file: 'src/config/cache.ts' })

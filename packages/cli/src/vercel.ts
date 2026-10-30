@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { CalderaError } from '@caldera/core'
 import type { WorkersIssue } from './cloudflare.js'
+import { broadcastNowhere } from './broadcast.js'
 import type { Project } from './project.js'
 
 export const VERCEL_FILE = 'vercel.json'
@@ -60,7 +61,7 @@ export function vercelSetup(project: Project, options: { force?: boolean } = {})
       'Install the runtime helper: `pnpm add @vercel/functions` (or npm/yarn/bun).',
       'Production env (Vercel project settings): APP_KEY; DATABASE_URL to a hosted database (Turso `libsql://…?authToken=…`, or Postgres); QUEUE_CONNECTION=deferred (or redis/QStash); S3_* for files; a mailer (RESEND_API_KEY, POSTMARK_SERVER_TOKEN…); CRON_SECRET if you have schedules.',
       'Schedules: `caldera schedule:sync --target vercel` adds them to vercel.json as Vercel Cron Jobs.',
-      'Realtime: functions can’t hold WebSockets. Set BROADCAST_CONNECTION=pusher (hosted Pusher: PUSHER_CLUSTER and the BROADCAST_* credentials), point BROADCAST_HOST at a server elsewhere, or BROADCAST_CONNECTION=null without realtime.',
+      'Realtime: functions can’t hold WebSockets, so broadcasts are only logged until you pick a server: BROADCAST_CONNECTION=pusher (hosted Pusher: PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER), or server with BROADCAST_HOST pointing at one elsewhere.',
       'Check it: `vercel pull --environment=production`, then `caldera check` (it reads that env). Build locally: `vercel build`.',
     ],
   }
@@ -111,6 +112,7 @@ export async function vercelIssues(
     else if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
       issues.push({ code: 'vercel_broadcast_local', severity: 'error', message: `On Vercel the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}. Functions can't hold WebSockets, so the realtime server runs elsewhere: hosted Pusher, or a pusher-protocol server (caldera broadcast:serve, Soketi, Reverb, a Cloudflare BroadcastHub) at BROADCAST_HOST.`, file: 'src/config/broadcast.ts' })
     }
+    else issues.push(...(await broadcastNowhere(project, c.broadcast, 'Vercel')))
     if (!decidedBy('REDIS_URL')) skipped.push('cache')
     else if (pick(c.cache, 'stores') === 'memory') {
       issues.push({ code: 'vercel_memory_cache', severity: 'warning', message: 'On Vercel the default cache store is memory: each function instance has its own, so rate limits and locks aren’t shared. Use the database store, or Redis.', file: 'src/config/cache.ts' })

@@ -1,12 +1,15 @@
 import { CalderaError, defineDriver } from '@caldera/core'
 import { z } from 'zod'
-import { hmacHex, signSubscription, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage } from './driver.js'
+import { hmacHex, resolveSecret, signSubscription, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage } from './driver.js'
 import { md5 } from './md5.js'
 
 const schema = z.object({
   appId: z.string().min(1),
   key: z.string().min(1),
-  secret: z.string().min(1),
+  /** Hosted Pusher: required (from its dashboard). A self-hosted server: optional, derived from `appKey`. */
+  secret: z.string().min(1).optional(),
+  /** APP_KEY: a self-hosted server's secret is derived from it when `secret` isn't set. */
+  appKey: z.string().min(1).optional(),
   /** Hosted Pusher: the app's cluster (`eu`, `mt1`…). */
   cluster: z.string().optional(),
   /** A Pusher-compatible server (Soketi, Reverb, `caldera broadcast:serve`): where the app publishes. */
@@ -34,13 +37,17 @@ export const pusherDriver = defineDriver<BroadcastDriver, BroadcastCapabilities,
     if (!config.host && !config.cluster) throw new CalderaError('broadcast_pusher_host', 'The pusher driver needs `cluster` (hosted Pusher) or `host` (Soketi, Reverb, your own server).')
     const scheme = config.scheme ?? (config.host ? 'http' : 'https')
     const base = config.host ? `${scheme}://${config.host}${config.port ? `:${config.port}` : ''}` : `https://api-${config.cluster}.pusher.com`
-    const post = signedPost({ base, appId: config.appId, key: config.key, secret: config.secret, timeoutMs: config.timeoutMs }, (url, init) => fetch(url, init))
+    if (!config.host && !config.secret) throw new CalderaError('broadcast_secret_missing', 'Hosted Pusher needs the app secret from its dashboard (PUSHER_SECRET).')
+    const secret = resolveSecret(config, 'The pusher driver')
+    // Not awaited here: a rejection is reported where the secret is used.
+    secret.catch(() => {})
+    const post = signedPost({ base, appId: config.appId, key: config.key, secret, timeoutMs: config.timeoutMs }, (url, init) => fetch(url, init))
     return {
       async publish(message) {
         // The API takes at most 100 channels per event.
         await post(message)
       },
-      sign: (socketId, channel, channelData) => signSubscription(config.key, config.secret, socketId, channel, channelData),
+      sign: (socketId, channel, channelData) => signSubscription(config.key, secret, socketId, channel, channelData),
       client() {
         if (!config.host) return { key: config.key, cluster: config.cluster!, forceTLS: true }
         const host = config.client?.host ?? config.host
@@ -56,12 +63,12 @@ export const pusherDriver = defineDriver<BroadcastDriver, BroadcastCapabilities,
  * Publishes through the pusher HTTP API: `POST /apps/{appId}/events`, signed with the app secret.
  * `send` is `fetch`, or a Durable Object stub's fetch (the durable-object driver, without a network hop).
  */
-export function signedPost(target: { base: string; appId: string; key: string; secret: string; timeoutMs: number }, send: (url: string, init: RequestInit) => Promise<Response>) {
+export function signedPost(target: { base: string; appId: string; key: string; secret: string | Promise<string>; timeoutMs: number }, send: (url: string, init: RequestInit) => Promise<Response>) {
   const one = async (body: string) => {
     const path = `/apps/${target.appId}/events`
     const query = new URLSearchParams({ auth_key: target.key, auth_timestamp: String(Math.floor(Date.now() / 1000)), auth_version: '1.0', body_md5: md5(body) })
     query.sort()
-    const signature = await hmacHex(target.secret, `POST\n${path}\n${decodeURIComponent(query.toString())}`)
+    const signature = await hmacHex(await target.secret, `POST\n${path}\n${decodeURIComponent(query.toString())}`)
     const response = await send(`${target.base}${path}?${query}&auth_signature=${signature}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

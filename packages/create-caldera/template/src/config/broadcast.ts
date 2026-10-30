@@ -1,37 +1,31 @@
-import { CalderaError, defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera/core'
 
 export const broadcast = defineConfig('broadcast', (env) => {
-  // Tests send nothing (t.fake('broadcast') records broadcasts instead).
-  const connection = env.NODE_ENV === 'test' ? 'null' : env.BROADCAST_CONNECTION
-  const secret = env.BROADCAST_SECRET
-  if (!secret && connection !== 'log' && connection !== 'null') {
-    throw new CalderaError('broadcast_secret_missing', `BROADCAST_CONNECTION=${connection} needs BROADCAST_SECRET (a long random string the realtime server shares). Without realtime, set BROADCAST_CONNECTION=null.`)
-  }
-  const credentials = { appId: env.BROADCAST_APP_ID, key: env.BROADCAST_KEY, secret: secret ?? '' }
+  // A self-hosted server (ours, or the Durable Object) shares a secret with the app: BROADCAST_SECRET,
+  // or by default one both derive from APP_KEY.
+  const own = { appId: env.BROADCAST_APP_ID, key: env.BROADCAST_KEY, secret: env.BROADCAST_SECRET, appKey: env.APP_KEY }
   // Where browsers connect, when that isn't BROADCAST_HOST (a public hostname in front of it).
   const browser = env.BROADCAST_PUBLIC_URL ? new URL(env.BROADCAST_PUBLIC_URL) : undefined
   const secure = browser?.protocol === 'wss:' || browser?.protocol === 'https:'
   return {
-    default: connection,
+    // Tests send nothing (t.fake('broadcast') records broadcasts instead).
+    default: env.NODE_ENV === 'test' ? 'null' : env.BROADCAST_CONNECTION,
     connections: {
       // A pusher-protocol server: `caldera dev` starts one on BROADCAST_PORT; `pnpm realtime` runs it
-      // in production (or point BROADCAST_HOST at Soketi or Reverb).
-      ...(secret
-        ? {
-            server: {
-              driver: 'pusher',
-              ...credentials,
-              host: env.BROADCAST_HOST,
-              port: env.BROADCAST_PORT,
-              scheme: env.BROADCAST_SCHEME,
-              ...(browser ? { client: { host: browser.hostname, port: Number(browser.port) || (secure ? 443 : 80), scheme: secure ? ('https' as const) : ('http' as const) } } : {}),
-            },
-          }
-        : {}),
-      // Hosted Pusher: the app id, key and secret from its dashboard, and PUSHER_CLUSTER.
-      ...(secret && env.PUSHER_CLUSTER ? { pusher: { driver: 'pusher', ...credentials, cluster: env.PUSHER_CLUSTER } } : {}),
+      // in production (or point BROADCAST_HOST at Soketi or Reverb, with their secret).
+      server: {
+        driver: 'pusher',
+        ...own,
+        host: env.BROADCAST_HOST,
+        port: env.BROADCAST_PORT,
+        scheme: env.BROADCAST_SCHEME,
+        ...(browser ? { client: { host: browser.hostname, port: Number(browser.port) || (secure ? 443 : 80), scheme: secure ? ('https' as const) : ('http' as const) } } : {}),
+      },
+      // Hosted Pusher.
+      ...(env.PUSHER_KEY ? { pusher: { driver: 'pusher', appId: env.PUSHER_APP_ID ?? '', key: env.PUSHER_KEY, secret: env.PUSHER_SECRET, cluster: env.PUSHER_CLUSTER ?? 'mt1' } } : {}),
       // Cloudflare Workers: the BroadcastHub Durable Object (`caldera cloudflare:setup`).
-      ...(secret && env.BROADCAST_HUB ? { cloudflare: { driver: 'durable-object', binding: env.BROADCAST_HUB, ...credentials } } : {}),
+      ...(env.BROADCAST_HUB ? { cloudflare: { driver: 'durable-object', binding: env.BROADCAST_HUB, ...own } } : {}),
+      // The default: broadcasts are written to the log, and browsers don't connect.
       log: { driver: 'log' },
       null: { driver: 'null' },
     },

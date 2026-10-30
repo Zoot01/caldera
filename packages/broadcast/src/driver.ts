@@ -1,4 +1,4 @@
-import { defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera/core'
 
 /** What a broadcast driver can do; a channel that needs more fails at boot. */
 export interface BroadcastCapabilities {
@@ -76,8 +76,23 @@ export async function hmacHex(secret: string, message: string): Promise<string> 
   return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * The secret a self-hosted realtime server shares with the app, derived from APP_KEY, so there's no
+ * second secret to set: the app, `caldera broadcast:serve` and the Durable Object derive the same one.
+ */
+export function deriveSecret(appKey: string): Promise<string> {
+  return hmacHex(appKey, 'caldera.broadcast.secret')
+}
+
+/** A connection's secret: given, or derived from APP_KEY (`appKey`). */
+export function resolveSecret(config: { secret?: string | undefined; appKey?: string | undefined }, where: string): Promise<string> {
+  if (config.secret) return Promise.resolve(config.secret)
+  if (config.appKey) return deriveSecret(config.appKey)
+  throw new CalderaError('broadcast_secret_missing', `${where} needs \`secret\`, or \`appKey\` (APP_KEY) to derive one.`)
+}
+
 /** The pusher protocol's subscription signature: HMAC of `socket_id:channel[:channel_data]`. */
-export async function signSubscription(key: string, secret: string, socketId: string, channel: string, channelData?: string) {
-  const signature = await hmacHex(secret, channelData === undefined ? `${socketId}:${channel}` : `${socketId}:${channel}:${channelData}`)
+export async function signSubscription(key: string, secret: string | Promise<string>, socketId: string, channel: string, channelData?: string) {
+  const signature = await hmacHex(await secret, channelData === undefined ? `${socketId}:${channel}` : `${socketId}:${channel}:${channelData}`)
   return { auth: `${key}:${signature}`, ...(channelData === undefined ? {} : { channel_data: channelData }) }
 }

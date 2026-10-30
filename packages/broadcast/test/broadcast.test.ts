@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import { broadcastProvider, broadcastRoutes, createBroadcaster, defineChannel, setDefaultBroadcaster, signSubscription, type Broadcaster } from '../src/index.js'
+import { broadcastProvider, broadcastRoutes, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster } from '../src/index.js'
 import { createHub, type HubConnection } from '../src/hub.js'
 import { md5 } from '../src/md5.js'
 import { startBroadcastServer } from '../src/server.js'
@@ -456,4 +456,25 @@ describe('the browser client', () => {
       await hub.close()
     }
   }, 30_000)
+})
+
+describe('the shared secret', () => {
+  it('is derived from APP_KEY when not set, the same way by the app and the hub', async () => {
+    const appKey = 'k'.repeat(43)
+    const hub = await startBroadcastServer({ appId: 'a', key: 'k', secret: deriveSecret(appKey), port: 0 })
+    try {
+      const app = createBroadcaster({ default: 's', connections: { s: { driver: 'pusher', appId: 'a', key: 'k', appKey, host: '127.0.0.1', port: hub.port } } })
+      await app.send('news', 'x', {})
+      const other = createBroadcaster({ default: 's', connections: { s: { driver: 'pusher', appId: 'a', key: 'k', appKey: 'z'.repeat(43), host: '127.0.0.1', port: hub.port } } })
+      await expect(other.send('news', 'x', {})).rejects.toThrow(/\(401\)/)
+    } finally {
+      await hub.close()
+    }
+    expect(await deriveSecret(appKey)).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('must be given for hosted Pusher, and for a server without APP_KEY', () => {
+    expect(() => createBroadcaster({ default: 'p', connections: { p: { driver: 'pusher', appId: 'a', key: 'k', cluster: 'eu', appKey: 'x'.repeat(40) } } }).manager.use()).toThrow(/PUSHER_SECRET/)
+    expect(() => createBroadcaster({ default: 's', connections: { s: { driver: 'pusher', appId: 'a', key: 'k', host: 'h' } } }).manager.use()).toThrow(/needs `secret`, or `appKey`/)
+  })
 })

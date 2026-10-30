@@ -2,7 +2,7 @@ export { BROADCAST_JOB, broadcast, broadcastProvider, createBroadcaster, default
 export type { AuthorizeRequest, AuthorizeResult, BroadcastConfig, Broadcaster, BroadcastRegister, BroadcastFake, SentBroadcast } from './broadcaster.js'
 export { defineChannel, isChannel } from './channel.js'
 export type { AnyChannel, AuthorizeContext, ChannelBinder, ChannelDefinition, ChannelOptions, ChannelParams, ChannelRef, ChannelType, MemberInfo, ParamNames } from './channel.js'
-export { hmacHex, logDriver, nullDriver, signSubscription } from './driver.js'
+export { deriveSecret, hmacHex, logDriver, nullDriver, resolveSecret, signSubscription } from './driver.js'
 export type { BroadcastCapabilities, BroadcastDriver, BroadcastMessage, ClientConfig } from './driver.js'
 export { pusherDriver } from './pusher.js'
 export type { PusherConfig } from './pusher.js'

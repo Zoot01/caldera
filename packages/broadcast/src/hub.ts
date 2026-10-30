@@ -26,7 +26,8 @@ export interface HubConnection {
 export interface HubOptions {
   appId: string
   key: string
-  secret: string
+  /** Or a promise of it (derived from APP_KEY). */
+  secret: string | Promise<string>
   /** Every open connection, for fan-out and presence. */
   connections(): Iterable<HubConnection>
   /** Largest message accepted, from the app or a client. Default 10KB, as Pusher. */
@@ -68,7 +69,7 @@ export function createHub(options: HubOptions) {
     if (channel in connection.state.channels) return
     if (isPrivate(channel)) {
       const channelData = typeof data.channel_data === 'string' ? data.channel_data : undefined
-      const expected = `${options.key}:${await hmacHex(options.secret, channelData === undefined ? `${connection.state.socketId}:${channel}` : `${connection.state.socketId}:${channel}:${channelData}`)}`
+      const expected = `${options.key}:${await hmacHex(await options.secret, channelData === undefined ? `${connection.state.socketId}:${channel}` : `${connection.state.socketId}:${channel}:${channelData}`)}`
       if (typeof data.auth !== 'string' || !timingSafeEqual(data.auth, expected)) return refuse('The subscription signature is invalid.')
       if (channel.startsWith('presence-')) {
         let member: { user_id?: unknown; user_info?: unknown }
@@ -170,7 +171,7 @@ export function createHub(options: HubOptions) {
       query.delete('auth_signature')
       query.sort()
       const timestamp = Number(query.get('auth_timestamp'))
-      const expected = await hmacHex(options.secret, `POST\n${url.pathname}\n${decodeURIComponent(query.toString())}`)
+      const expected = await hmacHex(await options.secret, `POST\n${url.pathname}\n${decodeURIComponent(query.toString())}`)
       if (query.get('auth_key') !== options.key || !timingSafeEqual(signature, expected) || query.get('body_md5') !== md5(body)) return json({ error: 'Invalid signature.' }, 401)
       if (!Number.isFinite(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > 600) return json({ error: 'Timestamp expired.' }, 401)
       const parsed = safeParse(body) as { name?: unknown; data?: unknown; channels?: unknown; channel?: unknown; socket_id?: unknown; batch?: unknown } | undefined

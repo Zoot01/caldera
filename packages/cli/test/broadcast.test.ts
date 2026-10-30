@@ -87,6 +87,11 @@ it('caldera dev runs the realtime server the app publishes to, unless something 
   } finally {
     await server!.close()
   }
+  // Without a secret in config, the dev server derives the app's (from APP_KEY), as the app does.
+  writeFileSync(join(dir, 'src/config/broadcast.ts'), readFileSync(join(dir, 'src/config/broadcast.ts'), 'utf8').replace("secret: 'fixture-secret'", "appKey: 'k'.repeat(43)"))
+  const { hubSettings } = await import('../src/index.js')
+  const { deriveSecret } = await import('@caldera/broadcast')
+  expect((await hubSettings(openProject(dir))).secret).toBe(await deriveSecret('k'.repeat(43)))
   writeFileSync(join(dir, '.env'), `DATABASE_URL=file:${join(dir, 'app.db')}\nBROADCAST_CONNECTION=log\n`)
   expect(await startDevBroadcastServer(openProject(dir))).toBeUndefined()
 })
@@ -101,7 +106,9 @@ it('cloudflare:setup adds the BroadcastHub Durable Object, and check refuses a l
   const worker = readFileSync(join(dir, 'src/worker.ts'), 'utf8')
   expect(worker).toContain("export { BroadcastHub } from '@caldera/broadcast/cloudflare'")
   expect(worker).toContain('const hub = broadcastHubRoute(request, env as never)')
-  expect(readFileSync(join(dir, '.dev.vars.example'), 'utf8')).toContain('BROADCAST_SECRET=')
+  // The hub's app id and key are vars; its secret comes from APP_KEY, so no second secret to put.
+  expect(wrangler.vars).toMatchObject({ BROADCAST_APP_ID: 'fixture-broadcast-app', BROADCAST_KEY: 'fixture-broadcast-app-key' })
+  expect(readFileSync(join(dir, '.dev.vars.example'), 'utf8')).not.toContain('BROADCAST')
   const issues = await workersIssues(openProject(dir), async (env) => ({
     config: { broadcast: { default: env.BROADCAST_HUB ? 'server' : 'x', connections: { server: { driver: 'pusher', host: '127.0.0.1' } } } },
     shutdown: async () => {},

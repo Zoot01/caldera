@@ -40,6 +40,25 @@ export async function loadBroadcastEvents(project: Project): Promise<{ file: str
   return found
 }
 
+/**
+ * The warning both platform checks give when the app broadcasts events but its connection there
+ * delivers nothing (log, null): browsers wouldn't hear them.
+ */
+export async function broadcastNowhere(project: Project, broadcast: { default?: string; connections?: Record<string, { driver?: string } | undefined> } | undefined, platform: string) {
+  const driver = broadcast?.connections?.[broadcast.default ?? '']?.driver
+  if (driver !== 'log' && driver !== 'null') return []
+  const events = await loadBroadcastEvents(project)
+  if (!events.length) return []
+  return [
+    {
+      code: 'broadcast_nowhere',
+      severity: 'warning' as const,
+      message: `On ${platform} the broadcast connection is "${broadcast!.default}" (${driver}), so ${events.map((e) => e.event.broadcast!.as ?? e.event.name).join(', ')} reach no browser. Set BROADCAST_CONNECTION (pusher, server, cloudflare).`,
+      file: 'src/config/broadcast.ts',
+    },
+  ]
+}
+
 /** `caldera broadcast:list`: channels (who may join, and where), broadcast events, and the connection. */
 export async function listBroadcasts(project: Project) {
   const channels = (await loadChannels(project)).map(({ channel, exportName, file }) => ({
@@ -120,7 +139,10 @@ export async function hubSettings(project: Project, options: { connection?: stri
     if (connection.driver !== 'pusher' || !connection.host) {
       throw new CalderaError('broadcast_not_self_hosted', `The "${name}" connection uses the ${String(connection.driver)} driver${connection.driver === 'pusher' ? ' without a host (hosted Pusher)' : ''}: there's no server to run. Point a pusher connection at a host (BROADCAST_HOST) to serve it yourself.`)
     }
-    return { connection: name, appId: String(connection.appId), key: String(connection.key), secret: String(connection.secret), host: String(connection.host), port: Number(connection.port ?? 6001) }
+    // The same secret the app signs with: set, or derived from APP_KEY (by the app's own @caldera/broadcast).
+    const { resolveSecret } = await importFromProject<{ resolveSecret(config: { secret?: unknown; appKey?: unknown }, where: string): Promise<string> }>(project.root, '@caldera/broadcast')
+    const secret = await resolveSecret({ secret: connection.secret, appKey: connection.appKey }, `The "${name}" broadcast connection`)
+    return { connection: name, appId: String(connection.appId), key: String(connection.key), secret, host: String(connection.host), port: Number(connection.port ?? 6001) }
   } finally {
     await app.shutdown()
   }
