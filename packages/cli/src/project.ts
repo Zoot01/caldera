@@ -51,7 +51,9 @@ export function openProject(root: string = process.cwd()): Project {
   // instances, as in a real process. tsx's loader gives each openProject() (a command, a watch
   // reload) its own namespace, so every load starts fresh and sees edits. It loads code the way the
   // app runs it: `.js` imports of `.ts`/`.tsx` files, JSX in mail templates, tsconfig paths.
-  const loader = register({ namespace: `caldera-${process.pid}-${++loaders}` })
+  // The project's own tsconfig (JSX, paths), wherever the CLI was started: `--cwd` and tests run elsewhere.
+  const tsconfig = join(absoluteRoot, 'tsconfig.json')
+  const loader = register({ namespace: `caldera-${process.pid}-${++loaders}`, ...(existsSync(tsconfig) ? { tsconfig } : {}) })
   // Stack traces in source positions (tsx writes inline source maps): routes and limiters record
   // where they're defined from them, for route:list and AGENTS.md.
   process.setSourceMapsEnabled(true)

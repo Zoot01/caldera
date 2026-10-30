@@ -4,8 +4,11 @@ import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } fro
 import { SourceMap } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { installMailOutbox } from './dev-outbox.js'
+
 
 process.setSourceMapsEnabled(true)
+if (process.env.CALDERA_MAIL_OUTBOX) installMailOutbox(process.env.CALDERA_MAIL_OUTBOX)
 const file = process.env.CALDERA_ERROR_LOG
 const MAX_BYTES = 512 * 1024
 

@@ -7,7 +7,7 @@ import { loadModels } from './models.js'
 import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
 import { loadListeners } from './listeners.js'
-import { loadMails } from './mails.js'
+import { compileMailStyles, loadMails } from './mails.js'
 import { i18nGen, i18nRegister, loadLang } from './i18n.js'
 import { loadNotifications } from './notifications.js'
 import { loadSchedules } from './schedule.js'
@@ -152,12 +152,19 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
   if (mails.length > 0 || usesPackage(project, '@caldera/mail')) {
     const used = [...new Set(mails.map((m) => m.file))]
     const alias = (file: string) => `mails${used.indexOf(file)}`
+    // Tailwind for mails, compiled here so sending never compiles it (@caldera/mail/tailwind).
+    const existing = existsSync(project.path(`${dir}/mails.gen.ts`)) ? readFileSync(project.path(`${dir}/mails.gen.ts`), 'utf8') : ''
+    const previousHash = /^\/\/ tailwind:([0-9a-f]+)$/m.exec(existing)?.[1]
+    const previousJson = /^setMailStyles\((.*)\)$/m.exec(existing)?.[1]
+    const styles = await compileMailStyles(project, previousHash && previousJson ? { hash: previousHash, json: previousJson } : undefined)
     generated.push({
       path: `${dir}/mails.gen.ts`,
       contents:
         HEADER +
+        (styles ? `import { setMailStyles } from '@caldera/mail/tailwind'\n` : '') +
         used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
-        `${used.length ? '\n' : ''}export const mails = [${mails.map((m) => `${alias(m.file)}.${m.exportName}`).join(', ')}] as const\n`,
+        `${used.length || styles ? '\n' : ''}export const mails = [${mails.map((m) => `${alias(m.file)}.${m.exportName}`).join(', ')}] as const\n` +
+        (styles ? `\n// The Tailwind your mail templates use, compiled by React Email's <Tailwind>.\n// tailwind:${styles.hash}\nsetMailStyles(${styles.json})\n` : ''),
     })
   }
 

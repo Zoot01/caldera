@@ -184,8 +184,10 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
   }
   const mailDir = project.path(CONVENTIONS.mailDir)
   for (const name of existsSync(mailDir) ? readdirSync(mailDir).filter((f) => f.endsWith('.tsx')) : []) {
-    if (/<Tailwind[\s>]/.test(readFileSync(join(mailDir, name), 'utf8'))) {
-      issues.push({ code: 'workers_tailwind', severity: 'warning', message: `${CONVENTIONS.mailDir}/${name} uses <Tailwind>, which compiles its CSS on every send: slow, and heavy for a Worker's CPU limit. Prefer inline styles there.`, file: `${CONVENTIONS.mailDir}/${name}` })
+    const source = readFileSync(join(mailDir, name), 'utf8')
+    // React Email's own <Tailwind> compiles on every send; @caldera/mail/tailwind's is precompiled.
+    if (/<Tailwind[\s>]/.test(source) && !source.includes('@caldera/mail/tailwind')) {
+      issues.push({ code: 'workers_tailwind', severity: 'warning', message: `${CONVENTIONS.mailDir}/${name} uses React Email's <Tailwind>, which compiles Tailwind on every send: slow, and heavy for a Worker's CPU and size limits. Import Tailwind from '@caldera/mail/tailwind' instead (precompiled by caldera generate).`, file: `${CONVENTIONS.mailDir}/${name}`, fix: "import { Tailwind } from '@caldera/mail/tailwind'" })
     }
   }
   return issues

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { CalderaError } from '@caldera/core'
 import { dialectOf, resolveStub } from './make.js'
-import { loadApp, projectEnv } from './describe.js'
+import { loadApp, projectEnv, shareMailOutbox } from './describe.js'
 import { CONVENTIONS, exportsOfKind, jobFiles, type Project } from './project.js'
 
 /** The parts of `@caldera/queue`'s Queue the worker uses, so the CLI doesn't depend on that package. */
@@ -50,6 +50,7 @@ export async function startWorker(
   options: { queues?: string[]; concurrency?: number; connection?: string; onEvent?: (event: WorkerEvent) => void } = {},
 ): Promise<{ stop(): Promise<void> }> {
   const emit = options.onEvent ?? (() => {})
+  shareMailOutbox(project)
   const app = await loadApp(project)
   await app.boot({ env: projectEnv(project) })
   const queue = (app as unknown as { services: { queue?: QueueLike } }).services.queue

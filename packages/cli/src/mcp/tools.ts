@@ -159,6 +159,25 @@ export function calderaTools({ root, allowWrites }: ToolOptions): ToolDefinition
         ),
     }),
     defineTool({
+      name: 'mail_outbox',
+      title: 'Mail sent in development',
+      description: 'What the log mailer "sent" under `caldera dev`, from the server and from queue workers: subject, recipients, time. Pass an id for that message’s text and HTML.',
+      input: z.object({ limit: z.number().int().min(1).max(200).default(20), id: z.string().optional() }),
+      annotations: read,
+      handle: async ({ limit, id }) => {
+        const entries = readFileSync(devFile(root, 'mail-outbox.jsonl'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as { id: string; subject: string; html: string; text?: string; [key: string]: unknown })
+        if (id) {
+          const found = entries.find((m) => m.id === id)
+          if (!found) throw new CalderaError('not_found', `No message ${id} in the outbox.`)
+          return { ...found, html: found.html.slice(0, MAX_BODY) }
+        }
+        return { messages: entries.slice(-limit).reverse().map(({ html: _html, text: _text, ...m }) => m) }
+      },
+    }),
+    defineTool({
       name: 'logs',
       title: 'Dev server output',
       description: 'The newest lines the app server printed under `caldera dev` (requests, console output, errors).',

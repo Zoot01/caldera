@@ -111,7 +111,7 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
             cwd: root,
             stdio: ['inherit', 'pipe', 'pipe'],
             // The preload records unexpected errors for `caldera mcp` (last_errors), with source-mapped stacks.
-            env: { ...process.env, CALDERA_ERROR_LOG: logs.errors, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${JSON.stringify(PRELOAD)}`.trim() },
+            env: { ...process.env, CALDERA_ERROR_LOG: logs.errors, CALDERA_MAIL_OUTBOX: logs.outbox, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${JSON.stringify(PRELOAD)}`.trim() },
           })
           // Shown as before, and kept in .caldera/dev.log for `caldera mcp` (logs).
           child.stdout!.on('data', (chunk: Buffer) => (process.stdout.write(chunk), logs.append(chunk)))
@@ -170,12 +170,16 @@ export function devLogFiles(root: string) {
   const dir = join(root, CONVENTIONS.generatedDir)
   const log = join(dir, 'dev.log')
   const errors = join(dir, 'dev-errors.jsonl')
+  // Mail the log mailer "sent", from the server and from workers (caldera queue:work shares it).
+  const outbox = join(dir, 'mail-outbox.jsonl')
   mkdirSync(dir, { recursive: true })
   writeFileSync(log, '')
   writeFileSync(errors, '')
+  writeFileSync(outbox, '')
   return {
     log,
     errors,
+    outbox,
     append(chunk: Buffer) {
       try {
         appendFileSync(log, chunk)

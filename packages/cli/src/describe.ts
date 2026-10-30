@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { CalderaError, type AppDescription } from '@caldera/core'
+import { installMailOutbox } from './dev-outbox.js'
 import { CONVENTIONS, type Project } from './project.js'
 
 interface DescribableApp {
@@ -46,4 +47,17 @@ export async function describeProject(project: Project, options: { boot?: boolea
 function readDotEnv(project: Project): Record<string, string> {
   const file = project.path('.env')
   return existsSync(file) ? (parseEnv(readFileSync(file, 'utf8')) as Record<string, string>) : {}
+}
+
+export const MAIL_OUTBOX_FILE = '.caldera/mail-outbox.jsonl'
+
+/**
+ * Development: a queue worker or scheduler sharing the dev server's mail outbox, so mail they send
+ * shows at /_caldera/mail/outbox (the `log` mailer appends to the file). Never in production.
+ */
+export function shareMailOutbox(project: Project) {
+  const env = projectEnv(project)
+  if (env.NODE_ENV === 'production') return
+  mkdirSync(project.path(CONVENTIONS.generatedDir), { recursive: true })
+  installMailOutbox(process.env.CALDERA_MAIL_OUTBOX || project.path(MAIL_OUTBOX_FILE))
 }

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { CalderaError } from '@caldera/core'
-import { loadApp, projectEnv } from './describe.js'
+import { loadApp, projectEnv, shareMailOutbox } from './describe.js'
 import { CONVENTIONS, exportsOfKind, scheduleFiles, type Project } from './project.js'
 
 /** The parts of a schedule definition the CLI reads, so it doesn't depend on @caldera/schedule. */
@@ -65,6 +65,7 @@ export async function startScheduleWorker(
   onTick: (result: Awaited<ReturnType<SchedulerLike['runDue']>>) => void,
   options: { now?: () => Date } = {},
 ): Promise<{ stop(): Promise<void> }> {
+  shareMailOutbox(project)
   const { scheduler, shutdown } = await bootScheduler(project)
   const now = options.now ?? (() => new Date())
   let timer: ReturnType<typeof setTimeout> | undefined
