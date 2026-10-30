@@ -71,6 +71,33 @@ describe('createProject', () => {
     expect((await createProject({ directory: join(base, 'next'), ...offline, frontend: 'next' })).kit).toBeNull()
   })
 
+  it('gives Inertia apps Tailwind, coss ui as their own code, the `@/` alias and light/dark mode', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'ui'), ...offline, kit: 'blank' })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    for (const file of ['components.json', 'resources/components/ui/card.tsx', 'resources/lib/utils.ts', 'resources/hooks/use-appearance.ts', 'resources/components/appearance-tabs.tsx']) expect(existsSync(join(dir, file)), file).toBe(true)
+    expect(read('resources/app.css')).toContain('@custom-variant dark')
+    expect(read('resources/app.css')).toContain("--font-sans: 'Inter Variable'")
+    expect(JSON.parse(read('components.json')).registries).toEqual({ '@coss': 'https://coss.com/ui/r/{name}.json' })
+    // Bundler resolution, as Vite resolves: `@/…` works (coss components import it), and imports have no extension.
+    expect(read('tsconfig.json')).toMatch(/"moduleResolution": "Bundler"[\s\S]*"@\/\*": \["\.\/resources\/\*"\]/)
+    expect(read('vite.config.ts')).toContain('tailwindcss()')
+    expect(read('src/http.ts')).toContain("import { app } from './app'")
+    expect(read('src/inertia.ts')).toContain('document: [appearance()]')
+    // The kit's package.json is merged into the app's, not copied over it.
+    const manifest = JSON.parse(read('package.json'))
+    expect(manifest.dependencies).toMatchObject({ '@base-ui/react': expect.any(String), '@caldera/inertia': expect.any(String), '@caldera/core': expect.any(String), 'lucide-react': expect.any(String) })
+    expect(manifest.devDependencies).toMatchObject({ tailwindcss: expect.any(String), vite: expect.any(String), vitest: expect.any(String) })
+    expect(manifest.scripts).toMatchObject({ build: 'vite build && vite build --ssr', dev: 'caldera dev' })
+    expect(manifest).not.toHaveProperty('//')
+    // The Next.js variant gets none of it.
+    const next = await createProject({ directory: join(base, 'ui-next'), ...offline, frontend: 'next' })
+    expect(existsSync(join(next.directory, 'components.json'))).toBe(false)
+    const nextManifest = JSON.parse(readFileSync(join(next.directory, 'package.json'), 'utf8'))
+    expect(nextManifest.dependencies['@base-ui/react']).toBeUndefined()
+    expect(nextManifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(readFileSync(join(next.directory, 'AGENTS.md'), 'utf8')).not.toContain('coss ui')
+  })
+
   it('keeps Caldera’s own tables in step with `caldera queue:table` and friends, for both dialects', () => {
     const tables = { 'caldera-jobs': 'queue-table', 'caldera-cache': 'cache-table', 'caldera-notifications': 'notifications-table' } as const
     for (const [file, stub] of Object.entries(tables)) {
@@ -236,7 +263,11 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       const asset = await fetch(`http://localhost:3457${script}`)
       expect(asset.status).toBe(200)
       // Server-side rendered from build/ssr/ssr.js, in-process: the content is in the HTML.
-      expect(html, serverOutput).toContain('<div data-server-rendered="true" id="app"><main>')
+      expect(html, serverOutput).toContain('<div data-server-rendered="true" id="app"><header')
+      // Light/dark: the system theme is resolved by an inline script (with the nonce) before the first paint.
+      expect(html).toMatch(/<script nonce="[\w+/=]+">\(function\(\)\{var d=window\.matchMedia/)
+      const dark = await fetch('http://localhost:3457/', { headers: { cookie: 'appearance=dark' } }).then((r) => r.text())
+      expect(dark).toContain('<html lang="en" class="dark" style="color-scheme: dark">')
       expect(html).toContain('<title data-inertia="">Welcome · e2e-app</title>')
       // A visit with the old asset version is told to reload the page.
       const stale = await fetch('http://localhost:3457/', { headers: { 'x-inertia': 'true', 'x-inertia-version': 'old' } })
@@ -331,7 +362,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       expect(script, html.slice(0, 500)).toBeDefined()
       expect((await fetch(`http://127.0.0.1:3462${script}`)).status).toBe(200)
       // The SSR build is bundled into the Worker: rendered on workerd.
-      expect(html).toContain('<div data-server-rendered="true" id="app"><main>')
+      expect(html).toContain('<div data-server-rendered="true" id="app"><header')
       // Realtime: the page points browsers at this origin, where the BroadcastHub Durable Object answers.
       expect(html).toMatch(/(?:"|&quot;)wsHost(?:"|&quot;):(?:"|&quot;)127\.0\.0\.1/)
       const socket = new WebSocket('ws://127.0.0.1:3462/app/e2e-workers-key?protocol=7')

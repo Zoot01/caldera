@@ -10,7 +10,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r build && vitest run",
     "typecheck": "pnpm -r build && pnpm -r typecheck",
-    "test:e2e": "pnpm -r build && CALDERA_E2E=1 vitest run packages/create-caldera"
+    "test:e2e": "pnpm -r build && CALDERA_E2E=1 vitest run packages/create-caldera",
+    "sync:coss": "node scripts/sync-coss.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.13",

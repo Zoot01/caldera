@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 /** `inertia`: React pages over Inertia, served by the app (Vite). `next`: a Next.js app with Caldera behind /api. */
@@ -133,9 +134,12 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   cpSync(TEMPLATE, directory, { recursive: true })
   renameSync(join(directory, '_gitignore'), join(directory, '.gitignore'))
   if (kit) {
-    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) cpSync(layer, directory, { recursive: true, force: true })
+    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) copyLayer(layer, directory)
   } else applyNext(directory)
   if (database === 'postgres') applyPostgres(directory, name)
+  // Both variants resolve like a bundler (Vite, Next, tsx): relative imports have no extension,
+  // which is also what `caldera generate` and `make` write.
+  extensionlessImports(directory)
   for (const file of listFiles(directory)) {
     const text = readFileSync(file, 'utf8')
     if (text.includes('{{')) writeFileSync(file, text.replaceAll('{{ name }}', name).replaceAll('{{ run }}', run))
@@ -343,22 +347,12 @@ function applyNext(directory: string) {
   cpSync(TEMPLATE_NEXT, directory, { recursive: true, force: true })
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> }
-  for (const name of ['@caldera/inertia', '@inertiajs/core', '@inertiajs/react', '@hono/node-server']) delete manifest.dependencies[name]
-  for (const name of ['@inertiajs/vite', '@vitejs/plugin-react', 'vite']) delete manifest.devDependencies[name]
   manifest.dependencies['@caldera/next'] = '^0.0.0'
   manifest.dependencies.next = '^16.4.2'
   manifest.dependencies = sorted(manifest.dependencies)
   Object.assign(manifest.scripts, { build: 'next build', start: 'next start' })
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   appendFileSync(join(directory, '.gitignore'), '.next\nnext-env.d.ts\n')
-  // Next resolves like a bundler: relative imports have no extension (the Inertia template, run by
-  // Node, imports `./app.js`). `caldera generate` and `make` follow the tsconfig.
-  for (const file of listFiles(directory)) {
-    if (!/\.tsx?$/.test(file) || file.includes(`${join(directory, 'node_modules')}`)) continue
-    const text = readFileSync(file, 'utf8')
-    const stripped = text.replace(/((?:from|import)\s*\(?\s*'\.{1,2}\/[^']+)\.js'/g, "$1'")
-    if (stripped !== text) writeFileSync(file, stripped)
-  }
   const agentsPath = join(directory, 'AGENTS.md')
   let agents = readFileSync(agentsPath, 'utf8')
   agents = agents
@@ -368,7 +362,7 @@ function applyNext(directory: string) {
       "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera/auth` for `user`), both from `@caldera/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
     )
     .split('\n')
-    .filter((line) => !/resources\/pages|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
+    .filter((line) => !/resources\/pages|resources\/components|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
     .join('\n')
     .replace('| Providers |', '| Pages, layouts, server actions (Next.js) | `app/**` | |\n| Providers |')
     .replace(/A page lists what it needs with `export const messages[^.]*\.[^.]*\./, 'In Server Components and actions, translate with `requestContext(app)`’s `i18n`.')
@@ -376,6 +370,32 @@ function applyNext(directory: string) {
     .replace('In pages: `useChannel(', 'In client components (app/realtime.tsx, in the root layout, connects them): `useChannel(')
     .replace("'post.updated': () => router.reload()", "'post.updated': () => router.refresh()")
   writeFileSync(agentsPath, agents)
+}
+
+/**
+ * Copies a layer over the app. Its package.json isn't copied but merged: its dependencies,
+ * devDependencies and scripts are added to the app's.
+ */
+function copyLayer(layer: URL, directory: string) {
+  const manifestFile = join(fileURLToPath(layer), 'package.json')
+  cpSync(layer, directory, { recursive: true, force: true, filter: (source) => resolve(source) !== resolve(manifestFile) })
+  if (!existsSync(manifestFile)) return
+  const added = JSON.parse(readFileSync(manifestFile, 'utf8')) as Record<string, Record<string, string>>
+  const manifestPath = join(directory, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, Record<string, string>>
+  for (const field of ['dependencies', 'devDependencies'] as const) if (added[field]) manifest[field] = sorted({ ...manifest[field], ...added[field] })
+  if (added.scripts) manifest.scripts = { ...manifest.scripts, ...added.scripts }
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+/** `from './app.js'` → `from './app'` in every TypeScript file (the templates are written NodeNext-style). */
+function extensionlessImports(directory: string) {
+  for (const file of listFiles(directory)) {
+    if (!/\.tsx?$/.test(file)) continue
+    const text = readFileSync(file, 'utf8')
+    const stripped = text.replace(/((?:from|import)\s*\(?\s*'\.{1,2}\/[^']+)\.js'/g, "$1'")
+    if (stripped !== text) writeFileSync(file, stripped)
+  }
 }
 
 /**

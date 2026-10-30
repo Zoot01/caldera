@@ -6,7 +6,7 @@ import { back, errorHandler, redirect, sessionOf, sessionProvider, startSession,
 import { Hono } from 'hono'
 import { secureHeaders, NONCE } from 'hono/secure-headers'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { always, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps, type SsrRenderer } from '../src/index.js'
+import { always, appearance, appearanceOf, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps, type SsrRenderer } from '../src/index.js'
 
 // What `caldera generate` writes from resources/pages and src/inertia.ts.
 declare module '../src/inertia.js' {
@@ -131,6 +131,44 @@ describe('rendering', () => {
     const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy')!)![1]
     expect(await res.text()).toContain(`<script type="module" src="/build/assets/app-1.js" nonce="${nonce}"></script>`)
     rmSync(dir, { recursive: true })
+  })
+})
+
+describe('appearance', () => {
+  const http = () => {
+    const page = new Hono()
+      .use(secureHeaders({ contentSecurityPolicy: { scriptSrc: [NONCE] } }))
+      .use(defineInertia({ document: [appearance(), { attributes: () => ({ class: 'antialiased', 'data-x': 'y' }) }] }).middleware())
+      .get('/', (c) => c.render('Home', { greeting: 'hi' }))
+      .get('/which', (c) => c.text(appearanceOf(c)))
+    return page
+  }
+  const first = async (cookie?: string) => {
+    const res = await http().request('/', cookie ? { headers: { cookie } } : {})
+    const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy')!)![1]!
+    return { html: await res.text(), nonce }
+  }
+
+  it('renders an explicit choice into <html>, so dark pages never flash light', async () => {
+    const { html } = await first('appearance=dark')
+    expect(html).toContain('<html lang="en" class="dark antialiased" style="color-scheme: dark" data-x="y">')
+    // No script needed; the background is painted before the stylesheet loads.
+    expect(html).not.toContain('matchMedia')
+    expect(html).toMatch(/<style nonce="[^"]+">html\{background-color:#ffffff\}html\.dark\{background-color:#161616\}<\/style>/)
+    expect((await first('appearance=light')).html).toContain('<html lang="en" style="color-scheme: light" class="antialiased" data-x="y">')
+  })
+
+  it('resolves `system` in the browser before the first paint, with the CSP nonce', async () => {
+    const { html, nonce } = await first()
+    expect(html).toContain('<html lang="en" class="antialiased" data-x="y">')
+    const head = html.slice(html.indexOf('<head>'), html.indexOf('<title>'))
+    expect(head).toContain(`<script nonce="${nonce}">(function(){var d=window.matchMedia('(prefers-color-scheme: dark)')`)
+  })
+
+  it('treats unknown cookie values as system', async () => {
+    expect(await (await http().request('/which', { headers: { cookie: 'appearance=%22%3E%3Cscript%3E' } })).text()).toBe('system')
+    expect(await (await http().request('/which', { headers: { cookie: 'appearance=dark' } })).text()).toBe('dark')
+    expect((await first('appearance=purple')).html).toContain('matchMedia')
   })
 })
 
