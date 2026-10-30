@@ -19,18 +19,26 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "better-auth": "^1.7.0",
+    "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.0"
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
-    "@caldera/db": "workspace:*"
+    "@caldera/core": "workspace:*"
   },
   "devDependencies": {
+    "@caldera/db": "workspace:*",
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
+    "better-auth": "1.7.14",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.14",
     "typescript": "5.9.3",
     "zod": "4.6.7"
+  },
+  "peerDependenciesMeta": {
+    "better-auth": {
+      "optional": true
+    }
   }
 }

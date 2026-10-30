@@ -18,3 +18,6 @@ export type {
 } from './policy.js'
 export { allows, authorizationProvider } from './provider.js'
 export type { AuthorizationOptions } from './provider.js'
+export { authenticate, authRoutes, betterAuthProvider } from './better-auth.js'
+export type { AuthSession, BetterAuthLike, BetterAuthProviderOptions } from './better-auth.js'
+export { authTables, authUserColumns } from './schema.js'
