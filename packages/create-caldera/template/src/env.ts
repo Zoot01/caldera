@@ -6,4 +6,7 @@ export const env = defineEnv({
   APP_KEY: secret(z.string().min(32)),
   DATABASE_URL: z.string().default('file:local.db'),
   PORT: z.coerce.number().default(3000),
+  QUEUE_CONNECTION: z.enum(['sync', 'deferred', 'redis']).default('sync'),
+  // Empty means "no Redis": the cache stays in memory and the redis queue isn't configured.
+  REDIS_URL: z.string().optional().transform((url) => url || undefined),
 })

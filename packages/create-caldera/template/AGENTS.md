@@ -19,7 +19,10 @@ Pages get their data from the route that renders them: no API layer. A page's pr
 | Shared page props, asset tags, HTML shell | `src/inertia.ts` | |
 | Frontend entry and CSS (Vite) | `resources/app.tsx`, `resources/app.css` | |
 | Providers | `src/providers/*.ts` (add to `src/app.ts`) | `caldera make:provider <name>` |
+| Queued jobs (`dispatch(Job, payload)` from `@caldera/queue`) | `src/jobs/*.ts` | `caldera make:job <Name>` |
 | Factories / seeders | `src/db/factories/`, `src/db/seeders/` | `caldera make:factory`, `caldera make:seeder` |
+
+Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). With `REDIS_URL` and `QUEUE_CONNECTION=redis` they go to BullMQ, and `pnpm worker` (`caldera queue:work`) runs them; the cache moves to Redis too. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.
 
 Security headers are on by default in `src/http.ts`, including a strict CSP: only scripts with this request's nonce run (and what they load). Page and Vite tags get the nonce automatically; any inline `<script>` you add in a custom `rootView` needs `nonce="${nonce}"`. Don't loosen `script-src`; add other directives with `securityHeaders({ csp: { imgSrc: [...] } })`.
 

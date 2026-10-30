@@ -32,6 +32,8 @@ describe('createProject', () => {
     expect(readFileSync(join(dir, '.env.example'), 'utf8')).toContain('APP_KEY=\n')
     // pnpm 11 fails installs with unapproved build scripts; esbuild's is approved up front.
     expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('esbuild: true')
+    // bullmq's msgpackr-extract has a build script too; declined, or pnpm 11 fails the install.
+    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('msgpackr-extract: false')
     expect(existsSync(join(other.directory, 'pnpm-workspace.yaml'))).toBe(other.packageManager === 'pnpm')
   })
 
@@ -69,7 +71,7 @@ describe('createProject', () => {
     const manifest = JSON.parse(readFileSync(join(result.directory, 'package.json'), 'utf8'))
     expect(manifest.dependencies['@caldera/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-core-.+\.tgz$/)
     expect(manifest.devDependencies['@caldera/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-cli-/)
-    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){6}/)
+    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){8}/)
     expect(readFileSync(join(result.directory, '.gitignore'), 'utf8')).toContain('.caldera-local')
     expect(manifest.dependencies.hono).toMatch(/^\^/)
   }, 60_000)

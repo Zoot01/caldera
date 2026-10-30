@@ -87,6 +87,14 @@ describe('createManager', () => {
   })
 })
 
+it('drops instances that config leaves out, so a default pointing at one fails clearly', () => {
+  const redisUrl: string | undefined = undefined
+  const instances = { local: { driver: 'memory' }, ...(redisUrl ? { shared: { driver: 'remote', url: redisUrl } } : {}) }
+  const manager = createManager({ kind: 'cache', drivers: [memory, remote], config: { default: 'local', instances } })
+  expect(manager.describe().instances.map((i) => i.name)).toEqual(['local'])
+  expect(() => createManager({ kind: 'cache', drivers: [memory], config: { default: 'shared' as 'local', instances } })).toThrow(/default "shared" isn't one of the configured instances \(local\)/)
+})
+
 it('parses durations, including milliseconds', () => {
   expect(parseDuration('500ms')).toBe(0.5)
   expect(parseDuration('1.5h')).toBe(5400)

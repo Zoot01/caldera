@@ -9,19 +9,24 @@
     "generate": "caldera generate",
     "db:push": "caldera db:push",
     "test": "vitest run",
-    "typecheck": "caldera generate && tsc --noEmit"
+    "typecheck": "caldera generate && tsc --noEmit",
+    "worker": "caldera queue:work"
   },
   "dependencies": {
+    "@caldera/cache": "^0.0.0",
     "@caldera/core": "^0.0.0",
     "@caldera/db": "^0.0.0",
     "@caldera/http": "^0.0.0",
     "@caldera/inertia": "^0.0.0",
+    "@caldera/queue": "^0.0.0",
     "@hono/node-server": "^2.1.5",
     "@inertiajs/core": "^3.9.1",
     "@inertiajs/react": "^3.9.1",
     "@libsql/client": "^0.18.0",
+    "bullmq": "^6.5.1",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.14",
+    "ioredis": "^6.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"

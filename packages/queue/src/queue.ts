@@ -8,7 +8,8 @@ import { processEnvelope } from './process.js'
 
 export interface QueueConfig<N extends string = string> {
   default: NoInfer<N>
-  connections: Record<N, { driver: string; [option: string]: unknown }>
+  /** Optional entries are allowed, for connections that only exist when their env is set. */
+  connections: { [K in N]?: { driver: string; [option: string]: unknown } | undefined }
 }
 
 export interface DispatchOptions<N extends string = string> {
@@ -139,7 +140,7 @@ export function createQueue<const N extends string>(
 
   const storeFor = (feature: 'Unique jobs' | 'Batches', capability: 'locks' | 'atomicCounters') => {
     const store = options.store?.()
-    if (!store) throw new CalderaError('queue_store_missing', `${feature} need a store: queueProvider(..., { store: (s) => s.cache }).`)
+    if (!store) throw new CalderaError('queue_store_missing', `${feature} need a store: add cacheProvider() to the app (the queue uses its cache), or pass queueProvider(..., { store }).`)
     if (!store.capabilities[capability]) throw new CapabilityError('cache', capability, `${feature} need a store with atomic writes (Redis, or memory on one server).`)
     return store
   }

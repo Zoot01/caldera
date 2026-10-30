@@ -36,7 +36,11 @@ export interface InstanceConfig {
 
 export interface ManagerConfig<N extends string = string> {
   default: NoInfer<N>
-  instances: Record<N, InstanceConfig>
+  /**
+   * Instances by name. An entry may be missing or undefined, so config can add one only when its
+   * env is set (`...(env.REDIS_URL ? { redis: {...} } : {})`); a default pointing at one is a boot error.
+   */
+  instances: { [K in N]?: InstanceConfig | undefined }
 }
 
 export interface InstanceDescription<Caps> {
@@ -78,7 +82,11 @@ export function createManager<I, Caps, const N extends string>(options: {
   /** How to get drivers that ship separately, by name, for the "unknown driver" error. */
   hints?: Record<string, string>
 }): Manager<I, Caps, N> {
-  const { kind, config } = options
+  const kind = options.kind
+  const config = {
+    default: options.config.default,
+    instances: Object.fromEntries(Object.entries(options.config.instances).filter(([, v]) => v !== undefined)) as Record<N, InstanceConfig>,
+  }
   const drivers = new Map<string, DriverDefinition<I, Caps>>()
   for (const driver of options.drivers) drivers.set(driver.name, driver)
   const created = new Map<string, I>()

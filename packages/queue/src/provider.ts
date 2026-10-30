@@ -3,8 +3,8 @@ import type { QueueCapabilities, QueueDriver } from './driver.js'
 import { createQueue, setDefaultQueue, type Queue, type QueueConfig, type QueueStore } from './queue.js'
 
 /**
- * Registers `queue` from your config: `queueProvider((app) => app.config.queue, { store: (s) => s.cache })`.
- * The store holds unique-job locks and batch counters.
+ * Registers `queue` from your config: `queueProvider((app) => app.config.queue)`. Unique-job locks and
+ * batch counters live in the app's `cache` service (add `cacheProvider()`), or in `store` if given.
  * It also becomes the default for `dispatch()`. Jobs get the app's services as `context.services`.
  */
 export function queueProvider<const N extends string>(
@@ -17,7 +17,11 @@ export function queueProvider<const N extends string>(
       // Services are set at boot (below); the store is read lazily, when a job needs it.
       const queue: Queue<N> = createQueue(resolve(app), {
         ...(options.drivers ? { drivers: options.drivers } : {}),
-        ...(options.store ? { store: (): QueueStore => options.store!(queue.services as Record<string, unknown>) } : {}),
+        // Default: the app's `cache` service (from cacheProvider), when there is one.
+        store: (): QueueStore | undefined => {
+          const services = queue.services as Record<string, unknown>
+          return options.store ? options.store(services) : (services.cache as QueueStore | undefined)
+        },
         waitUntil: () => {
           const c = app.current()?.context
           try {

@@ -46,7 +46,7 @@ export class CreateError extends Error {
 }
 
 const TEMPLATE = new URL('../template/', import.meta.url)
-const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia']
+const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue']
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -91,7 +91,8 @@ export function createProject(options: CreateOptions): CreateResult {
   if (pm === 'pnpm') {
     // pnpm 11 fails installs whose dependencies' build scripts aren't approved. esbuild (used by
     // tsx and vitest) has one; approve it up front so a fresh install can't fail on it.
-    const workspace = ['allowBuilds:', '  esbuild: true', ...(overrides.length ? ['overrides:', ...overrides] : [])]
+    // msgpackr-extract (from bullmq) only compiles when no prebuilt binary exists, so it's declined.
+    const workspace = ['allowBuilds:', '  esbuild: true', '  msgpackr-extract: false', ...(overrides.length ? ['overrides:', ...overrides] : [])]
     writeFileSync(join(directory, 'pnpm-workspace.yaml'), `${workspace.join('\n')}\n`)
   }
   writeFileSync(log, `create-caldera ${new Date().toISOString()}\n`)

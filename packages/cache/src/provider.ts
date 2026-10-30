@@ -5,7 +5,8 @@ import type { CacheCapabilities, CacheStore } from './store.js'
 
 export interface CacheConfig<N extends string = string> {
   default: NoInfer<N>
-  stores: Record<N, { driver: string; [option: string]: unknown }>
+  /** Optional entries are allowed, for stores that only exist when their env is set. */
+  stores: { [K in N]?: { driver: string; [option: string]: unknown } | undefined }
   /** Key prefix for every store. Default `caldera`. */
   prefix?: string
 }
