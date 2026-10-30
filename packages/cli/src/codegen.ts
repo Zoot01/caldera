@@ -74,7 +74,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     HEADER +
     `import type { ${envExport === 'env' ? 'env' : `${envExport} as env`} } from '${project.importFromGenerated(CONVENTIONS.env)}'\n` +
     (hasApp ? `import type { app } from '${project.importFromGenerated(CONVENTIONS.app)}'\n` : '') +
-    `import type { config } from './config.gen.js'\n\n` +
+    `import type { config } from './config.gen${project.importExtension}'\n\n` +
     `declare module '@caldera/core' {\n` +
     `  interface Register {\n` +
     `    env: typeof env\n` +
@@ -155,7 +155,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
       path: `${dir}/mails.gen.ts`,
       contents:
         HEADER +
-        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file).replace(/\.tsx$/, '.js')}'\n`).join('') +
+        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
         `${used.length ? '\n' : ''}export const mails = [${mails.map((m) => `${alias(m.file)}.${m.exportName}`).join(', ')}] as const\n`,
     })
   }

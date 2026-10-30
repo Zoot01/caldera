@@ -127,13 +127,13 @@ export async function make(
     ...(jobNames ? { Job: jobNames.Name, jobKebab: jobNames.kebab } : {}),
   }
   if (options.dryRun) {
-    const planned = files.map((file) => ({ path: file.path, contents: render(resolveStub(project, file.stub).template, values), exists: existsSync(project.path(file.path)) }))
+    const planned = files.map((file) => ({ path: file.path, contents: forProject(project, render(resolveStub(project, file.stub).template, values)), exists: existsSync(project.path(file.path)) }))
     return { schemaVersion: 1, kind, created: [], hints: hints(kind, n, { table }), generate: 'skipped', planned }
   }
   for (const file of files) {
     const target = project.path(file.path)
     mkdirSync(dirname(target), { recursive: true })
-    writeFileSync(target, render(resolveStub(project, file.stub).template, values))
+    writeFileSync(target, forProject(project, render(resolveStub(project, file.stub).template, values)))
   }
 
   let generated: MakeResult['generate'] = 'skipped'
@@ -160,4 +160,9 @@ export function ejectStub(project: Project, stub: string, options: { force?: boo
   mkdirSync(project.path('stubs'), { recursive: true })
   writeFileSync(project.path(path), STUBS[stub as StubName])
   return { schemaVersion: 1, created: [path] }
+}
+
+/** Stubs import with `.js` (NodeNext); apps with bundler resolution (Next.js) import without an extension. */
+function forProject(project: Project, contents: string): string {
+  return project.importExtension === '' ? contents.replace(/(from\s+'\.{1,2}\/[^']+)\.js'/g, "$1'") : contents
 }

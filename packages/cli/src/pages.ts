@@ -43,7 +43,7 @@ export async function inertiaRegister(project: Project, uses: (name: string) => 
   const inertia = await loadInertia(project)
   if (pages.length === 0 && !inertia) return ''
   const shared = inertia ? `SharedPropsOf<typeof import('${project.importFromGenerated(inertia.file)}').${inertia.exportName}>` : undefined
-  const pageModule = (file: string) => project.importFromGenerated(file).replace(/\.[jt]sx$/, '.js')
+  const pageModule = (file: string) => project.importFromGenerated(file)
   return (
     (pages.length ? `\nimport type { ComponentProps } from 'react'\n` : '\n') +
     (shared ? `import type { SharedPropsOf } from '@caldera/inertia'\n` : '') +

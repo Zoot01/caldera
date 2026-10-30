@@ -100,12 +100,14 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
       if (vite) children.push(spawn(process.execPath, [vite], { cwd: root, stdio: 'inherit' }))
       else emit({ type: 'error', changed: [], error: `${viteConfig} exists but vite isn't installed; install it or use --no-vite.` })
     }
+    const nextConfig = ['next.config.ts', 'next.config.mjs', 'next.config.js'].find((f) => existsSync(join(root, f)))
     if (options.server ?? true) {
-      const tsx = findBin(root, 'tsx')
-      if (tsx) {
+      // A Next.js app: `next dev` serves the pages and the API (Caldera at /api) and reloads itself.
+      const command = nextConfig ? findBin(root, 'next') : findBin(root, 'tsx')
+      if (command) {
         const logs = devLogFiles(root)
         const start = () => {
-          const child = spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], {
+          const child = spawn(process.execPath, nextConfig ? [command, 'dev'] : [command, 'watch', options.serverEntry ?? 'src/server.ts'], {
             cwd: root,
             stdio: ['inherit', 'pipe', 'pipe'],
             // The preload records unexpected errors for `caldera mcp` (last_errors), with source-mapped stacks.
@@ -124,7 +126,10 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
           await exited
           children.splice(children.indexOf(server), 1, (server = start()))
         }
-      } else emit({ type: 'error', changed: [], error: new CalderaError('missing_dependency', 'tsx is not installed; install it or use --no-server.').message })
+      } else {
+        const missing = nextConfig ? `${nextConfig} exists but next isn't installed` : 'tsx is not installed'
+        emit({ type: 'error', changed: [], error: new CalderaError('missing_dependency', `${missing}; install it or use --no-server.`).message })
+      }
     }
     // File watchers (FSEvents on macOS) can miss changes made while they start up, or during the
     // first generation. Let them settle, then regenerate once to pick up anything that slipped by.

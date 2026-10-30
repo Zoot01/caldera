@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { CalderaError } from '@caldera/core'
@@ -34,6 +34,8 @@ export interface Project {
   path(relativePath: string): string
   /** Path from the generated directory to a project file, as an import specifier. */
   importFromGenerated(relativePath: string): string
+  /** `.js` (NodeNext: the default) or `''` for apps whose tsconfig uses bundler resolution (Next.js). */
+  readonly importExtension: '.js' | ''
   load<T = Record<string, unknown>>(relativePath: string): Promise<T>
   /** Imports a package as the project resolves it, e.g. its own `better-auth`. */
   importPackage<T = Record<string, unknown>>(specifier: string): Promise<T>
@@ -55,13 +57,17 @@ export function openProject(root: string = process.cwd()): Project {
   process.setSourceMapsEnabled(true)
   const parent = pathToFileURL(join(absoluteRoot, 'caldera.ts')).href
   const path = (relativePath: string) => join(absoluteRoot, relativePath)
+  let importExtension: '.js' | '' | undefined
 
-  return {
+  const project: Project = {
     root: absoluteRoot,
     path,
     importFromGenerated(relativePath) {
       const specifier = relative(path(CONVENTIONS.generatedDir), path(relativePath)).replaceAll('\\', '/')
-      return specifier.replace(/\.ts$/, '.js')
+      return specifier.replace(/\.[jt]sx?$/, this.importExtension)
+    },
+    get importExtension() {
+      return (importExtension ??= bundlerResolution(path('tsconfig.json')) ? '' : '.js')
     },
     async load(relativePath) {
       const file = path(relativePath)
@@ -81,6 +87,7 @@ export function openProject(root: string = process.cwd()): Project {
       await loader.unregister()
     },
   }
+  return project
 }
 
 /** TypeScript files directly inside a convention directory, sorted so generated output is stable. */
@@ -111,3 +118,11 @@ export function exportsOfKind<T>(module: Record<string, unknown>, kind: string):
     .map(([exportName, value]) => ({ exportName, value: value as T }))
 }
 
+
+/** Whether tsconfig.json resolves modules like a bundler (Next.js): then imports have no extension. */
+function bundlerResolution(tsconfig: string): boolean {
+  if (!existsSync(tsconfig)) return false
+  // tsconfig allows comments; enough to find one option.
+  const text = readFileSync(tsconfig, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+  return /"moduleResolution"\s*:\s*"bundler"/i.test(text)
+}
