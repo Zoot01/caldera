@@ -19,6 +19,8 @@ export const broadcast = defineConfig('broadcast', (env) => {
         host: env.BROADCAST_HOST,
         port: env.BROADCAST_PORT,
         scheme: env.BROADCAST_SCHEME,
+        // With Redis, run `pnpm realtime` on several machines: they share connections and presence.
+        ...(env.REDIS_URL ? { redis: env.REDIS_URL } : {}),
         ...(browser ? { client: { host: browser.hostname, port: Number(browser.port) || (secure ? 443 : 80), scheme: secure ? ('https' as const) : ('http' as const) } } : {}),
       },
       // Hosted Pusher.

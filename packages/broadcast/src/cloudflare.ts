@@ -105,15 +105,15 @@ export class BroadcastHub {
     await this.hub.receive(this.connection(socket), typeof message === 'string' ? message : new TextDecoder().decode(message))
   }
 
-  webSocketClose(socket: WorkerWebSocket) {
-    this.hub.close(this.connection(socket))
+  async webSocketClose(socket: WorkerWebSocket) {
+    await this.hub.close(this.connection(socket))
     try {
       socket.close(1000, 'Closed')
     } catch {} // the runtime may have completed the close already
   }
 
   webSocketError(socket: WorkerWebSocket) {
-    this.webSocketClose(socket)
+    return this.webSocketClose(socket)
   }
 }
 

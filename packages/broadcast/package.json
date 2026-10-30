@@ -29,6 +29,10 @@
     "./react": {
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
+    },
+    "./redis": {
+      "types": "./dist/redis.d.ts",
+      "default": "./dist/redis.js"
     }
   },
   "files": [
@@ -44,7 +48,8 @@
     "hono": "^4.13.14",
     "zod": "^4.6.0",
     "pusher-js": "^8.4.0",
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "ioredis": "^5.4.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
     "@caldera/auth": {
@@ -54,6 +59,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "ioredis": {
       "optional": true
     }
   },
@@ -74,6 +82,7 @@
     "drizzle-orm": "1.0.0-rc.5",
     "esbuild": "0.28.2",
     "hono": "^4.13.14",
+    "ioredis": "6.0.0",
     "miniflare": "4.20260730.0",
     "pusher-js": "8.6.0",
     "react": "19.3.1",

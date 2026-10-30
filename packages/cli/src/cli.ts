@@ -565,7 +565,7 @@ const broadcastServeCommand = defineCommand({
     try {
       const { settings, server } = await serveBroadcast(openProject(args.cwd), { ...(args.connection ? { connection: args.connection } : {}), host: args.host, ...(args.port ? { port: Number(args.port) } : {}) })
       const data = { schemaVersion: 1, connection: settings.connection, url: `ws://${args.host}:${server.port}/app/${settings.key}`, port: server.port }
-      process.stdout.write(json ? `${JSON.stringify(data)}\n` : `Realtime server for "${settings.connection}" on ws://${args.host}:${server.port} (app ${settings.appId}). Ctrl+C to stop.\n`)
+      process.stdout.write(json ? `${JSON.stringify({ ...data, redis: Boolean(settings.redis) })}\n` : `Realtime server for "${settings.connection}" on ws://${args.host}:${server.port} (app ${settings.appId}${settings.redis ? ', shared over Redis' : ''}). Ctrl+C to stop.\n`)
       await new Promise<void>((resolve) => {
         for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => void server.close().then(resolve))
       })

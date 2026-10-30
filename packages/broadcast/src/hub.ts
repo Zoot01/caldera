@@ -23,6 +23,22 @@ export interface HubConnection {
   save(): void
 }
 
+/**
+ * Other hub processes serving the same app (several `caldera broadcast:serve` behind a load balancer):
+ * presence across all of them, and frames for subscribers connected elsewhere. Without one, the hub
+ * knows only its own connections (one process, or the Durable Object).
+ */
+export interface HubCluster {
+  /** Presence members of a channel on every node, by user id. */
+  members(channel: string): Promise<Map<string, unknown>>
+  join(channel: string, socketId: string, member: { userId: string; userInfo: unknown }): Promise<void>
+  leave(channel: string, socketId: string): Promise<void>
+  /** Sends a frame to the channel's subscribers on the other nodes (except one socket). */
+  fanOut(channel: string, frame: string, except?: string): void
+  /** Frames for this node's subscribers, from other nodes (or the cluster itself: a crashed node's members leaving). */
+  onFrame(handler: (channel: string, frame: string, except?: string) => void): void
+}
+
 export interface HubOptions {
   appId: string
   key: string
@@ -34,6 +50,8 @@ export interface HubOptions {
   maxPayloadBytes?: number
   /** Seconds of silence before pusher-js pings. Default 30. */
   activityTimeout?: number
+  /** Several hubs serving one app (see `redisCluster` in @caldera/broadcast/redis). */
+  cluster?: HubCluster
 }
 
 const encoder = new TextEncoder()
@@ -50,17 +68,29 @@ export function createHub(options: HubOptions) {
     connection.send(JSON.stringify({ event, ...(channel ? { channel } : {}), data: typeof data === 'string' ? data : JSON.stringify(data) }))
   const error = (connection: HubConnection, code: number | null, message: string) => connection.send(JSON.stringify({ event: 'pusher:error', data: { code, message } }))
 
+  const cluster = options.cluster
   const subscribers = function* (channel: string) {
     for (const connection of options.connections()) if (channel in connection.state.channels) yield connection
   }
-  const members = (channel: string, except?: HubConnection) => {
+  const members = async (channel: string): Promise<Map<string, unknown>> => {
+    if (cluster) return cluster.members(channel)
     const found = new Map<string, unknown>()
     for (const connection of subscribers(channel)) {
       const member = connection.state.channels[channel]
-      if (member && connection !== except) found.set(member.userId, member.userInfo)
+      if (member) found.set(member.userId, member.userInfo)
     }
     return found
   }
+  // A frame for a channel's subscribers here, and on the other nodes.
+  const toLocal = (channel: string, frame: string, except?: string) => {
+    for (const connection of subscribers(channel)) if (connection.state.socketId !== except) connection.send(frame)
+  }
+  const toChannel = (channel: string, frame: string, except?: string) => {
+    toLocal(channel, frame, except)
+    cluster?.fanOut(channel, frame, except)
+  }
+  const frame = (event: string, channel: string, data: unknown) => JSON.stringify({ event, channel, data: JSON.stringify(data) })
+  cluster?.onFrame(toLocal)
 
   const subscribe = async (connection: HubConnection, data: { channel?: unknown; auth?: unknown; channel_data?: unknown }) => {
     const channel = typeof data.channel === 'string' ? data.channel : ''
@@ -80,15 +110,15 @@ export function createHub(options: HubOptions) {
         }
         if (typeof member.user_id !== 'string' && typeof member.user_id !== 'number') return refuse('Presence channel_data needs a user_id.')
         const userId = String(member.user_id)
-        const before = members(channel)
-        connection.state.channels[channel] = { userId, userInfo: member.user_info ?? null }
+        const joined = { userId, userInfo: member.user_info ?? null }
+        const before = await members(channel)
+        connection.state.channels[channel] = joined
         connection.save()
-        const now = members(channel)
+        await cluster?.join(channel, connection.state.socketId, joined)
+        const now = await members(channel)
         send(connection, 'pusher_internal:subscription_succeeded', { presence: { ids: [...now.keys()], hash: Object.fromEntries(now), count: now.size } }, channel)
         // A user with two tabs is one member: only their first connection announces them.
-        if (!before.has(userId)) {
-          for (const other of subscribers(channel)) if (other !== connection) send(other, 'pusher_internal:member_added', { user_id: userId, user_info: member.user_info ?? null }, channel)
-        }
+        if (!before.has(userId)) toChannel(channel, frame('pusher_internal:member_added', channel, { user_id: userId, user_info: joined.userInfo }), connection.state.socketId)
         return
       }
     }
@@ -97,14 +127,14 @@ export function createHub(options: HubOptions) {
     send(connection, 'pusher_internal:subscription_succeeded', {}, channel)
   }
 
-  const unsubscribe = (connection: HubConnection, channel: string, save = true) => {
+  const unsubscribe = async (connection: HubConnection, channel: string, save = true) => {
     if (!(channel in connection.state.channels)) return
     const member = connection.state.channels[channel]
     delete connection.state.channels[channel]
     if (save) connection.save()
-    if (member && !members(channel, connection).has(member.userId)) {
-      for (const other of subscribers(channel)) if (other !== connection) send(other, 'pusher_internal:member_removed', { user_id: member.userId }, channel)
-    }
+    if (!member) return
+    await cluster?.leave(channel, connection.state.socketId)
+    if (!(await members(channel)).has(member.userId)) toChannel(channel, frame('pusher_internal:member_removed', channel, { user_id: member.userId }), connection.state.socketId)
   }
 
   const clientEvent = (connection: HubConnection, message: { event: string; channel?: unknown; data?: unknown }, raw: string) => {
@@ -117,14 +147,11 @@ export function createHub(options: HubOptions) {
     clientEventTimes.set(connection.state.socketId, [...recent, now])
     const member = connection.state.channels[channel]
     const out = JSON.stringify({ event: message.event, channel, data: message.data, ...(member ? { user_id: member.userId } : {}) })
-    for (const other of subscribers(channel)) if (other !== connection) other.send(out)
+    toChannel(channel, out, connection.state.socketId)
   }
 
   const deliver = (channels: readonly string[], event: string, data: string, except?: string) => {
-    for (const channel of channels) {
-      const out = JSON.stringify({ event, channel, data })
-      for (const connection of subscribers(channel)) if (connection.state.socketId !== except) connection.send(out)
-    }
+    for (const channel of channels) toChannel(channel, JSON.stringify({ event, channel, data }), except)
   }
 
   return {
@@ -151,9 +178,9 @@ export function createHub(options: HubOptions) {
       return error(connection, null, `Unknown event "${event}".`)
     },
     /** The connection closed: leave every channel (presence members announce they left). */
-    close(connection: HubConnection) {
-      for (const channel of Object.keys(connection.state.channels)) unsubscribe(connection, channel, false)
+    async close(connection: HubConnection) {
       clientEventTimes.delete(connection.state.socketId)
+      for (const channel of Object.keys(connection.state.channels)) await unsubscribe(connection, channel, false)
     },
     /**
      * The HTTP API the pusher driver publishes to: POST /apps/{appId}/events and /batch_events, signed

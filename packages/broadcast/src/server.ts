@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createHub, newSocketId, type HubConnection } from './hub.js'
+import { redisCluster } from './redis.js'
 
 export interface BroadcastServerOptions {
   appId: string
@@ -10,6 +11,10 @@ export interface BroadcastServerOptions {
   /** Default 127.0.0.1; `0.0.0.0` to accept other machines. */
   host?: string
   maxPayloadBytes?: number
+  /** redis://…: run several servers as one (publishes, whispers and presence shared over Redis). */
+  redis?: string
+  /** With `redis`: seconds before a stopped node's presence members leave. Default 30. */
+  nodeTtlSeconds?: number
 }
 
 /**
@@ -19,7 +24,9 @@ export interface BroadcastServerOptions {
  */
 export async function startBroadcastServer(options: BroadcastServerOptions): Promise<{ port: number; close(): Promise<void> }> {
   const connections = new Set<HubConnection>()
-  const hub = createHub({ ...options, connections: () => connections })
+  const cluster = options.redis ? await redisCluster({ url: options.redis, appId: options.appId, ...(options.nodeTtlSeconds ? { nodeTtlSeconds: options.nodeTtlSeconds } : {}) }) : undefined
+  const hub = createHub({ ...options, connections: () => connections, ...(cluster ? { cluster } : {}) })
+  const closing = new Set<Promise<void>>()
   const sockets = new WebSocketServer({ noServer: true, maxPayload: (options.maxPayloadBytes ?? 10_240) + 4096 })
 
   const server = createServer(async (req, res) => {
@@ -54,7 +61,9 @@ export async function startBroadcastServer(options: BroadcastServerOptions): Pro
     ws.on('message', (data) => void hub.receive(connection, data.toString()).catch((error: unknown) => console.error('[caldera] broadcast message failed', error)))
     ws.on('close', () => {
       connections.delete(connection)
-      hub.close(connection)
+      const done = hub.close(connection).catch((error: unknown) => console.error('[caldera] broadcast close failed', error))
+      closing.add(done)
+      void done.finally(() => closing.delete(done))
     })
     ws.on('error', () => ws.terminate())
   }
@@ -66,12 +75,16 @@ export async function startBroadcastServer(options: BroadcastServerOptions): Pro
   const port = (server.address() as { port: number }).port
   return {
     port,
-    close: () =>
-      new Promise<void>((resolve) => {
+    async close() {
+      // Each connection leaves its channels (presence members announced, in Redis too) before the end.
+      await new Promise<void>((resolve) => {
         for (const client of sockets.clients) client.terminate()
         sockets.close()
         server.close(() => resolve())
-      }),
+      })
+      await Promise.all([...closing])
+      await cluster?.close()
+    },
   }
 }
 

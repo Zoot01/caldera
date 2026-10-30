@@ -16,6 +16,7 @@ import { md5 } from '../src/md5.js'
 import { startBroadcastServer } from '../src/server.js'
 import { hasDocker, SOKETI_APP, startSoketi } from './soketi.js'
 import { startWorkerdHub } from './workerd.js'
+import { hasRedis, startRedis } from './redis-server.js'
 
 // pusher-js is CommonJS whose types describe its ES build: the default import is the class at runtime.
 const Pusher = PusherModule as unknown as typeof import('pusher-js').default
@@ -363,7 +364,7 @@ describe('the hub', () => {
     // Evicted: a new hub, the same sockets (their attachments).
     const after = createHub(options)
     connections.delete(ann)
-    after.close(ann)
+    await after.close(ann)
     expect(JSON.parse(inbox.get('2.2')!.at(-1)!)).toEqual({ event: 'pusher_internal:member_removed', channel: 'presence-rooms.1', data: '{"user_id":"ann"}' })
   })
 
@@ -555,4 +556,89 @@ it('channel() names a registered channel by pattern, resolved when sent', async 
     fake.restore()
     setDefaultBroadcaster(undefined)
   }
+})
+
+// Several hubs as one, over a real Redis: what `caldera broadcast:serve` does with REDIS_URL.
+describe.runIf(hasRedis)('several hubs over Redis', { timeout: 30_000 }, () => {
+  let redis: Awaited<ReturnType<typeof startRedis>>
+  const servers: { port: number; close(): Promise<void> }[] = []
+  const clients: InstanceType<typeof Pusher>[] = []
+  beforeAll(async () => {
+    redis = await startRedis()
+  })
+  afterEach(async () => {
+    for (const client of clients.splice(0)) client.disconnect()
+    for (const server of servers.splice(0)) await server.close()
+  })
+  afterAll(async () => {
+    await redis?.stop()
+  })
+  const hub = async () => {
+    const server = await startBroadcastServer({ ...SOKETI_APP, port: 0, redis: redis.url, nodeTtlSeconds: 1 })
+    servers.push(server)
+    return server
+  }
+  // A browser on one hub, signing its own subscriptions (the app's auth route is tested above).
+  const browser = async (port: number, user: string) => {
+    const client = new Pusher(SOKETI_APP.key, {
+      cluster: '', wsHost: '127.0.0.1', wsPort: port, forceTLS: false, enabledTransports: ['ws'],
+      channelAuthorization: {
+        endpoint: '', transport: 'ajax',
+        customHandler: async ({ socketId, channelName }, callback) => {
+          const data = channelName.startsWith('presence-') ? JSON.stringify({ user_id: user, user_info: { name: user } }) : undefined
+          callback(null, (await signSubscription(SOKETI_APP.key, SOKETI_APP.secret, socketId, channelName, data)) as never)
+        },
+      },
+    })
+    clients.push(client)
+    return client
+  }
+  const joined = (channel: Channel) => new Promise<unknown>((resolve) => channel.bind('pusher:subscription_succeeded', resolve))
+
+  it('delivers a publish to browsers on every hub, and whispers across them', async () => {
+    const [one, two] = [await hub(), await hub()]
+    const [a, b] = [(await browser(one.port, 'ann')).subscribe('private-posts.1'), (await browser(two.port, 'bob')).subscribe('private-posts.1')]
+    await Promise.all([joined(a), joined(b)])
+    const heard = Promise.all([new Promise((r) => a.bind('post.updated', r)), new Promise((r) => b.bind('post.updated', r))])
+    // Published to the first hub only.
+    await createBroadcaster({ default: 's', connections: { s: { driver: 'pusher', ...SOKETI_APP, host: '127.0.0.1', port: one.port } } }).send('private-posts.1', 'post.updated', { n: 1 })
+    expect(await heard).toEqual([{ n: 1 }, { n: 1 }])
+    const whispered = new Promise((r) => a.bind('client-typing', r))
+    b.trigger('client-typing', { at: 1 })
+    expect(await whispered).toEqual({ at: 1 })
+  })
+
+  it('shares presence: members on every hub, and leaving on one', async () => {
+    const [one, two] = [await hub(), await hub()]
+    const annRoom = (await browser(one.port, 'ann')).subscribe('presence-rooms.c') as Channel & { members: { count: number } }
+    await joined(annRoom)
+    const added = new Promise((r) => annRoom.bind('pusher:member_added', r))
+    const bob = await browser(two.port, 'bob')
+    const bobRoom = bob.subscribe('presence-rooms.c') as Channel & { members: { count: number } }
+    await joined(bobRoom)
+    expect(await added).toEqual({ id: 'bob', info: { name: 'bob' } })
+    expect(bobRoom.members.count).toBe(2) // bob's hub knows ann, connected to the other one
+    const removed = new Promise((r) => annRoom.bind('pusher:member_removed', r))
+    bob.disconnect()
+    expect(await removed).toEqual({ id: 'bob', info: { name: 'bob' } })
+  })
+
+  it('removes the members of a hub that died without a word, once its heartbeat expires', async () => {
+    const one = await hub()
+    const annRoom = (await browser(one.port, 'ann')).subscribe('presence-rooms.d')
+    await joined(annRoom)
+    // Another hub in its own process, killed outright.
+    const { spawn } = await import('node:child_process')
+    const child = spawn(process.execPath, ['--input-type=module', '-e', `
+      const { startBroadcastServer } = await import(${JSON.stringify(new URL('../dist/server.js', import.meta.url).href)})
+      const s = await startBroadcastServer({ appId: '${SOKETI_APP.appId}', key: '${SOKETI_APP.key}', secret: '${SOKETI_APP.secret}', port: 0, redis: '${redis.url}', nodeTtlSeconds: 1 })
+      console.log(s.port)`], { stdio: ['ignore', 'pipe', 'inherit'] })
+    const port = Number(await new Promise<string>((resolve) => child.stdout!.once('data', (chunk: Buffer) => resolve(chunk.toString()))))
+    const added = new Promise((r) => annRoom.bind('pusher:member_added', r))
+    await joined((await browser(port, 'carol')).subscribe('presence-rooms.d'))
+    await added
+    const removed = new Promise((r) => annRoom.bind('pusher:member_removed', r))
+    child.kill('SIGKILL')
+    expect(await removed).toEqual({ id: 'carol', info: { name: 'carol' } })
+  })
 })

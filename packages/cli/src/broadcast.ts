@@ -134,6 +134,8 @@ export interface HubSettings {
   secret: string
   host: string
   port: number
+  /** Several servers as one, over Redis (the connection's `redis`). */
+  redis?: string
 }
 
 /**
@@ -155,7 +157,7 @@ export async function hubSettings(project: Project, options: { connection?: stri
     // The same secret the app signs with: set, or derived from APP_KEY (by the app's own @caldera/broadcast).
     const { resolveSecret } = await importFromProject<{ resolveSecret(config: { secret?: unknown; appKey?: unknown }, where: string): Promise<string> }>(project.root, '@caldera/broadcast')
     const secret = await resolveSecret({ secret: connection.secret, appKey: connection.appKey }, `The "${name}" broadcast connection`)
-    return { connection: name, appId: String(connection.appId), key: String(connection.key), secret, host: String(connection.host), port: Number(connection.port ?? 6001) }
+    return { connection: name, appId: String(connection.appId), key: String(connection.key), secret, host: String(connection.host), port: Number(connection.port ?? 6001), ...(typeof connection.redis === 'string' && connection.redis ? { redis: connection.redis } : {}) }
   } finally {
     await app.shutdown()
   }
@@ -165,7 +167,7 @@ export async function hubSettings(project: Project, options: { connection?: stri
 export async function serveBroadcast(project: Project, options: { connection?: string; host?: string; port?: number } = {}) {
   const settings = await hubSettings(project, options)
   const { startBroadcastServer } = await importFromProject<{ startBroadcastServer(options: Record<string, unknown>): Promise<{ port: number; close(): Promise<void> }> }>(project.root, '@caldera/broadcast/server')
-  const server = await startBroadcastServer({ appId: settings.appId, key: settings.key, secret: settings.secret, port: options.port ?? settings.port, host: options.host ?? '127.0.0.1' })
+  const server = await startBroadcastServer({ appId: settings.appId, key: settings.key, secret: settings.secret, port: options.port ?? settings.port, host: options.host ?? '127.0.0.1', ...(settings.redis ? { redis: settings.redis } : {}) })
   return { settings, server }
 }
 
