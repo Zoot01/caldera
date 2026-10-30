@@ -98,16 +98,19 @@ function inertiaMiddleware(options: InertiaOptions): MiddlewareHandler {
 
   return async (c, next) => {
     const isInertia = c.req.header('x-inertia') === 'true'
-    const version = await versionOf()
 
-    // Stale assets: tell the client to do a full page load so it picks up the new build.
-    if (isInertia && c.req.method === 'GET' && (c.req.header('x-inertia-version') ?? '') !== (version ?? '')) {
-      if (isSessionStarted(c)) sessionOf(c).reflash()
-      return c.body(null, 409, { 'x-inertia-location': c.req.url, 'x-inertia-version': version ?? '' })
+    // Stale assets: tell the client to do a full page load so it picks up the new build. The version
+    // is only read for Inertia visits and page renders: JSON routes never touch the asset manifest.
+    if (isInertia && c.req.method === 'GET') {
+      const version = await versionOf()
+      if ((c.req.header('x-inertia-version') ?? '') !== (version ?? '')) {
+        if (isSessionStarted(c)) sessionOf(c).reflash()
+        return c.body(null, 409, { 'x-inertia-location': c.req.url, 'x-inertia-version': version ?? '' })
+      }
     }
 
-    c.setRenderer(((component: string, props: Record<string, unknown>, renderOptions: RenderOptions = {}) =>
-      render(c, options, version, component, props, renderOptions)) as never)
+    c.setRenderer((async (component: string, props: Record<string, unknown>, renderOptions: RenderOptions = {}) =>
+      render(c, options, await versionOf(), component, props, renderOptions)) as never)
 
     await next()
     appendVary(c)

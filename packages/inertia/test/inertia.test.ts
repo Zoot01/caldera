@@ -200,6 +200,19 @@ describe('redirects', () => {
   })
 })
 
+it('never reads the asset manifest for routes that don’t render a page', async () => {
+  const assets = viteAssets({ entry: 'resources/app.tsx', manifest: () => Promise.reject(new Error('no build')) })
+  const http = new Hono()
+    .use(defineInertia({ assets }).middleware())
+    .get('/api', (c) => c.json({ ok: true }))
+    .get('/page', (c) => c.render('Home', { greeting: 'hi' }))
+    .onError((error, c) => c.text(error.message, 500))
+  expect((await http.request('/api')).status).toBe(200)
+  expect((await http.request('/api', { method: 'POST' })).status).toBe(404)
+  // Pages still need the build, and say so.
+  expect(await (await http.request('/page')).text()).toBe('no build')
+})
+
 describe('viteAssets', () => {
   let dir: string
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
