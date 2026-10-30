@@ -16,6 +16,7 @@ import { md5 } from '../src/md5.js'
 import { startBroadcastServer } from '../src/server.js'
 import { hasDocker, SOKETI_APP, startSoketi } from './soketi.js'
 import { startWorkerdHub } from './workerd.js'
+import { reverbDir, startReverb } from './reverb.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
 // pusher-js is CommonJS whose types describe its ES build: the default import is the class at runtime.
@@ -229,6 +230,8 @@ const servers = [
   },
   // On workerd, publishes from elsewhere reach the Durable Object through broadcastHubRoute.
   { name: 'the Durable Object hub (workerd)', start: startWorkerdHub },
+  // Laravel Reverb, when a Laravel app with it is at CALDERA_REVERB_DIR.
+  ...(reverbDir ? [{ name: 'Laravel Reverb', start: startReverb }] : []),
 ]
 
 describe.each(servers)('over $name', { timeout: 30_000 }, ({ start }) => {
