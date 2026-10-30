@@ -104,7 +104,12 @@ export function viteAssets(options: ViteAssetsOptions): ViteAssets {
         }
         const chunks = await loadManifest()
         return chunks ? hash(JSON.stringify(chunks)) : null
-      })())
+      })().catch((error: unknown) => {
+        // Not cached: a request that came before the dev server (or the build) was ready must not
+        // fail every request after it.
+        version = undefined
+        throw error
+      }))
     },
   }
 }

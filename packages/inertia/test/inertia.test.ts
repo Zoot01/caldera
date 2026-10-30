@@ -283,6 +283,20 @@ describe('viteAssets', () => {
     expect(await assets.version()).toBe('dev')
   })
 
+  it('recovers once the dev server is up, after a request that came too early', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    let failFirst = true
+    const assets = viteAssets({
+      entry: 'resources/app.tsx',
+      hotFile: join(dir, 'vite.hot'),
+      manifest: () => (failFirst ? Promise.reject(new Error('No Vite manifest')) : Promise.resolve(manifest)),
+    })
+    await expect(assets.version()).rejects.toThrow('No Vite manifest')
+    failFirst = false
+    writeFileSync(join(dir, 'vite.hot'), 'http://localhost:5173\n')
+    expect(await assets.version()).toBe('dev')
+  })
+
   it('renders without tags in tests when nothing is built', async () => {
     dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
     const assets = viteAssets({ entry: 'resources/app.tsx', hotFile: join(dir, 'vite.hot') })
