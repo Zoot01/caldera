@@ -1,3 +1,4 @@
+import { broadcastRoutes } from '@caldera/broadcast'
 import { errorHandler, notFoundHandler, originCheck, securityHeaders, startSession } from '@caldera/http'
 import { mailPreviewRoutes } from '@caldera/mail'
 import { cronRoutes } from '@caldera/schedule'
@@ -21,6 +22,8 @@ export const http = new Hono()
   .route('/', cronRoutes({ secret: () => app.config.app.cronSecret }))
   // Signed file links for the local disk (/_caldera/files, rewritten here by next.config.ts).
   .route('/', storageRoutes())
+  // Browsers ask here before joining a private or presence channel: /api/_caldera/broadcast/auth.
+  .route('/', broadcastRoutes())
   // Mail previews and the outbox, outside production only: /_caldera/mail.
   .route('/', mailPreviewRoutes({ enabled: () => process.env.NODE_ENV !== 'production' }))
   .route('/', router.app)

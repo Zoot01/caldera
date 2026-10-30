@@ -34,10 +34,25 @@ export const env = defineEnv({
   AWS_SECRET_ACCESS_KEY: secret(z.string().optional()),
   // Vercel sends it to the cron route (Authorization: Bearer ...). Empty: the route is off.
   CRON_SECRET: secret(z.string().optional().transform((s) => s || undefined)),
+  // Realtime (src/config/broadcast.ts). `server`: a pusher-protocol server at BROADCAST_HOST, which
+  // `caldera dev` runs for you (`pnpm realtime` in production; Soketi and Reverb work too). `pusher`:
+  // hosted Pusher (PUSHER_CLUSTER). `cloudflare`: the BroadcastHub Durable Object. `log`, `null`.
+  BROADCAST_CONNECTION: z.enum(['server', 'pusher', 'cloudflare', 'log', 'null']).default('server'),
+  BROADCAST_APP_ID: z.string().default('{{ name }}'),
+  BROADCAST_KEY: z.string().default('{{ name }}-key'),
+  // Signs subscriptions and publishes; the realtime server has the same one. Needed by server, pusher and cloudflare.
+  BROADCAST_SECRET: secret(z.string().min(16).optional().or(z.literal('').transform(() => undefined))),
+  BROADCAST_HOST: z.string().default('127.0.0.1'),
+  BROADCAST_PORT: z.coerce.number().default(6001),
+  BROADCAST_SCHEME: z.enum(['http', 'https']).default('http'),
+  // Where browsers connect, when it isn't BROADCAST_HOST (wss://realtime.example.com).
+  BROADCAST_PUBLIC_URL: z.url().optional().or(z.literal('').transform(() => undefined)),
+  PUSHER_CLUSTER: z.string().optional().transform((s) => s || undefined),
   // Cloudflare Workers bindings (wrangler.json, from `caldera cloudflare:setup`). Present only on
   // Workers, where they replace libSQL (DB: D1), the disks (FILES: R2), the queue and the mailer.
   DB: binding(),
   FILES: binding(),
   QUEUE: binding(),
   EMAIL: binding(),
+  BROADCAST_HUB: binding(),
 })

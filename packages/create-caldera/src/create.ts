@@ -53,7 +53,7 @@ export class CreateError extends Error {
 
 const TEMPLATE = new URL('../template/', import.meta.url)
 const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
-const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'i18n', 'next', 'testing']
+const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'broadcast', 'i18n', 'next', 'testing']
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -88,7 +88,9 @@ export function createProject(options: CreateOptions): CreateResult {
   }
   writeFileSync(
     join(directory, '.env'),
-    readFileSync(join(directory, '.env.example'), 'utf8').replace('APP_KEY=', `APP_KEY=${randomBytes(32).toString('base64url')}`),
+    readFileSync(join(directory, '.env.example'), 'utf8')
+      .replace('APP_KEY=', `APP_KEY=${randomBytes(32).toString('base64url')}`)
+      .replace('BROADCAST_SECRET=', `BROADCAST_SECRET=${randomBytes(24).toString('base64url')}`),
   )
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, any>

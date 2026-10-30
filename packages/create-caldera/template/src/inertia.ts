@@ -11,5 +11,7 @@ export const inertia = defineInertia({
     appName: '{{ name }}',
     // The locale and the messages this page declared (`export const messages`), for useT().
     i18n: i18nOf(c).page(component),
+    // How the browser reaches the realtime server (no secrets); null when there's none (log, null).
+    broadcast: c.var.broadcast.client() ?? null,
   }),
 })

@@ -60,6 +60,7 @@ export function vercelSetup(project: Project, options: { force?: boolean } = {})
       'Install the runtime helper: `pnpm add @vercel/functions` (or npm/yarn/bun).',
       'Production env (Vercel project settings): APP_KEY; DATABASE_URL to a hosted database (Turso `libsql://…?authToken=…`, or Postgres); QUEUE_CONNECTION=deferred (or redis/QStash); S3_* for files; a mailer (RESEND_API_KEY, POSTMARK_SERVER_TOKEN…); CRON_SECRET if you have schedules.',
       'Schedules: `caldera schedule:sync --target vercel` adds them to vercel.json as Vercel Cron Jobs.',
+      'Realtime: functions can’t hold WebSockets. Set BROADCAST_CONNECTION=pusher (hosted Pusher: PUSHER_CLUSTER and the BROADCAST_* credentials), point BROADCAST_HOST at a server elsewhere, or BROADCAST_CONNECTION=null without realtime.',
       'Check it: `vercel pull --environment=production`, then `caldera check` (it reads that env). Build locally: `vercel build`.',
     ],
   }

@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { broadcastProvider } from '@caldera/broadcast'
+import { durableObjectDriver } from '@caldera/broadcast/cloudflare'
 import { cacheProvider } from '@caldera/cache'
 import { databaseCacheDriver } from '@caldera/cache/database'
 import { redisDriver } from '@caldera/cache/redis'
@@ -21,6 +23,7 @@ import { localStorageDriver } from '@caldera/storage/local'
 import { s3StorageDriver } from '@caldera/storage/s3'
 import { drizzle as d1 } from 'drizzle-orm/d1'
 import { drizzle } from 'drizzle-orm/libsql'
+import { channels } from '../.caldera/channels.gen.js'
 import { config } from '../.caldera/config.gen.js'
 import { messages, pages } from '../.caldera/i18n.gen.js'
 import { listeners } from '../.caldera/listeners.gen.js'
@@ -60,5 +63,7 @@ export const app = createApp({
     // Every notification in src/notifications. `notify(user, Welcome, payload)`; `inbox(user)` reads
     // the database channel (the caldera_notifications table).
     notificationsProvider({ notifications, notifiable: UserNotifiable, channels: [databaseChannel()] }),
+    // Realtime: every channel in src/channels; events with \`broadcast\` reach browsers on them.
+    broadcastProvider((app) => app.config.broadcast, { channels, drivers: [durableObjectDriver] }),
   ],
 })
