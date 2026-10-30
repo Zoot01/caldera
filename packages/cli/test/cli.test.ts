@@ -9,16 +9,22 @@ import { describeAbilities, describeModel, generateProjectAuthSchema, describePr
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
 const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc')
+// Copies stay at test/.tmp/<name> (the fixtures' tsconfig extends the base config by relative path),
+// and each test file only cleans up its own prefix: files run in parallel.
+const tmp = join(here, '.tmp')
+const PREFIX = 'cli-'
 let root: string
 
 // Each test gets a fresh copy inside test/.tmp so node_modules resolution still works.
 beforeEach(() => {
-  root = join(here, '.tmp', `app-${Math.random().toString(36).slice(2)}`)
+  root = join(tmp, `${PREFIX}app-${Math.random().toString(36).slice(2)}`)
   // Skip any .caldera/ generated in the fixture for editor support: tests start ungenerated.
   cpSync(join(here, 'fixtures/basic-app'), root, { recursive: true, filter: (src) => !src.includes('/.caldera') && !src.includes('/drizzle/') })
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
-afterAll(() => rmSync(join(here, '.tmp'), { recursive: true, force: true }))
+afterAll(() => {
+  for (const entry of existsSync(tmp) ? readdirSync(tmp) : []) if (entry.startsWith(PREFIX)) rmSync(join(tmp, entry), { recursive: true, force: true })
+})
 
 function typecheck(dir: string) {
   return spawnSync(process.execPath, [tsc, '-p', join(dir, 'tsconfig.json')], { encoding: 'utf8' })
@@ -282,7 +288,7 @@ describe('caldera abilities', () => {
 describe('caldera auth:schema', () => {
   let authApp: string
   beforeEach(() => {
-    authApp = join(here, '.tmp', `auth-${Math.random().toString(36).slice(2)}`)
+    authApp = join(tmp, `${PREFIX}auth-${Math.random().toString(36).slice(2)}`)
     cpSync(join(here, 'fixtures/auth-app'), authApp, { recursive: true })
   })
   afterEach(() => rmSync(authApp, { recursive: true, force: true }))

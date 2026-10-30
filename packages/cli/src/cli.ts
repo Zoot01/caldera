@@ -9,6 +9,8 @@ import { describeModel, describeSchema } from './schema.js'
 import { seedProject } from './seed.js'
 import { describeAbilities } from './policies.js'
 import { generateProjectAuthSchema } from './auth-schema.js'
+import { ejectStub, make, MAKE_KINDS, type MakeKind } from './make.js'
+import { STUBS } from './stubs.js'
 
 const VERSION = '0.0.0'
 
@@ -34,7 +36,8 @@ async function run(json: boolean, task: () => Promise<{ data: unknown; text: str
         : { name: 'Error', code: 'internal_error', message: error instanceof Error ? error.message : String(error) }
     if (json) process.stdout.write(`${JSON.stringify({ error: body }, null, 2)}\n`)
     else process.stderr.write(`✘ ${body.message}\n`)
-    process.exitCode = 1
+    // 2 = the command was called wrong (agents can fix the call); 1 = it ran and failed.
+    process.exitCode = body.code === 'missing_argument' ? 2 : 1
   }
 }
 
@@ -194,6 +197,59 @@ const authSchemaCommand = defineCommand({
     }),
 })
 
+function requireArg(value: string | undefined, name: string, hint: string): string {
+  if (value && value.trim()) return value
+  throw new CalderaError('missing_argument', `Missing <${name}>. ${hint}`, { missing: [name] })
+}
+
+const DESCRIPTIONS: Record<MakeKind, string> = {
+  model: 'Create a model (and its table in src/db/tables/)',
+  policy: 'Create a policy in src/policies/',
+  factory: 'Create a factory in src/db/factories/',
+  seeder: 'Create a seeder in src/db/seeders/',
+  routes: 'Create a route group in src/routes/',
+  config: 'Create a config file in src/config/',
+  provider: 'Create a provider in src/providers/',
+}
+
+function makeCommand(kind: MakeKind) {
+  return defineCommand({
+    meta: { name: `make:${kind}`, description: DESCRIPTIONS[kind] },
+    args: {
+      name: { type: 'positional', description: 'Name, e.g. BlogPost or blog-post', required: false },
+      ...shared,
+      force: { type: 'boolean', description: 'Overwrite existing files' },
+      ...(kind === 'model' ? { table: { type: 'boolean', description: 'Also create the table (use --no-table for an existing one)', default: true } } : {}),
+    },
+    run: ({ args }) =>
+      run(wantsJson(args.json), async () => {
+        const name = requireArg(args.name as string | undefined, 'name', `Usage: caldera make:${kind} <name>`)
+        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table })
+        const text = [
+          ...result.created.map((path) => `created   ${path}`),
+          ...result.hints.map((hint) => `next      ${hint}`),
+          ...(typeof result.generate === 'object' ? [`note      caldera generate didn't finish: ${result.generate.error}`] : []),
+        ].join('\n')
+        return { data: result, text }
+      }),
+  })
+}
+
+const stubEjectCommand = defineCommand({
+  meta: { name: 'stub:eject', description: 'Copy a built-in stub to stubs/ so generators use your version' },
+  args: {
+    stub: { type: 'positional', description: `One of: ${Object.keys(STUBS).join(', ')}`, required: false },
+    ...shared,
+    force: { type: 'boolean', description: 'Overwrite an existing stub' },
+  },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const stub = requireArg(args.stub as string | undefined, 'stub', `One of: ${Object.keys(STUBS).join(', ')}`)
+      const result = ejectStub(openProject(args.cwd), stub, { force: args.force })
+      return { data: result, text: result.created.map((p) => `created   ${p}`).join('\n') }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
@@ -207,6 +263,8 @@ export const main = defineCommand({
     'db:seed': dbSeedCommand,
     abilities: abilitiesCommand,
     'auth:schema': authSchemaCommand,
+    ...Object.fromEntries(MAKE_KINDS.map((kind) => [`make:${kind}`, makeCommand(kind)])),
+    'stub:eject': stubEjectCommand,
     'db:push': migrationCommand('push', 'Push the schema straight to the database, for prototyping (drizzle-kit push)'),
   },
 })
