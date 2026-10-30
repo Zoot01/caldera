@@ -36,7 +36,11 @@ type TxOf<Client> = Client extends { transaction<T>(fn: (tx: infer Tx) => Promis
 interface Scope {
   client: unknown
   afterCommit: (() => unknown)[]
+  /** The test-wrapping transaction: it never commits, so callbacks can't wait for it. */
+  test?: boolean
 }
+
+class TestRollback extends Error {}
 
 export interface Database<Client extends TransactionalClient = TransactionalClient> {
   readonly name: string
@@ -54,6 +58,13 @@ export interface Database<Client extends TransactionalClient = TransactionalClie
   transaction<T>(fn: (tx: TxOf<Client>) => Promise<T>): Promise<T>
   /** Runs `callback` after the current transaction commits, or right away outside one. Dropped on rollback. */
   afterCommit(callback: () => unknown): Promise<void>
+  /**
+   * Testing only: opens a transaction that wraps everything until the returned `rollback()`.
+   * Code joins it even outside its async context (a test body), transactions inside become
+   * savepoints, and after-commit callbacks fire when those inner transactions commit, as they
+   * would in production. Use `useDatabase()` from `@caldera/db/testing` rather than this directly.
+   */
+  beginTestTransaction(): Promise<{ rollback(): Promise<void> }>
 }
 
 export interface CreateDatabaseOptions {
@@ -67,6 +78,8 @@ export function createDatabase<Client extends TransactionalClient>(client: Clien
   const name = options.name ?? 'default'
   const capabilities = { ...CAPABILITIES[options.driver], ...options.capabilities }
   const scope = new AsyncLocalStorage<Scope>()
+  let testScope: Scope | undefined
+  const active = () => scope.getStore() ?? testScope
 
   const database: Database<Client> = {
     name,
@@ -75,18 +88,19 @@ export function createDatabase<Client extends TransactionalClient>(client: Clien
     client,
 
     current() {
-      return (scope.getStore()?.client ?? client) as Client | TxOf<Client>
+      return (active()?.client ?? client) as Client | TxOf<Client>
     },
 
     inTransaction() {
-      return scope.getStore() !== undefined
+      const current = active()
+      return current !== undefined && !current.test
     },
 
     async transaction(fn) {
       if (!capabilities.interactiveTransactions) {
         throw new CapabilityError(options.driver, 'interactive transactions', 'Use `db.client.batch([...])` for atomic writes.')
       }
-      const parent = scope.getStore()
+      const parent = active()
       if (parent && !capabilities.savepoints) {
         throw new CapabilityError(options.driver, 'nested transactions (savepoints)')
       }
@@ -99,7 +113,8 @@ export function createDatabase<Client extends TransactionalClient>(client: Clien
       })
 
       // A savepoint's callbacks wait for the outer commit; a rollback above would discard them.
-      if (parent) {
+      // The test transaction never commits, so directly inside it callbacks run now.
+      if (parent && !parent.test) {
         parent.afterCommit.push(...own.afterCommit)
         return result
       }
@@ -108,9 +123,40 @@ export function createDatabase<Client extends TransactionalClient>(client: Clien
     },
 
     async afterCommit(callback) {
-      const current = scope.getStore()
-      if (current) current.afterCommit.push(callback)
+      const current = active()
+      if (current && !current.test) current.afterCommit.push(callback)
       else await callback()
+    },
+
+    async beginTestTransaction() {
+      if (!capabilities.interactiveTransactions) {
+        throw new CapabilityError(options.driver, 'interactive transactions', 'Use the `truncate` strategy, or isolated storage on D1.')
+      }
+      if (testScope) throw new CalderaError('test_transaction', 'A test transaction is already open on this database.')
+      let release!: () => void
+      const released = new Promise<void>((resolve) => (release = resolve))
+      let opened!: () => void
+      const ready = new Promise<void>((resolve) => (opened = resolve))
+      const done = client
+        .transaction(async (tx) => {
+          testScope = { client: tx, afterCommit: [], test: true }
+          opened()
+          await released
+          throw new TestRollback()
+        })
+        .catch((error: unknown) => {
+          if (!(error instanceof TestRollback)) throw error
+        })
+        .finally(() => {
+          testScope = undefined
+        })
+      await Promise.race([ready, done])
+      return {
+        async rollback() {
+          release()
+          await done
+        },
+      }
     },
   }
   return database

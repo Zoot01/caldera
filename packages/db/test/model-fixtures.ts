@@ -78,23 +78,30 @@ declare module '../src/model/registry.js' {
   }
 }
 
-export async function setupDatabase() {
+export const SCHEMA_SQL = `
+  create table users (
+    id uuid primary key default gen_random_uuid(),
+    name text not null, email text not null unique, password_hash text not null,
+    role text not null default 'member', deleted_at timestamptz
+  );
+  create table posts (
+    id uuid primary key default gen_random_uuid(),
+    slug text not null unique, title text not null, body text not null default '', internal_notes text,
+    author_id uuid not null references users(id), meta jsonb, published_at timestamptz, deleted_at timestamptz,
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+  );
+`
+
+/** A fresh in-memory Postgres with the fixture schema, not yet the default database. */
+export async function connectDatabase() {
   const client = new PGlite()
-  await client.exec(`
-    create table users (
-      id uuid primary key default gen_random_uuid(),
-      name text not null, email text not null unique, password_hash text not null,
-      role text not null default 'member', deleted_at timestamptz
-    );
-    create table posts (
-      id uuid primary key default gen_random_uuid(),
-      slug text not null unique, title text not null, body text not null default '', internal_notes text,
-      author_id uuid not null references users(id), meta jsonb, published_at timestamptz, deleted_at timestamptz,
-      created_at timestamptz not null default now(), updated_at timestamptz not null default now()
-    );
-  `)
+  await client.exec(SCHEMA_SQL)
   const orm = drizzle({ client, relations })
-  const db = createDatabase(orm, { driver: 'postgres' })
+  return { orm, db: createDatabase(orm, { driver: 'postgres' }) }
+}
+
+export async function setupDatabase() {
+  const { orm, db } = await connectDatabase()
   setDefaultDatabase(() => db)
   events.length = 0
   return { orm, db }

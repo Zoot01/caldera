@@ -25,6 +25,10 @@
     "./seeders": {
       "types": "./dist/seeders.d.ts",
       "default": "./dist/seeders.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
     }
   },
   "files": [
@@ -35,9 +39,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@faker-js/faker": "^10.0.0",
     "drizzle-orm": "1.0.0-rc.5",
-    "zod": "^4.6.0",
-    "@faker-js/faker": "^10.0.0"
+    "vitest": ">=3.0.0",
+    "zod": "^4.6.0"
   },
   "dependencies": {
     "@caldera/core": "workspace:*"
@@ -49,10 +54,14 @@
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",
     "typescript": "5.9.3",
+    "vitest": "5.0.5",
     "zod": "^4.6.7"
   },
   "peerDependenciesMeta": {
     "@faker-js/faker": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   }
