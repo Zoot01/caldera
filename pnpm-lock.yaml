@@ -23,6 +23,9 @@ importers:
       '@caldera/core':
         specifier: workspace:*
         version: link:../core
+      '@caldera/db':
+        specifier: workspace:*
+        version: link:../db
       citty:
         specifier: 0.2.2
         version: 0.2.2
@@ -30,9 +33,6 @@ importers:
         specifier: 2.7.0
         version: 2.7.0
     devDependencies:
-      '@caldera/db':
-        specifier: workspace:*
-        version: link:../db
       '@caldera/http':
         specifier: workspace:*
         version: link:../http
@@ -76,6 +76,9 @@ importers:
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13
+      '@faker-js/faker':
+        specifier: 10.6.0
+        version: 10.6.0
       drizzle-orm:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(zod@4.6.7)
@@ -109,6 +112,10 @@ packages:
 
   '@electric-sql/pglite@0.5.13':
     resolution: {integrity: sha512-4rZuxK1k07w6sSpJzjMri0B9+HuXuC7V9pxVB51pR0T9KPqXg6TD0mdaEwBA9rkcL4jdht4tGDf/wYzAiGhT7g==}
+
+  '@faker-js/faker@10.6.0':
+    resolution: {integrity: sha512-3RQHgEtvL1Frl/d1cSreo7qhJ3Gk1OdNUai/CtZ8G+wYeRQnJih3s9xJ9/kgYekPQRdwgh0HXRPqMlzWGwivIQ==}
+    engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -683,6 +690,8 @@ packages:
 snapshots:
 
   '@electric-sql/pglite@0.5.13': {}
+
+  '@faker-js/faker@10.6.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

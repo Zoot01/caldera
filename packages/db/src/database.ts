@@ -129,14 +129,18 @@ async function runCallbacks(callbacks: (() => unknown)[]) {
   if (errors.length > 1) throw new AggregateError(errors, 'Several after-commit callbacks failed.')
 }
 
-let defaultResolver: (() => Database<any>) | undefined
+// Kept on globalThis, not in module state: the CLI (and duplicated installs) can load two
+// copies of this package, and both must see the database the app's provider registered.
+const DEFAULT = Symbol.for('caldera.db.defaultDatabase')
+const registry = globalThis as { [DEFAULT]?: () => Database<any> }
 
 /** Points models (and anything else using `defaultDatabase()`) at a database. The db provider calls this at boot. */
 export function setDefaultDatabase(resolver: (() => Database<any>) | undefined) {
-  defaultResolver = resolver
+  registry[DEFAULT] = resolver
 }
 
 export function defaultDatabase(): Database<any> {
+  const defaultResolver = registry[DEFAULT]
   if (!defaultResolver) {
     throw new CalderaError(
       'no_database',

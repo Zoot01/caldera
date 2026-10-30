@@ -17,6 +17,14 @@
     "./sqlite": {
       "types": "./dist/sqlite.d.ts",
       "default": "./dist/sqlite.js"
+    },
+    "./factories": {
+      "types": "./dist/factories.d.ts",
+      "default": "./dist/factories.js"
+    },
+    "./seeders": {
+      "types": "./dist/seeders.d.ts",
+      "default": "./dist/seeders.js"
     }
   },
   "files": [
@@ -28,7 +36,8 @@
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",
-    "zod": "^4.6.0"
+    "zod": "^4.6.0",
+    "@faker-js/faker": "^10.0.0"
   },
   "dependencies": {
     "@caldera/core": "workspace:*"
@@ -36,9 +45,15 @@
   "devDependencies": {
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
+    "@faker-js/faker": "10.6.0",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "peerDependenciesMeta": {
+    "@faker-js/faker": {
+      "optional": true
+    }
   }
 }
