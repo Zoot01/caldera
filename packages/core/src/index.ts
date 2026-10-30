@@ -32,7 +32,7 @@ export type {
   Singleton,
   UnionToIntersection,
 } from './provider.js'
-export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv, RegisteredHonoEnv } from './register.js'
+export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv, RegisteredHonoEnv, RegisteredServices } from './register.js'
 export { parseDuration } from './duration.js'
 export type { Duration } from './duration.js'
 export { createManager, defineDriver } from './manager.js'

@@ -1,4 +1,4 @@
-import type { HonoEnvOf } from './app.js'
+import type { AppServices, CalderaApp, HonoEnvOf } from './app.js'
 import type { AnyConfigDefinition, ConfigMap } from './config.js'
 import type { AnyEnvDefinition, EnvOf } from './env.js'
 
@@ -33,3 +33,9 @@ export type RegisteredConfig = Register extends { config: infer C extends readon
  * exports one. Nothing the app's own type depends on may read it, or the types would cycle.
  */
 export type RegisteredHonoEnv = Register extends { app: infer A } ? HonoEnvOf<A> : {}
+
+/**
+ * The registered app's process-wide services, for code that runs outside a request: jobs, event
+ * listeners, scheduled tasks. The same caveat as `RegisteredHonoEnv` applies.
+ */
+export type RegisteredServices = Register extends { app: infer A } ? (A extends CalderaApp<any, any, infer P> ? AppServices<P> : {}) : {}
