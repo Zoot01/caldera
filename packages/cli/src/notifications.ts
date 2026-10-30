@@ -39,3 +39,22 @@ export function notificationsTable(project: Project, options: { force?: boolean 
     ],
   }
 }
+
+export const CACHE_TABLE_FILE = 'src/db/tables/caldera-cache.ts'
+
+/** `caldera cache:table`: writes the database cache store's table for this app's dialect. */
+export function cacheTable(project: Project, options: { force?: boolean } = {}) {
+  if (existsSync(project.path(CACHE_TABLE_FILE)) && !options.force) {
+    throw new CalderaError('file_exists', `Refusing to overwrite ${CACHE_TABLE_FILE}. Pass --force to replace.`, { files: [CACHE_TABLE_FILE] })
+  }
+  mkdirSync(dirname(project.path(CACHE_TABLE_FILE)), { recursive: true })
+  writeFileSync(project.path(CACHE_TABLE_FILE), resolveStub(project, dialectOf(project) === 'sqlite' ? 'cache-table-sqlite' : 'cache-table').template)
+  return {
+    schemaVersion: 1 as const,
+    created: [CACHE_TABLE_FILE],
+    hints: [
+      'Create it with `caldera db:generate` then `caldera db:migrate` (or `caldera db:push` in development).',
+      "Add a store `{ driver: 'database' }` in src/config/cache.ts and pass `drivers: [databaseCacheDriver]` (from '@caldera/cache/database') to cacheProvider().",
+    ],
+  }
+}

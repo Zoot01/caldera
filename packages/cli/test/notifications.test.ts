@@ -42,3 +42,11 @@ it('notifications:table writes the table for the app’s dialect, and refuses to
   expect(readFileSync(join(dir, result.created[0]!), 'utf8')).toContain("data: text('data').notNull()")
   await generate(openProject(dir))
 })
+
+it('cache:table writes the database cache table for the app’s dialect', async () => {
+  const { cacheTable } = await import('../src/index.js')
+  const dir = fresh()
+  expect(readFileSync(join(dir, cacheTable(openProject(dir)).created[0]!), 'utf8')).toContain("expiresAt: bigint('expires_at', { mode: 'number' })")
+  writeFileSync(join(dir, 'drizzle.config.ts'), "export default { dialect: 'turso' }\n")
+  expect(readFileSync(join(dir, cacheTable(openProject(dir), { force: true }).created[0]!), 'utf8')).toContain("expiresAt: integer('expires_at')")
+})

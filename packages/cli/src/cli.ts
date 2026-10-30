@@ -14,7 +14,7 @@ import { STUBS } from './stubs.js'
 import { check } from './check.js'
 import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
-import { notificationsTable } from './notifications.js'
+import { cacheTable, notificationsTable } from './notifications.js'
 import { i18nReport } from './i18n.js'
 import { createMcpServer, serveStdio } from './mcp/protocol.js'
 import { calderaTools, INSTRUCTIONS } from './mcp/tools.js'
@@ -345,6 +345,16 @@ const notificationsTableCommand = defineCommand({
     }),
 })
 
+const cacheTableCommand = defineCommand({
+  meta: { name: 'cache:table', description: 'Create the cache table in src/db/tables (for the database cache store)' },
+  args: { ...shared, force: { type: 'boolean', description: 'Overwrite an existing file' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = cacheTable(openProject(args.cwd), { force: args.force })
+      return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
 const i18nMissingCommand = defineCommand({
   meta: { name: 'i18n:missing', description: 'Report missing, extra and mismatched translations per locale, and unused keys' },
   args: { ...shared },
@@ -522,6 +532,7 @@ export const main = defineCommand({
     'queue:retry': failedJobsAction('retry', 'Put failed jobs back on their queue (database queue driver)'),
     'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
     'notifications:table': notificationsTableCommand,
+    'cache:table': cacheTableCommand,
     'i18n:missing': i18nMissingCommand,
     mcp: mcpCommand,
     'schedule:list': scheduleListCommand,
