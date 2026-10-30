@@ -1,0 +1,6 @@
+export { migrateFresh, setupApp } from './app.js'
+export type { SetupAppOptions, TestApp } from './app.js'
+export { TestClient } from './client.js'
+export type { RequestOptions, Requestable, TestClientOptions } from './client.js'
+export { TestResponse } from './response.js'
+export type { InertiaPage } from './response.js'
