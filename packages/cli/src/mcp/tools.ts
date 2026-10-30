@@ -14,6 +14,7 @@ import { listRoutes } from '../routes.js'
 import { listSchedules } from '../schedule.js'
 import { describeModel, describeSchema } from '../schema.js'
 import { seedProject } from '../seed.js'
+import { authorizeChannel, listBroadcasts } from '../broadcast.js'
 import { defineTool, type ToolDefinition } from './protocol.js'
 
 export interface ToolOptions {
@@ -131,6 +132,22 @@ export function calderaTools({ root, allowWrites }: ToolOptions): ToolDefinition
       input: z.object({}),
       annotations: read,
       handle: () => withProject(root, async (project) => i18nReport(project)),
+    }),
+    defineTool({
+      name: 'broadcast_list',
+      title: 'List channels and broadcast events',
+      description: 'Realtime channels in src/channels (pattern, public/private/presence, bound params, client events, file:line) and events that broadcast (wire name, queued, whether they limit the payload with `with`).',
+      input: z.object({}),
+      annotations: read,
+      handle: () => withProject(root, (project) => listBroadcasts(project)),
+    }),
+    defineTool({
+      name: 'broadcast_authorize',
+      title: 'Check a channel subscription',
+      description: 'Runs a channel’s authorize() for a user (by id; omit for a signed-out visitor), as the auth route would: allowed or refused, and why (no matching channel, missing row, guest, denied), plus the presence member info.',
+      input: z.object({ channel: z.string().describe('Subscription name, prefix included: private-posts.42, presence-rooms.1'), userId: z.union([z.string(), z.number()]).optional() }),
+      annotations: read,
+      handle: ({ channel, userId }) => withProject(root, (project) => authorizeChannel(project, { channel, ...(userId !== undefined ? { userId } : {}) })),
     }),
     defineTool({
       name: 'mail_list',

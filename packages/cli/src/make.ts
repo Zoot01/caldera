@@ -6,7 +6,7 @@ import { names, render, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
-export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener', 'schedule', 'mail', 'notification'] as const
+export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener', 'schedule', 'mail', 'notification', 'channel'] as const
 export type MakeKind = (typeof MAKE_KINDS)[number]
 
 interface Planned {
@@ -48,6 +48,8 @@ function plan(kind: MakeKind, n: Names & { page: string }, project: Project, opt
       return [{ path: `${CONVENTIONS.mailDir}/${n.kebab}.tsx`, stub: 'mail' }]
     case 'notification':
       return [{ path: `${CONVENTIONS.notificationsDir}/${n.kebab}.ts`, stub: 'notification' }]
+    case 'channel':
+      return [{ path: `${CONVENTIONS.channelsDir}/${n.kebab}.ts`, stub: 'channel' }]
   }
 }
 
@@ -66,6 +68,11 @@ function hints(kind: MakeKind, n: Names & { page: string }, options: { table: bo
   if (kind === 'event') return [`Emit it with \`await emit(${n.Name}, { id })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.`]
   if (kind === 'listener') return [`It runs on every emit of its event. For slow work, listen with a job instead: \`listen(Event, Job.fromEvent((e) => ({ ... })))\`.`]
   if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera/queue'; \`caldera queue:work\` runs it.`]
+  if (kind === 'channel') {
+    return [
+      `Broadcast on it from an event: \`defineEvent({ ..., broadcast: { on: (p) => ${n.Name}Channel.with({ id: p.id }) } })\`. In a page: \`useChannel('${n.kebab}.{id}', { id }, { on: { ... } })\` from '@caldera/broadcast/react'.`,
+    ]
+  }
   if (kind === 'page') return [`Render it from a route: \`c.render('${n.page}', { title: '${n.Name}' })\`.`]
   return []
 }

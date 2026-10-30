@@ -5,9 +5,12 @@ import { fileURLToPath } from 'node:url'
 import { CalderaError } from '@caldera/core'
 import { generate, type GenerateResult } from './codegen.js'
 import { CONVENTIONS, openProject } from './project.js'
+import { startDevBroadcastServer } from './broadcast.js'
 
 export interface DevEvent {
-  type: 'generated' | 'error'
+  type: 'generated' | 'error' | 'broadcast'
+  /** For `broadcast`: the realtime server dev started. */
+  url?: string
   /** Files whose contents changed (only for `generated`). */
   changed: string[]
   error?: string
@@ -80,6 +83,7 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
 
   const watchers: FSWatcher[] = []
   const children: ChildProcess[] = []
+  let hub: { close(): Promise<void> } | undefined
   const firstRun = (queued = run())
   const ready = firstRun.then(async () => {
     // Pages and lang/ live outside src/; both change generated types (pages, message keys).
@@ -93,6 +97,21 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
           }
         }),
       )
+    }
+    // The app's realtime server, when its broadcast connection points here and nothing's listening.
+    if ((options.server ?? true) && usesBroadcast(root)) {
+      const project = openProject(root)
+      try {
+        const started = await startDevBroadcastServer(project)
+        if (started) {
+          hub = started
+          emit({ type: 'broadcast', changed: [], url: `ws://127.0.0.1:${started.port}` })
+        }
+      } catch (error) {
+        emit({ type: 'error', changed: [], error: `realtime server: ${error instanceof Error ? error.message : String(error)}` })
+      } finally {
+        await project.dispose()
+      }
     }
     const viteConfig = ['vite.config.ts', 'vite.config.mts', 'vite.config.js'].find((f) => existsSync(join(root, f)))
     if ((options.vite ?? true) && (options.server ?? true) && viteConfig) {
@@ -144,9 +163,17 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
       clearTimeout(timer)
       for (const watcher of watchers) watcher.close()
       for (const child of children) child.kill('SIGTERM')
+      await hub?.close()
       await queued
     },
   }
+}
+
+function usesBroadcast(root: string): boolean {
+  const manifest = join(root, 'package.json')
+  if (!existsSync(manifest)) return false
+  const pkg = JSON.parse(readFileSync(manifest, 'utf8')) as { dependencies?: Record<string, string> }
+  return Boolean(pkg.dependencies?.['@caldera/broadcast'])
 }
 
 /** Resolves a package's executable from its own package.json `bin`, walking up node_modules. */

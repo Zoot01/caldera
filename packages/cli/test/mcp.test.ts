@@ -48,7 +48,7 @@ describe('caldera mcp (official SDK client over stdio)', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'caldera' })
     expect(client.getInstructions()).toContain('describe')
     const names = (await client.listTools()).tools.map((t) => t.name)
-    expect(names).toEqual(['describe', 'routes', 'db_schema', 'model', 'abilities', 'schedules', 'check', 'generate', 'i18n_missing', 'mail_list', 'mail_render', 'mail_outbox', 'logs', 'last_errors', 'db_query', 'route_call', 'make'])
+    expect(names).toEqual(['describe', 'routes', 'db_schema', 'model', 'abilities', 'schedules', 'check', 'generate', 'i18n_missing', 'broadcast_list', 'broadcast_authorize', 'mail_list', 'mail_render', 'mail_outbox', 'logs', 'last_errors', 'db_query', 'route_call', 'make'])
     const routeCall = (await client.listTools()).tools.find((t) => t.name === 'route_call')!
     expect(routeCall.annotations).toMatchObject({ readOnlyHint: true })
     expect(routeCall.inputSchema).toMatchObject({ type: 'object', properties: { path: { type: 'string' } } })

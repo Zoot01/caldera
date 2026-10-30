@@ -10,6 +10,7 @@ import { loadListeners } from './listeners.js'
 import { compileMailStyles, loadMails } from './mails.js'
 import { i18nGen, i18nRegister, loadLang } from './i18n.js'
 import { loadNotifications } from './notifications.js'
+import { loadBroadcastEvents, loadChannels } from './broadcast.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
@@ -85,7 +86,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     `}\n` +
     (await databaseRegister(project)) +
     (await inertiaRegister(project, (name) => usesPackage(project, name))) +
-    (lang ? i18nRegister(lang) : '')
+    (lang ? i18nRegister(lang) : '') +
+    (await broadcastRegister(project))
 
   const dir = CONVENTIONS.generatedDir
   const generated: GeneratedFile[] = []
@@ -184,6 +186,31 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
 
   if (lang) generated.push({ path: `${dir}/i18n.gen.ts`, contents: i18nGen(lang, HEADER) })
 
+  // Channels: the list for broadcastProvider({ channels }), and their types for the browser, which
+  // can't import src/channels (models, policies: server code).
+  const channels = await loadChannels(project)
+  if (channels.length > 0 || usesPackage(project, '@caldera/broadcast')) {
+    const used = [...new Set(channels.map((c) => c.file))]
+    const alias = (file: string) => `channels${used.indexOf(file)}`
+    generated.push(
+      {
+        path: `${dir}/channels.gen.ts`,
+        contents:
+          HEADER +
+          used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+          `${used.length ? '\n' : ''}export const channels = [${channels.map((c) => `${alias(c.file)}.${c.exportName}`).join(', ')}] as const\n`,
+      },
+      {
+        path: `${dir}/broadcast.client.gen.ts`,
+        contents:
+          HEADER +
+          `// Imported by resources/app.tsx: channel types for @caldera/broadcast/client (no server code).\n` +
+          `import { registerChannels } from '@caldera/broadcast/client'\n\n` +
+          `registerChannels(${JSON.stringify(Object.fromEntries(channels.map((c) => [c.channel.pattern, c.channel.type])), null, 2)})\n`,
+      },
+    )
+  }
+
   const agents = await agentsFile(project)
   return [
     { path: `${dir}/config.gen.ts`, contents: configGen },
@@ -214,6 +241,29 @@ export async function generate(project: Project, options: { check?: boolean } = 
     result.files.push({ path: file.path, status: current === null ? 'created' : 'updated' })
   }
   return result
+}
+
+/** The `@caldera/broadcast` block: channels by pattern and broadcast events by wire name, for the typed hooks. */
+async function broadcastRegister(project: Project): Promise<string> {
+  if (!usesPackage(project, '@caldera/broadcast')) return ''
+  const channels = await loadChannels(project)
+  const events = await loadBroadcastEvents(project)
+  const files = [...new Set([...channels.map((c) => c.file), ...events.map((e) => e.file)])]
+  const alias = (file: string) => `broadcast${files.indexOf(file)}`
+  return (
+    '\n' +
+    files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+    `\ndeclare module '@caldera/broadcast' {\n` +
+    `  interface BroadcastRegister {\n` +
+    `    channels: {\n` +
+    channels.map((c) => `      ${JSON.stringify(c.channel.pattern)}: typeof ${alias(c.file)}.${c.exportName}\n`).join('') +
+    `    }\n` +
+    `    events: {\n` +
+    events.map((e) => `      ${JSON.stringify(e.event.broadcast!.as ?? e.event.name)}: typeof ${alias(e.file)}.${e.exportName}\n`).join('') +
+    `    }\n` +
+    `  }\n` +
+    `}\n`
+  )
 }
 
 /** The `@caldera/db` half of register.d.ts: relations, plus relations key → model for nested typing. */

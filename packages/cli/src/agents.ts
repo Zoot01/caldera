@@ -4,6 +4,7 @@ import { pageFiles } from './pages.js'
 import { loadListeners } from './listeners.js'
 import { loadMails } from './mails.js'
 import { loadNotifications } from './notifications.js'
+import { listBroadcasts } from './broadcast.js'
 import { i18nReport } from './i18n.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
@@ -123,6 +124,20 @@ async function generatedSection(project: Project): Promise<string> {
         ]),
       ),
     )
+  }
+
+  const { channels, events } = await listBroadcasts(project)
+  if (channels.length > 0) {
+    parts.push(
+      table(
+        'Channels',
+        ['Channel', 'Type', 'Binds', 'Whispers', 'Defined in'],
+        channels.map((c) => [`\`${c.pattern}\``, c.type, Object.keys(c.bindings).join(', '), c.clientEvents.join(', '), c.file]),
+      ),
+    )
+  }
+  if (events.length > 0) {
+    parts.push(table('Broadcast events', ['Name browsers get', 'Export', 'Sends', 'Defined in'], events.map((e) => [`\`${e.as}\``, `\`${e.export}\``, `${e.with ? '`with`' : 'the whole payload'}${e.queued ? ', queued' : ''}`, e.file])))
   }
 
   if (existsSync(project.path('lang'))) {

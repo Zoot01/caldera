@@ -105,6 +105,11 @@ export async function vercelIssues(
     else if (pick(c.storage, 'disks') === 'local') {
       issues.push({ code: 'vercel_local_disk', severity: 'error', message: `On Vercel the default disk "${c.storage.default}" is local; functions have a read-only filesystem. Use s3 (Amazon S3, Cloudflare R2, Tigris…).`, file: 'src/config/storage.ts' })
     }
+    const broadcast = c.broadcast?.connections?.[c.broadcast?.default ?? ''] as { driver?: string; host?: string } | undefined
+    if (!decidedBy('BROADCAST_CONNECTION', 'BROADCAST_HOST')) skipped.push('broadcast')
+    else if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
+      issues.push({ code: 'vercel_broadcast_local', severity: 'error', message: `On Vercel the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}. Functions can't hold WebSockets, so the realtime server runs elsewhere: hosted Pusher, or a pusher-protocol server (caldera broadcast:serve, Soketi, Reverb, a Cloudflare BroadcastHub) at BROADCAST_HOST.`, file: 'src/config/broadcast.ts' })
+    }
     if (!decidedBy('REDIS_URL')) skipped.push('cache')
     else if (pick(c.cache, 'stores') === 'memory') {
       issues.push({ code: 'vercel_memory_cache', severity: 'warning', message: 'On Vercel the default cache store is memory: each function instance has its own, so rate limits and locks aren’t shared. Use the database store, or Redis.', file: 'src/config/cache.ts' })

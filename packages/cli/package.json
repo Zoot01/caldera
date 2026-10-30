@@ -32,6 +32,7 @@
     "zod": "^4.6.0"
   },
   "devDependencies": {
+    "@caldera/broadcast": "workspace:*",
     "@caldera/cache": "workspace:*",
     "@caldera/events": "workspace:*",
     "@caldera/http": "workspace:*",

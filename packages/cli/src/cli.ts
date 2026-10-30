@@ -21,6 +21,7 @@ import { i18nReport } from './i18n.js'
 import { createMcpServer, serveStdio } from './mcp/protocol.js'
 import { calderaTools, INSTRUCTIONS } from './mcp/tools.js'
 import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
+import { authorizeChannel, listBroadcasts, serveBroadcast } from './broadcast.js'
 
 const VERSION = '0.0.0'
 
@@ -233,6 +234,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   schedule: 'Create a schedule in src/schedules/ (needs --job)',
   mail: 'Create a mail (React Email) in src/mail/',
   notification: 'Create a notification in src/notifications/',
+  channel: 'Create a realtime channel in src/channels/',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -538,6 +540,57 @@ const scheduleSyncCommand = defineCommand({
     }),
 })
 
+const broadcastListCommand = defineCommand({
+  meta: { name: 'broadcast:list', description: 'List channels in src/channels (who may join) and broadcast events' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const data = await listBroadcasts(openProject(args.cwd))
+      const channels = data.channels.map((c) => `${c.type.padEnd(9)} ${c.pattern.padEnd(28)} ${Object.keys(c.bindings).length ? `binds ${Object.keys(c.bindings).join(', ')} ` : ''}${c.clientEvents.length ? `whispers ${c.clientEvents.join(', ')} ` : ''}${c.file}`)
+      const events = data.events.map((e) => `event     ${e.as.padEnd(28)} ${e.queued ? 'queued ' : ''}${e.with ? '' : '(whole payload) '}${e.file}`)
+      return { data, text: [...channels, ...events].join('\n') || 'No channels in src/channels.' }
+    }),
+})
+
+const broadcastServeCommand = defineCommand({
+  meta: { name: 'broadcast:serve', description: 'Run the realtime server (pusher protocol) for the broadcast connection, like Laravel Reverb' },
+  args: {
+    ...shared,
+    connection: { type: 'string', description: 'The broadcast connection (default: the default one)' },
+    host: { type: 'string', description: 'Interface to listen on (0.0.0.0 to accept other machines)', default: '127.0.0.1' },
+    port: { type: 'string', description: 'Port (default: the connection’s port)' },
+  },
+  async run({ args }) {
+    const json = wantsJson(args.json)
+    try {
+      const { settings, server } = await serveBroadcast(openProject(args.cwd), { ...(args.connection ? { connection: args.connection } : {}), host: args.host, ...(args.port ? { port: Number(args.port) } : {}) })
+      const data = { schemaVersion: 1, connection: settings.connection, url: `ws://${args.host}:${server.port}/app/${settings.key}`, port: server.port }
+      process.stdout.write(json ? `${JSON.stringify(data)}\n` : `Realtime server for "${settings.connection}" on ws://${args.host}:${server.port} (app ${settings.appId}). Ctrl+C to stop.\n`)
+      await new Promise<void>((resolve) => {
+        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => void server.close().then(resolve))
+      })
+    } catch (error) {
+      await run(json, async () => {
+        throw error
+      })
+    }
+  },
+})
+
+const broadcastAuthorizeCommand = defineCommand({
+  meta: { name: 'broadcast:authorize', description: 'Check whether a user may join a channel, and why (runs its authorize)' },
+  args: {
+    ...shared,
+    channel: { type: 'positional', description: 'Subscription name, e.g. private-posts.42', required: true },
+    user: { type: 'string', description: 'User id (omit for a signed-out visitor)' },
+  },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const data = (await authorizeChannel(openProject(args.cwd), { channel: args.channel, ...(args.user ? { userId: args.user } : {}) })) as unknown as { allowed: boolean; message?: string; pattern?: string }
+      return { data, text: data.allowed ? `✓ allowed (${data.pattern})` : `✘ refused: ${data.message}`, exitCode: data.allowed ? 0 : 1 }
+    }),
+})
+
 const devCommand = defineCommand({
   meta: { name: 'dev', description: 'Run the app (tsx watch) and Vite, and keep generated types current as you edit' },
   args: {
@@ -553,6 +606,7 @@ const devCommand = defineCommand({
       serverEntry: args.entry,
       onEvent: (event) => {
         if (event.type === 'error') process.stderr.write(`✘ caldera generate: ${event.error}\n`)
+        else if (event.type === 'broadcast') process.stdout.write(`⚡ realtime server on ${event.url}\n`)
         else if (event.changed.length) process.stdout.write(`↻ regenerated ${event.changed.join(', ')}\n`)
       },
     })
@@ -586,6 +640,9 @@ export const main = defineCommand({
     'schedule:run': scheduleRunCommand,
     'schedule:work': scheduleWorkCommand,
     'schedule:sync': scheduleSyncCommand,
+    'broadcast:list': broadcastListCommand,
+    'broadcast:serve': broadcastServeCommand,
+    'broadcast:authorize': broadcastAuthorizeCommand,
     describe: describeCommand,
     'route:list': routeListCommand,
     'model:show': modelShowCommand,

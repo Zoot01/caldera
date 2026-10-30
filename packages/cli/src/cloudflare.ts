@@ -10,13 +10,16 @@ export const D1_MIGRATIONS_DIR = 'migrations'
 /** The newest compatibility date the Wrangler Caldera suggests (4.151) runs locally. */
 export const COMPATIBILITY_DATE = '2026-07-30'
 
-const workerSource = (ext: string, ssr: boolean) => `import { setSsrRender, setViteManifest } from '@caldera/inertia'
+const workerSource = (ext: string, ssr: boolean, broadcast: boolean) => `${broadcast ? `import { broadcastHubRoute } from '@caldera/broadcast/cloudflare'\n` : ''}import { setSsrRender, setViteManifest } from '@caldera/inertia'
 import { handleQueueBatch, type MessageBatchLike } from '@caldera/queue'
 import { handleScheduled } from '@caldera/schedule'
 import { jobs } from '../.caldera/jobs.gen${ext}'
 import { app } from './app${ext}'
 import { http } from './http${ext}'
-${ssr ? `// @ts-ignore: written by \`vite build --ssr\` (pnpm build), before wrangler bundles the Worker.
+${broadcast ? `
+// The realtime server: a Durable Object (wrangler.json durable_objects), reached at /app/{key}.
+export { BroadcastHub } from '@caldera/broadcast/cloudflare'
+` : ''}${ssr ? `// @ts-ignore: written by \`vite build --ssr\` (pnpm build), before wrangler bundles the Worker.
 import render from '../build/ssr/ssr.js'
 
 // Server-side rendering: the SSR build, bundled into the Worker.
@@ -43,13 +46,22 @@ const loadManifest = (env: Env, url: string) =>
 /** The Worker: HTTP (src/http.ts), queued jobs (Cloudflare Queues) and schedules (Cron Triggers). */
 export default {
   async fetch(request: Request, env: Env, ctx: Context) {
-    await loadManifest(env, request.url)
+${broadcast ? `    // Browsers' WebSockets and signed publishes go to the hub; everything else to the app.
+    const hub = broadcastHubRoute(request, env as never)
+    if (hub) return hub
+` : ''}    await loadManifest(env, request.url)
     return http.fetch(request, env, ctx)
   },
   queue: (batch: MessageBatchLike, env: Env) => handleQueueBatch(app, batch, env, { jobs }),
   scheduled: (controller: { scheduledTime: number }, env: Env, ctx: Context) => ctx.waitUntil(handleScheduled(app, controller, env)),
 }
 `
+
+function usesDependency(project: Project, name: string): boolean {
+  if (!existsSync(project.path('package.json'))) return false
+  const manifest = JSON.parse(readFileSync(project.path('package.json'), 'utf8')) as { dependencies?: Record<string, string> }
+  return Boolean(manifest.dependencies?.[name])
+}
 
 function slug(project: Project): string {
   const manifest = existsSync(project.path('package.json')) ? (JSON.parse(readFileSync(project.path('package.json'), 'utf8')) as { name?: string }) : {}
@@ -67,6 +79,7 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
   if (existsSync(project.path('wrangler.toml')) || existsSync(project.path('wrangler.jsonc'))) existing.push(existsSync(project.path('wrangler.toml')) ? 'wrangler.toml' : 'wrangler.jsonc')
   if (existing.length && !options.force) throw new CalderaError('file_exists', `Refusing to overwrite ${existing.join(', ')}. Pass --force to replace.`, { files: existing })
   const name = slug(project)
+  const broadcast = usesDependency(project, '@caldera/broadcast')
   const schedules = existsSync(project.path(CONVENTIONS.schedulesDir)) && readdirSync(project.path(CONVENTIONS.schedulesDir)).some((f) => f.endsWith('.ts'))
   const config = {
     $schema: 'node_modules/wrangler/config-schema.json',
@@ -82,13 +95,19 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
     queues: { producers: [{ binding: 'QUEUE', queue: `${name}-jobs` }], consumers: [{ queue: `${name}-jobs`, max_retries: 0 }] },
     send_email: [{ name: 'EMAIL' }],
     triggers: { crons: schedules ? ['* * * * *'] : [] },
-    vars: { NODE_ENV: 'production', QUEUE_CONNECTION: 'cloudflare', MAIL_MAILER: 'cloudflare' },
+    // One Durable Object holds every realtime connection (WebSocket hibernation: idle ones cost nothing).
+    ...(broadcast ? { durable_objects: { bindings: [{ name: 'BROADCAST_HUB', class_name: 'BroadcastHub' }] }, migrations: [{ tag: 'v1', new_sqlite_classes: ['BroadcastHub'] }] } : {}),
+    vars: { NODE_ENV: 'production', QUEUE_CONNECTION: 'cloudflare', MAIL_MAILER: 'cloudflare', ...(broadcast ? { BROADCAST_CONNECTION: 'cloudflare' } : {}) },
   }
   writeFileSync(project.path(WRANGLER_FILE), `${JSON.stringify(config, null, 2)}\n`)
   mkdirSync(project.path('src'), { recursive: true })
   const ssr = existsSync(project.path('resources/ssr.tsx')) || existsSync(project.path('resources/ssr.ts'))
-  writeFileSync(project.path(WORKER_FILE), workerSource(project.importExtension, ssr))
-  writeFileSync(project.path('.dev.vars.example'), '# Local secrets for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put APP_KEY`.\nAPP_KEY=\n')
+  writeFileSync(project.path(WORKER_FILE), workerSource(project.importExtension, ssr, broadcast))
+  writeFileSync(
+    project.path('.dev.vars.example'),
+    '# Local secrets for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put APP_KEY`.\nAPP_KEY=\n' +
+      (broadcast ? '# The realtime hub (any values; the secret signs subscriptions and publishes).\nBROADCAST_APP_ID=\nBROADCAST_KEY=\nBROADCAST_SECRET=\n' : ''),
+  )
   return {
     schemaVersion: 1 as const,
     created: files,
@@ -97,6 +116,7 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
       'Local: copy .dev.vars.example to .dev.vars (set APP_KEY), `caldera d1:migrations`, `wrangler d1 migrations apply DB --local`, `pnpm build`, `wrangler dev`.',
       `Deploy: \`wrangler d1 create ${name}\` (put its id in wrangler.json), \`wrangler r2 bucket create ${name}-files\`, \`wrangler queues create ${name}-jobs\`, \`wrangler secret put APP_KEY\`, \`wrangler d1 migrations apply DB --remote\`, \`vite build\`, \`wrangler deploy\`.`,
       'Sending mail needs a domain onboarded to Cloudflare Email Service; until then, MAIL_MAILER=log.',
+      ...(broadcast ? ['Realtime: `wrangler secret put BROADCAST_APP_ID`, `BROADCAST_KEY` and `BROADCAST_SECRET` (the hub and the app share them); the BroadcastHub Durable Object deploys with the Worker.'] : []),
     ],
   }
 }
@@ -133,6 +153,7 @@ interface WranglerConfig {
   kv_namespaces?: { binding: string }[]
   queues?: { producers?: { binding: string }[] }
   send_email?: { name: string }[]
+  durable_objects?: { bindings?: { name: string }[] }
 }
 
 /** wrangler.json or wrangler.jsonc (comments stripped), or undefined. TOML isn't read. */
@@ -161,7 +182,7 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
   const wrangler = readWrangler(project)
   if (!wrangler) return []
   const { config: w, file } = wrangler
-  const bindings = [...(w.d1_databases ?? []), ...(w.r2_buckets ?? []), ...(w.kv_namespaces ?? []), ...(w.queues?.producers ?? [])].map((b) => b.binding).concat((w.send_email ?? []).map((b) => b.name))
+  const bindings = [...(w.d1_databases ?? []), ...(w.r2_buckets ?? []), ...(w.kv_namespaces ?? []), ...(w.queues?.producers ?? [])].map((b) => b.binding).concat((w.send_email ?? []).map((b) => b.name), (w.durable_objects?.bindings ?? []).map((b) => b.name))
   // A stand-in object per binding: config only checks they're there.
   const stub = () => new Proxy({}, { get: (_target, key) => (key === 'then' ? undefined : () => undefined) })
   const app = await boot({ ...(w.vars ?? {}), ...Object.fromEntries(bindings.map((name) => [name, stub()])) })
@@ -180,6 +201,10 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
     const disk = pick(c.storage, 'disks')
     if (disk === 'local') {
       issues.push({ code: 'workers_local_disk', severity: 'error', message: `On Workers the default disk "${c.storage.default}" is local; Workers have no lasting filesystem. Use r2 (an R2 binding) or s3.`, file: 'src/config/storage.ts' })
+    }
+    const broadcast = c.broadcast?.connections?.[c.broadcast?.default ?? ''] as { driver?: string; host?: string } | undefined
+    if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
+      issues.push({ code: 'workers_broadcast_local', severity: 'error', message: `On Workers the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}, this machine. Use the durable-object driver (cloudflare:setup adds the BroadcastHub), or hosted Pusher.`, file: 'src/config/broadcast.ts', fix: `set BROADCAST_CONNECTION=cloudflare in ${file} vars` })
     }
     const store = pick(c.cache, 'stores')
     if (store === 'redis') {

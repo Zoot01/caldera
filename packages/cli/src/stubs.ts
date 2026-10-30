@@ -279,6 +279,15 @@ export const {{ Name }} = defineEvent({
   payload: z.object({ id: z.string() }),
 })
 `,
+  channel: `import { defineChannel } from '@caldera/broadcast'
+
+// Private: browsers join through /_caldera/broadcast/auth, and only when authorize() says so.
+// Bind a parameter to load its row (\`bind: { post: Post }\` for \`posts.{post}\`), and check a policy:
+// \`authorize: ({ gate, post }) => gate.can(Post, 'view', post)\`.
+export const {{ Name }}Channel = defineChannel('{{ kebab }}.{id}', {
+  authorize: ({ user, params }) => user.id === params.id,
+})
+`,
   listener: `import { listen } from '@caldera/events'
 import { {{ Event }} } from '../events/{{ eventKebab }}.js'
 
