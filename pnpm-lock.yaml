@@ -113,6 +113,9 @@ importers:
       '@caldera/inertia':
         specifier: workspace:*
         version: link:../inertia
+      '@caldera/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@caldera/queue':
         specifier: workspace:*
         version: link:../queue
@@ -323,6 +326,55 @@ importers:
       nodemailer:
         specifier: 10.1.1
         version: 10.1.1
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: 19.3.1
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  packages/notifications:
+    dependencies:
+      '@caldera/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@caldera/db':
+        specifier: workspace:*
+        version: link:../db
+      '@caldera/mail':
+        specifier: workspace:*
+        version: link:../mail
+      '@caldera/queue':
+        specifier: workspace:*
+        version: link:../queue
+      '@electric-sql/pglite':
+        specifier: 0.5.13
+        version: 0.5.13
+      '@libsql/client':
+        specifier: 0.18.0
+        version: 0.18.0
+      '@react-email/components':
+        specifier: 1.0.12
+        version: 1.0.12(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/pg':
+        specifier: ^8.15.0
+        version: 8.23.1
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      drizzle-orm:
+        specifier: 1.0.0-rc.5
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.7)
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       react:
         specifier: 19.3.1
         version: 19.3.1
