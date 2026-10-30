@@ -142,6 +142,9 @@ export function createQueue<const N extends string>(
     if (existing && existing !== job) throw new CalderaError('job_duplicate', `Two different jobs are named "${job.name}".`, { job: job.name })
     jobs.set(job.name, job)
   }
+  // When sent: a same-named definition from another copy of the module (Next.js bundles pages and
+  // route handlers separately) is the same one, so only boot-time registration is strict.
+  const remember = (job: AnyJob) => void (jobs.has(job.name) || jobs.set(job.name, job))
   let fake: { only: Set<string> | null; store: ReturnType<typeof memoryQueue>; captured: { envelope: Envelope; delaySeconds: number }[] } | undefined
 
   const storeFor = (feature: 'Unique jobs' | 'Batches', capability: 'locks' | 'atomicCounters') => {
@@ -239,7 +242,7 @@ export function createQueue<const N extends string>(
   }
 
   const dispatchEnvelope = async (job: AnyJob, envelope: Envelope, opts: DispatchOptions<N>): Promise<DispatchResult> => {
-    register(job)
+    remember(job)
     const go = async (): Promise<DispatchResult> => {
       const unique = opts.unique
         ? { key: `unique:${job.name}:${opts.unique.key}`, for: opts.unique.for }
@@ -283,7 +286,7 @@ export function createQueue<const N extends string>(
           const [first, ...rest] = pending
           if (!first) throw new CalderaError('chain_empty', 'chain() needs at least one job.')
           for (const p of pending) {
-            register(p.job)
+            remember(p.job)
             p.job.payload.parse(p.payload)
           }
           const chain = rest.map((p) => ({ job: p.job.name, queue: p.job.queue, payload: p.payload }))
@@ -294,7 +297,7 @@ export function createQueue<const N extends string>(
     batch(pending, batchOptions = {}) {
       const meta: Omit<BatchMeta, 'total' | 'createdAt'> = { name: batchOptions.name ?? null, allowFailures: false }
       const callback = (p: PendingJob) => {
-        register(p.job)
+        remember(p.job)
         p.job.payload.parse(p.payload)
         return { job: p.job.name, queue: p.job.queue, payload: p.payload }
       }
@@ -308,7 +311,7 @@ export function createQueue<const N extends string>(
           const store = storeFor('Batches', 'atomicCounters')
           // Validate every payload before anything is queued: a batch starts whole or not at all.
           const envelopes = pending.map((p) => {
-            register(p.job)
+            remember(p.job)
             return envelopeFor(p.job, p.payload, opts)
           })
           const batchId = crypto.randomUUID()

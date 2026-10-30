@@ -2,6 +2,7 @@ import { CalderaError, CapabilityError } from '@caldera/core'
 import {
   eq,
   getColumns,
+  getTableUniqueName,
   sql,
   type DBQueryConfigRoot,
   type RelationsFilter,
@@ -374,7 +375,14 @@ function keyForTable(relations: TablesRelationalConfig, table: Table): string {
     byTable = new Map(Object.entries(relations).map(([key, entry]) => [entry.table as Table, key]))
     keyCache.set(relations, byTable)
   }
-  const key = byTable.get(table)
+  let key = byTable.get(table)
+  if (!key) {
+    // The same table from another copy of the module (Next.js bundles route handlers and pages
+    // separately, so one process can hold two copies of the app): match it by schema and name.
+    const name = getTableUniqueName(table)
+    key = Object.entries(relations).find(([, entry]) => getTableUniqueName(entry.table as Table) === name)?.[0]
+    if (key) byTable.set(table, key)
+  }
   if (!key) throw new CalderaError('model_definition', 'This table is missing from the relations passed to drizzle().')
   return key
 }

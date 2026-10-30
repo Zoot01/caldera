@@ -119,6 +119,9 @@ export function createMail<const N extends string>(
     if (existing && existing !== mail) throw new CalderaError('mail_duplicate', `Two different mails are named "${mail.name}".`)
     registry.set(mail.name, mail)
   }
+  // When sent: a same-named definition from another copy of the module (Next.js bundles pages and
+  // route handlers separately) is the same one, so only boot-time registration is strict.
+  const remember = (mail: AnyMail) => void (registry.has(mail.name) || registry.set(mail.name, mail))
   let fake: { sent: { mail: string; props: unknown; message: Message }[]; queued: { mail: string; props: unknown; envelope: Envelope }[]; rendered: Map<string, Rendered> } | undefined
 
   const resolveAttachments = async (sources: AttachmentSource[]): Promise<Attachment[]> => {
@@ -138,7 +141,7 @@ export function createMail<const N extends string>(
   }
 
   const deliver = async (mail: AnyMail, input: unknown, envelope: Envelope, mailer: N = config.default): Promise<SendResult> => {
-    register(mail)
+    remember(mail)
     if (envelope.to.length + envelope.cc.length + envelope.bcc.length === 0) throw new CalderaError('mail_no_recipients', `Mail "${mail.name}" has no recipients: call .to(...) first.`)
     const rendered = await renderMail(mail, input as never)
     const props = rendered.props as never
@@ -193,7 +196,7 @@ export function createMail<const N extends string>(
     via: (mailer) => pending({ ...state, mailer }),
     send: (mail, props) => deliver(mail, props, state, state.mailer),
     async queue(mail, props, queueOptions = {}) {
-      register(mail)
+      remember(mail)
       // Validated now, so a bad mail fails where it was queued, not later in a worker.
       const parsed = mail.props.safeParse(props)
       if (!parsed.success) throw new CalderaError('mail_props_invalid', `Mail "${mail.name}" got props that don't match its schema.`, { issues: parsed.error.issues })

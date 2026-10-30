@@ -274,6 +274,17 @@ describe('without a database', () => {
   })
 })
 
+describe('a notification from another copy of the module', () => {
+  it('sends it, while registering two different ones under one name still fails', async () => {
+    const mail = memoryMail()
+    const notifications = createNotifications({ notifications: [InvoicePaid], channels: [Sms], notifiable: Users, mail: () => mail })
+    const copy = defineNotification({ name: InvoicePaid.name, payload: InvoicePaid.payload, channels: { mail: InvoicePaid.channels.mail } })
+    await notifications.send(ann, copy, invoice)
+    expect(mail.outbox()!.messages).toHaveLength(1)
+    expect(() => notifications.register(copy)).toThrow('Two different notifications are named "billing.invoice-paid".')
+  })
+})
+
 describe('provider', () => {
   it('registers notify() and the job, so a queued notification is delivered by the app’s queue', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'caldera-n-'))

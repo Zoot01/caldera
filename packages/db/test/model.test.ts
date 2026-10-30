@@ -166,3 +166,24 @@ describe('serialize and using()', () => {
     expect(await User.using(ctx.db).findMany()).toHaveLength(0)
   })
 })
+
+describe('a second copy of a table (bundlers that duplicate modules, e.g. Next.js layers)', () => {
+  it('matches it to the registered table by schema and name', async () => {
+    const { defineModel } = await import('../src/index.js')
+    const { snakeCase, text, timestamp, uuid } = await import('drizzle-orm/pg-core')
+    // The same table, built again as another copy of the module would.
+    const usersCopy = snakeCase.table('users', {
+      id: uuid().primaryKey().defaultRandom(),
+      name: text().notNull(),
+      email: text().notNull().unique(),
+      passwordHash: text().notNull(),
+      role: text().notNull().default('member'),
+      deletedAt: timestamp({ withTimezone: true }),
+    })
+    const Copy = defineModel(usersCopy as never, { name: 'user-copy' }) as unknown as { findMany(): Promise<unknown[]> }
+    await User.create({ name: 'Ann', email: 'ann@example.test', passwordHash: 'x' } as never)
+    expect(await Copy.findMany()).toHaveLength(1)
+    const Missing = defineModel(snakeCase.table('nowhere', { id: uuid().primaryKey() }) as never, { name: 'nowhere' }) as unknown as { findMany(): Promise<unknown[]> }
+    await expect(async () => Missing.findMany()).rejects.toThrow('This table is missing from the relations passed to drizzle().')
+  })
+})

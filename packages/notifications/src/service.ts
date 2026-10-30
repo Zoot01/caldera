@@ -225,7 +225,9 @@ export function createNotifications(
   let fake: { sent: { notification: string; notifiable: Notifiable; payload: unknown; channels: string[] }[] } | undefined
 
   const send = async (to: Recipient | readonly Recipient[], notification: AnyNotification, input: unknown, now: boolean): Promise<SendReport> => {
-    register(notification)
+    // A same-named definition from another copy of the module (Next.js bundles pages and route
+    // handlers separately) is the same one, so only boot-time registration is strict.
+    if (!registry.has(notification.name)) registry.set(notification.name, notification)
     // Validated where it's sent, so a bad payload fails there, not in a worker.
     const payload = notification.payload.parse(input)
     const report: SendReport = { results: [] }

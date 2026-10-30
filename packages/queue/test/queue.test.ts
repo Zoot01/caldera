@@ -251,3 +251,17 @@ describe('queueProvider', () => {
     await app.shutdown()
   })
 })
+
+describe('a job from another copy of the module (Next.js bundles pages and route handlers separately)', () => {
+  it('dispatches it, while registering two different jobs under one name still fails', async () => {
+    const queue = memory()
+    queue.register(Greet)
+    const copy = defineJob({ name: 'greet', payload: z.object({ name: z.string() }), handle: ({ name }) => void log.push(`hi ${name} (copy)`) })
+    const fake = queue.fake()
+    await queue.dispatch(copy, { name: 'ann' })
+    await fake.drain()
+    // The registered definition runs: both copies are the same code.
+    expect(log).toEqual(['hi ann'])
+    expect(() => queue.register(copy)).toThrow('Two different jobs are named "greet".')
+  })
+})
