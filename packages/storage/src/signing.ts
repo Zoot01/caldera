@@ -56,11 +56,14 @@ export function createUrlSigner(secret: string): UrlSigner {
 
 export const SIGNED_ROUTE_PREFIX = '/_caldera/storage'
 
-/** The signed URL for a file on a disk served by `storageRoutes()`. */
-export async function signedRouteUrl(signer: UrlSigner, baseUrl: string, fields: SignedFields): Promise<string> {
-  const url = new URL(`${SIGNED_ROUTE_PREFIX}/${encodeURIComponent(fields.disk)}/${fields.key.split('/').map(encodeURIComponent).join('/')}`, baseUrl)
+/**
+ * The signed URL for a file on a disk served by `storageRoutes()`. Without `baseUrl` it's relative
+ * (`/_caldera/storage/...`), so it works on whatever origin the page was loaded from.
+ */
+export async function signedRouteUrl(signer: UrlSigner, baseUrl: string | undefined, fields: SignedFields): Promise<string> {
+  const url = new URL(`${SIGNED_ROUTE_PREFIX}/${encodeURIComponent(fields.disk)}/${fields.key.split('/').map(encodeURIComponent).join('/')}`, baseUrl ?? 'http://relative.invalid')
   url.searchParams.set('expires', String(fields.expires))
   if (fields.downloadAs) url.searchParams.set('download', fields.downloadAs)
   url.searchParams.set('signature', await signer.sign(fields))
-  return url.toString()
+  return baseUrl ? url.toString() : `${url.pathname}${url.search}`
 }

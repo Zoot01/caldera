@@ -20,8 +20,11 @@ const configSchema = z.object({
   root: z.string().min(1),
   /** Base URL its files are publicly served at (e.g. `/storage` served from public/storage), if any. */
   publicUrl: z.string().optional(),
-  /** Sign temporary and upload URLs, served by `storageRoutes()`: the app's URL and APP_KEY. */
-  serve: z.object({ url: z.url(), key: z.string().min(32, 'must be at least 32 characters (use APP_KEY)') }).optional(),
+  /**
+   * Sign temporary and upload URLs, served by `storageRoutes()`, with `key` (APP_KEY). Links are
+   * relative unless `url` is set: set it (the app's public URL) only for links used outside a page, like in emails.
+   */
+  serve: z.object({ url: z.url().optional(), key: z.string().min(32, 'must be at least 32 characters (use APP_KEY)') }).optional(),
 })
 type LocalConfig = z.infer<typeof configSchema>
 
@@ -100,10 +103,10 @@ export function localStorage(config: LocalConfig, diskName: string): StorageDriv
     ...(signer && config.serve
       ? {
           signedUrl: (key: string, options: { expiresIn: number; downloadAs?: string }) =>
-            signedRouteUrl(signer, config.serve!.url, { method: 'GET', disk: diskName, key, expires: Math.floor(Date.now() / 1000 + options.expiresIn), ...(options.downloadAs ? { downloadAs: options.downloadAs } : {}) }),
+            signedRouteUrl(signer, config.serve?.url, { method: 'GET', disk: diskName, key, expires: Math.floor(Date.now() / 1000 + options.expiresIn), ...(options.downloadAs ? { downloadAs: options.downloadAs } : {}) }),
           signedUpload: async (key: string, options: { expiresIn: number; contentType: string; contentLength: number }) => {
             const expires = Math.floor(Date.now() / 1000 + options.expiresIn)
-            const url = await signedRouteUrl(signer, config.serve!.url, { method: 'PUT', disk: diskName, key, expires, contentType: options.contentType, contentLength: options.contentLength })
+            const url = await signedRouteUrl(signer, config.serve?.url, { method: 'PUT', disk: diskName, key, expires, contentType: options.contentType, contentLength: options.contentLength })
             // Content-Length comes from the body (browsers won't let code set it); it's still signed in.
             return { url, method: 'PUT' as const, headers: { 'content-type': options.contentType }, expiresAt: new Date(expires * 1000).toISOString() }
           },

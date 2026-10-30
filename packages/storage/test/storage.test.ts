@@ -196,3 +196,11 @@ it('fake() swaps a disk for a real in-memory one, with assertions, until restore
   await storage.put('real.txt', 'x')
   expect(readdirSync(root)).toEqual(['real.txt'])
 })
+
+it('signs relative links unless the disk has a public url (they work on any origin)', async () => {
+  const relative = createStorage({ default: 'd', disks: { d: { driver: 'local', root: tempRoot(), serve: { key: KEY } } } }, { drivers: [localStorageDriver] })
+  expect(await relative.temporaryUrl('a.txt', 60)).toMatch(/^\/_caldera\/storage\/d\/a\.txt\?expires=\d+&signature=/)
+  expect((await relative.temporaryUploadUrl('a.txt', { expiresIn: 60, contentType: 'text/plain', contentLength: 1 })).url).toMatch(/^\/_caldera\/storage\//)
+  const absolute = createStorage({ default: 'd', disks: { d: { driver: 'local', root: tempRoot(), serve: { url: 'https://app.example.test', key: KEY } } } }, { drivers: [localStorageDriver] })
+  expect(await absolute.temporaryUrl('a.txt', 60)).toMatch(/^https:\/\/app\.example\.test\/_caldera\/storage\/d\/a\.txt\?/)
+})
