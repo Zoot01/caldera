@@ -151,7 +151,10 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
       // The login page itself must never bounce to itself.
       if (new URL(login, c.req.url).pathname !== c.req.path) return loginRedirect(c, login)
     }
-    if (!known) report(error, c)
+    if (!known) {
+      report(error, c)
+      devReport(error, c)
+    }
     const status = known?.status ?? 500
     const code = known?.code ?? 'server_error'
     const body: ErrorBody = {
@@ -176,6 +179,14 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
     }
     return response
   }
+}
+
+/** Under `caldera dev`, unexpected errors are also recorded for its MCP server (`last_errors`). */
+function devReport(error: unknown, c: Context) {
+  const hook = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.dev.reportError')]
+  if (typeof hook !== 'function') return
+  const e = error instanceof Error ? error : new Error(String(error))
+  hook({ method: c.req.method, path: new URL(c.req.url).pathname, status: 500, name: e.name, message: e.message, stack: e.stack, requestId: requestIdOf(c) })
 }
 
 /** A browser asking for a page (or an Inertia visit), as opposed to an API client. */
