@@ -69,7 +69,7 @@ describe('createProject', () => {
     const manifest = JSON.parse(readFileSync(join(result.directory, 'package.json'), 'utf8'))
     expect(manifest.dependencies['@caldera/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-core-.+\.tgz$/)
     expect(manifest.devDependencies['@caldera/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-cli-/)
-    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){5}/)
+    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){6}/)
     expect(readFileSync(join(result.directory, '.gitignore'), 'utf8')).toContain('.caldera-local')
     expect(manifest.dependencies.hono).toMatch(/^\^/)
   }, 60_000)
@@ -103,17 +103,48 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     expect(tests.status, tests.stdout + tests.stderr).toBe(0)
 
     const { spawn } = await import('node:child_process')
-    // `caldera dev`: the codegen watcher plus the server under tsx watch.
-    const server = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3456' }, detached: true })
-    try {
-      let body: unknown
-      for (let i = 0; i < 60 && !body; i++) {
+    const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
+      for (let i = 0; i < 60; i++) {
+        const value = await read().catch(() => undefined)
+        if (value !== undefined) return value
         await new Promise((r) => setTimeout(r, 500))
-        body = await fetch('http://localhost:3456/users').then((r) => r.json()).catch(() => undefined)
       }
+      return undefined
+    }
+
+    // `caldera dev`: the codegen watcher, the server under tsx watch, and Vite.
+    const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3456' }, detached: true })
+    try {
+      const body = await poll(() => fetch('http://localhost:3456/users').then((r) => r.json()))
       expect(body).toEqual({ users: [] }) // the database step created the table
+      // The page loads its scripts from the Vite dev server, which compiles the entry.
+      const html = await poll(() => fetch('http://localhost:3456/').then((r) => r.text()).then((t) => (t.includes('@vite/client') ? t : undefined)))
+      expect(html).toContain('<script type="module" src="http://localhost:5173/resources/app.tsx"></script>')
+      expect(html).toContain('"component":"Home"')
+      const entry = await fetch('http://localhost:5173/resources/app.tsx').then((r) => r.text())
+      expect(entry).toContain('createInertiaApp')
     } finally {
-      process.kill(-server.pid!, 'SIGTERM') // the whole group: pnpm, caldera dev and tsx
+      process.kill(-dev.pid!, 'SIGTERM') // the whole group: pnpm, caldera dev, tsx and vite
+    }
+    await poll(async () => (existsSync(join(dir, '.caldera/vite.hot')) ? undefined : true))
+    expect(existsSync(join(dir, '.caldera/vite.hot'))).toBe(false)
+
+    // Production: built assets from the manifest, served from public/build.
+    const build = run('build')
+    expect(build.status, build.stdout + build.stderr).toBe(0)
+    const start = spawn('pnpm', ['start'], { cwd: dir, env: { ...process.env, PORT: '3457', NODE_ENV: 'production' }, detached: true })
+    try {
+      const html = await poll(() => fetch('http://localhost:3457/').then((r) => r.text()))
+      const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)">/.exec(html ?? '')?.[1]
+      expect(script, html).toBeDefined()
+      expect(html).toMatch(/<link rel="stylesheet" href="\/build\/assets\/[^"]+\.css">/)
+      const asset = await fetch(`http://localhost:3457${script}`)
+      expect(asset.status).toBe(200)
+      // A visit with the old asset version is told to reload the page.
+      const stale = await fetch('http://localhost:3457/', { headers: { 'x-inertia': 'true', 'x-inertia-version': 'old' } })
+      expect(stale.status).toBe(409)
+    } finally {
+      process.kill(-start.pid!, 'SIGTERM')
     }
   }, 300_000)
 })

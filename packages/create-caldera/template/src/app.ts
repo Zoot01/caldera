@@ -1,5 +1,6 @@
 import { createApp } from '@caldera/core'
 import { databaseProvider } from '@caldera/db'
+import { sessionProvider } from '@caldera/http'
 import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
 import { relations } from './db/relations.js'
@@ -13,5 +14,6 @@ export const app = createApp({
       driver: 'sqlite',
       connect: (app) => drizzle({ connection: { url: app.config.database.url }, relations }),
     }),
+    sessionProvider((app) => app.config.session),
   ],
 })

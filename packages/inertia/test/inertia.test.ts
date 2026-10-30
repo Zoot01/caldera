@@ -232,6 +232,13 @@ describe('viteAssets', () => {
     expect(await assets.version()).toBe('dev')
   })
 
+  it('renders without tags in tests when nothing is built', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
+    const assets = viteAssets({ entry: 'resources/app.tsx', hotFile: join(dir, 'vite.hot') })
+    expect(await assets.tags()).toBe('')
+    expect(await assets.version()).toBeNull()
+  })
+
   it('explains a missing entry', async () => {
     dir = mkdtempSync(join(tmpdir(), 'caldera-vite-'))
     const assets = viteAssets({ entry: 'resources/other.tsx', manifest, hotFile: join(dir, 'vite.hot') })

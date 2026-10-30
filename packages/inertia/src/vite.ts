@@ -39,7 +39,7 @@ export interface ViteAssets {
 export function viteAssets(options: ViteAssetsOptions): ViteAssets {
   const entries = Array.isArray(options.entry) ? options.entry : [options.entry]
   const base = withTrailingSlash(options.base ?? '/build/')
-  let manifest: Promise<ViteManifest> | undefined
+  let manifest: Promise<ViteManifest | null> | undefined
   let version: Promise<string | null> | undefined
 
   const loadManifest = () =>
@@ -47,6 +47,8 @@ export function viteAssets(options: ViteAssetsOptions): ViteAssets {
       if (typeof options.manifest === 'function') return options.manifest()
       if (options.manifest) return options.manifest
       const text = await readText('public/build/.vite/manifest.json')
+      // Tests render pages without a build, like Laravel's tests without Vite: no tags, no version.
+      if (text === undefined && isTestRun()) return null
       if (text === undefined) {
         throw new CalderaError('vite_manifest_missing', 'No Vite manifest at public/build/.vite/manifest.json. Run `vite build`, or start `caldera dev` for the dev server.')
       }
@@ -64,6 +66,7 @@ export function viteAssets(options: ViteAssetsOptions): ViteAssets {
         return [`<script type="module" src="${hot}/@vite/client"${n}></script>`, ...entries.map((e) => `<script type="module" src="${hot}/${e}"${n}></script>`)].join('\n')
       }
       const chunks = await loadManifest()
+      if (!chunks) return ''
       const css = new Set<string>()
       const preloads = new Set<string>()
       const scripts: string[] = []
@@ -87,7 +90,8 @@ export function viteAssets(options: ViteAssetsOptions): ViteAssets {
           version = undefined
           return 'dev'
         }
-        return hash(JSON.stringify(await loadManifest()))
+        const chunks = await loadManifest()
+        return chunks ? hash(JSON.stringify(chunks)) : null
       })())
     },
   }
@@ -116,6 +120,11 @@ async function readText(path: string): Promise<string | undefined> {
   } catch {
     return undefined
   }
+}
+
+function isTestRun(): boolean {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+  return env?.NODE_ENV === 'test' || env?.VITEST !== undefined
 }
 
 async function hash(text: string): Promise<string> {

@@ -9,7 +9,8 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "resources", "tests", "vite.config.ts"]
 }
