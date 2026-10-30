@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeAbilities, describeModel, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
+import { describeAbilities, describeModel, generateProjectAuthSchema, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -277,4 +277,33 @@ describe('caldera abilities', () => {
     expect(code).toBe(0)
     expect(json.policies[0].model).toBe('post')
   })
+})
+
+describe('caldera auth:schema', () => {
+  let authApp: string
+  beforeEach(() => {
+    authApp = join(here, '.tmp', `auth-${Math.random().toString(36).slice(2)}`)
+    cpSync(join(here, 'fixtures/auth-app'), authApp, { recursive: true })
+  })
+  afterEach(() => rmSync(authApp, { recursive: true, force: true }))
+
+  it('writes plugin tables from the app’s Better Auth config and lists user fields to add', async () => {
+    const result = await generateProjectAuthSchema(openProject(authApp))
+    expect(result).toMatchObject({ status: 'created', dialect: 'pg', file: 'src/db/auth-schema.ts' })
+    expect(result.tables).toEqual(['session', 'account', 'verification', 'organization', 'member', 'invitation'])
+    expect(result.userFields.map((f) => f.name)).toEqual(['role', 'banned', 'banReason', 'banExpires'])
+    const code = readFileSync(join(authApp, 'src/db/auth-schema.ts'), 'utf8')
+    expect(code).toContain('impersonatedBy') // admin plugin's session field
+    expect(code).toContain('uuid().primaryKey().defaultRandom()') // generateId: 'uuid'
+  }, 60_000)
+
+  it('reports drift with --check and is unchanged on rerun', async () => {
+    const check = spawnSync(process.execPath, [bin, 'auth:schema', '--cwd', authApp, '--json', '--check'], { encoding: 'utf8' })
+    expect(check.status).toBe(1)
+    expect(JSON.parse(check.stdout)).toMatchObject({ status: 'stale' })
+    expect(existsSync(join(authApp, 'src/db/auth-schema.ts'))).toBe(false)
+
+    await generateProjectAuthSchema(openProject(authApp))
+    expect((await generateProjectAuthSchema(openProject(authApp), { check: true })).status).toBe('unchanged')
+  }, 60_000)
 })

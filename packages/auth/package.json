@@ -13,6 +13,10 @@
     "./sqlite": {
       "types": "./dist/sqlite.d.ts",
       "default": "./dist/sqlite.js"
+    },
+    "./organization": {
+      "types": "./dist/organization.d.ts",
+      "default": "./dist/organization.js"
     }
   },
   "files": [
@@ -35,6 +39,7 @@
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "better-auth": "1.7.14",
+    "drizzle-kit": "1.0.0-rc.5",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.14",
     "typescript": "5.9.3",

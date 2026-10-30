@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
+import { createRequire } from 'node:module'
 import { createJiti } from 'jiti'
 import { CalderaError } from '@caldera/core'
 
@@ -25,12 +26,16 @@ export interface Project {
   /** Path from the generated directory to a project file, as an import specifier. */
   importFromGenerated(relativePath: string): string
   load<T = Record<string, unknown>>(relativePath: string): Promise<T>
+  /** Imports a package as the project resolves it, e.g. its own `better-auth`. */
+  importPackage<T = Record<string, unknown>>(specifier: string): Promise<T>
 }
 
 export function openProject(root: string = process.cwd()): Project {
   const absoluteRoot = resolve(root)
-  // One module graph per command, as in a real process: app.ts, seeders and models must share
-  // the same table and model instances. (A future watch mode will need a fresh project per change.)
+  // One module graph per project: app.ts, seeders and models must share the same table and model
+  // instances, as in a real process. jiti's cache is Node's global CommonJS cache, so drop this
+  // project's own files from it first; each openProject() (a command, a watch reload) starts fresh.
+  purgeProjectModules(absoluteRoot)
   const jiti = createJiti(join(absoluteRoot, 'caldera.ts'), { moduleCache: true, fsCache: false })
   const path = (relativePath: string) => join(absoluteRoot, relativePath)
 
@@ -47,6 +52,13 @@ export function openProject(root: string = process.cwd()): Project {
         throw new CalderaError('missing_file', `Expected ${relativePath} in ${absoluteRoot}.`, { file: relativePath })
       }
       return (await jiti.import(file)) as never
+    },
+    async importPackage(specifier) {
+      try {
+        return (await jiti.import(specifier)) as never
+      } catch {
+        throw new CalderaError('missing_dependency', `${specifier} is not installed in this project.`, { package: specifier })
+      }
     },
   }
 }
@@ -72,4 +84,12 @@ export function exportsOfKind<T>(module: Record<string, unknown>, kind: string):
   return Object.entries(module)
     .filter(([, value]) => typeof value === 'object' && value !== null && (value as { kind?: unknown }).kind === kind)
     .map(([exportName, value]) => ({ exportName, value: value as T }))
+}
+
+function purgeProjectModules(root: string) {
+  const cache = createRequire(import.meta.url).cache
+  const prefix = root.endsWith(sep) ? root : root + sep
+  for (const file of Object.keys(cache)) {
+    if (file.startsWith(prefix) && !file.includes(`${sep}node_modules${sep}`)) delete cache[file]
+  }
 }

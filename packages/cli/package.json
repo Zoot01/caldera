@@ -25,10 +25,10 @@
     "@caldera/core": "workspace:*",
     "@caldera/db": "workspace:*",
     "citty": "0.2.2",
-    "jiti": "2.7.0"
+    "jiti": "2.7.0",
+    "@caldera/auth": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/auth": "workspace:*",
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "better-auth": "1.7.14",

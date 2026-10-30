@@ -8,6 +8,7 @@ import { runMigrations, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
 import { seedProject } from './seed.js'
 import { describeAbilities } from './policies.js'
+import { generateProjectAuthSchema } from './auth-schema.js'
 
 const VERSION = '0.0.0'
 
@@ -175,6 +176,24 @@ const abilitiesCommand = defineCommand({
     }),
 })
 
+const authSchemaCommand = defineCommand({
+  meta: { name: 'auth:schema', description: 'Write Drizzle tables for your Better Auth config (incl. plugins) to src/db/auth-schema.ts' },
+  args: {
+    ...shared,
+    check: { type: 'boolean', description: 'Exit with code 1 if the file is out of date, without writing' },
+    dialect: { type: 'enum', options: ['pg', 'sqlite'], description: 'SQL dialect (default: from the database driver)' },
+  },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = await generateProjectAuthSchema(openProject(args.cwd), { check: args.check, dialect: args.dialect as 'pg' | 'sqlite' | undefined })
+      const text = [
+        `${result.status.padEnd(9)} ${result.file} (${result.tables.join(', ')})`,
+        ...result.userFields.map((f) => `add to your users table: ${f.name} (${f.type}${f.required ? ', required' : ''})`),
+      ].join('\n')
+      return { data: result, text, exitCode: result.status === 'stale' ? 1 : 0 }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
@@ -187,6 +206,7 @@ export const main = defineCommand({
     'db:migrate': migrationCommand('migrate', 'Apply pending migrations (drizzle-kit migrate)'),
     'db:seed': dbSeedCommand,
     abilities: abilitiesCommand,
+    'auth:schema': authSchemaCommand,
     'db:push': migrationCommand('push', 'Push the schema straight to the database, for prototyping (drizzle-kit push)'),
   },
 })

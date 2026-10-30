@@ -7,6 +7,7 @@ import type { AbilityOf, AuthUser, GateExtensions, PolicyArgs } from './policy.j
 export interface AuthorizationOptions {
   /** How to find the current user. Defaults to `c.var.user`, which the auth middleware sets. */
   user?: (c: Context) => AuthUser | null
+  /** Adds fields to `g` in policies, e.g. `organizationGate({ roles })` from `@caldera/auth/organization`. */
   extend?: (c: Context, base: { user: AuthUser | null }) => GateExtensions
 }
 

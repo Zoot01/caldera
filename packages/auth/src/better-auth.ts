@@ -9,9 +9,10 @@ import type { AuthUser } from './policy.js'
  */
 export interface BetterAuthLike {
   handler(request: Request): Promise<Response>
-  options?: { trustedOrigins?: unknown }
+  // `object`, not `{ trustedOrigins?: unknown }`: an all-optional type trips TypeScript's weak-type check.
+  options?: object
   api: {
-    getSession(options: { headers: Headers }): Promise<{ user: { id: string }; session: { id: string; expiresAt: Date } } | null>
+    getSession(options: { headers: Headers }): Promise<{ user: { id: string }; session: { id: string; expiresAt: Date; activeOrganizationId?: string | null } } | null>
   }
 }
 
@@ -19,6 +20,8 @@ export interface AuthSession {
   id: string
   userId: string
   expiresAt: Date
+  /** Set when Better Auth's organization plugin is enabled. */
+  activeOrganizationId?: string | null
 }
 
 export interface BetterAuthProviderOptions<A extends BetterAuthLike> {
@@ -51,7 +54,7 @@ export function betterAuthProvider<A extends BetterAuthLike>(options: BetterAuth
       auth: app.singleton(() => {
         const trustedOrigins = [...(options.trustedOrigins ?? [])]
         const auth = options.create({ db: defaultDatabase().client, env: app.env, config: app.config, trustedOrigins })
-        if (options.trustedOrigins) assertSameOrigins(trustedOrigins, auth.options?.trustedOrigins)
+        if (options.trustedOrigins) assertSameOrigins(trustedOrigins, (auth.options as { trustedOrigins?: unknown } | undefined)?.trustedOrigins)
         return auth
       }),
       authUserModel: options.userModel ?? null,
@@ -84,7 +87,9 @@ export function authenticate(options: { required?: boolean } = {}): MiddlewareHa
     const user = result ? (vars.authUserModel ? await vars.authUserModel.find(result.user.id) : result.user) : null
     if (result && user) {
       c.set('user' as never, user as never)
-      c.set('authSession' as never, { id: result.session.id, userId: result.user.id, expiresAt: result.session.expiresAt } as never)
+      const authSession: AuthSession = { id: result.session.id, userId: result.user.id, expiresAt: result.session.expiresAt }
+      if (result.session.activeOrganizationId !== undefined) authSession.activeOrganizationId = result.session.activeOrganizationId
+      c.set('authSession' as never, authSession as never)
     } else if (required) {
       throw new CalderaError('unauthenticated', 'You need to sign in to do that.')
     }
