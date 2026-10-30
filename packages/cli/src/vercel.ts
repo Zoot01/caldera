@@ -92,7 +92,7 @@ export async function vercelIssues(
       issues.push({ code: 'vercel_queue', severity: 'error', message: `On Vercel the default queue connection uses the ${queue} driver, which needs a long-running worker (\`caldera queue:work\`) that Vercel doesn't run. Use deferred (after the response), or QStash; or run the worker elsewhere.`, file: 'src/config/queue.ts', fix: 'set QUEUE_CONNECTION=deferred in the Vercel project' })
     }
     if (pick(c.storage, 'disks') === 'local') {
-      issues.push({ code: 'vercel_local_disk', severity: 'error', message: `On Vercel the default disk "${c.storage.default}" is local; functions have a read-only filesystem. Use s3 (S3, R2, Vercel Blob's S3 API…).`, file: 'src/config/storage.ts' })
+      issues.push({ code: 'vercel_local_disk', severity: 'error', message: `On Vercel the default disk "${c.storage.default}" is local; functions have a read-only filesystem. Use s3 (Amazon S3, Cloudflare R2, Tigris…).`, file: 'src/config/storage.ts' })
     }
     if (pick(c.cache, 'stores') === 'memory') {
       issues.push({ code: 'vercel_memory_cache', severity: 'warning', message: 'On Vercel the default cache store is memory: each function instance has its own, so rate limits and locks aren’t shared. Use the database store, or Redis.', file: 'src/config/cache.ts' })
