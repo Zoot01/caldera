@@ -71,7 +71,7 @@ describe('createProject', () => {
     const manifest = JSON.parse(readFileSync(join(result.directory, 'package.json'), 'utf8'))
     expect(manifest.dependencies['@caldera/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-core-.+\.tgz$/)
     expect(manifest.devDependencies['@caldera/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-cli-/)
-    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){8}/)
+    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){9}/)
     expect(readFileSync(join(result.directory, '.gitignore'), 'utf8')).toContain('.caldera-local')
     expect(manifest.dependencies.hono).toMatch(/^\^/)
   }, 60_000)

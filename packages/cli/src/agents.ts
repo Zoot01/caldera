@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { loadModels } from './models.js'
 import { pageFiles } from './pages.js'
+import { loadListeners } from './listeners.js'
 import { loadJobs } from './queue.js'
 import { describeAbilities } from './policies.js'
 import { routeFiles, type Project } from './project.js'
@@ -66,6 +67,19 @@ async function generatedSection(project: Project): Promise<string> {
   const jobs = await loadJobs(project)
   if (jobs.length > 0) {
     parts.push(table('Jobs', ['Job', 'Queue', 'Tries', 'Timeout', 'Defined in'], jobs.map(({ job, file }) => [`\`${job.name}\``, job.queue, String(job.tries), `${job.timeout}s`, file])))
+  }
+
+  const listeners = await loadListeners(project)
+  if (listeners.length > 0) {
+    parts.push(
+      table(
+        'Events',
+        ['Event', 'Listener', 'Runs', 'Defined in'],
+        [...listeners]
+          .sort((a, b) => a.listener.event.name.localeCompare(b.listener.event.name))
+          .map(({ listener, exportName, file }) => [`\`${listener.event.name}\``, `\`${exportName}\``, listener.queued ? `queued: job \`${listener.queued.job.name}\`` : 'in process', file]),
+      ),
+    )
   }
 
   const abilities = await describeAbilities(project)

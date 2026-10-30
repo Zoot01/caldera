@@ -6,6 +6,7 @@ import { AGENTS_FILE, agentsFile } from './agents.js'
 import { loadModels } from './models.js'
 import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
+import { loadListeners } from './listeners.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
 
@@ -105,6 +106,21 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
         HEADER +
         jobFilesUsed.map((file) => `import * as ${jobsAlias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
         `\nexport const jobs = [${jobs.map((j) => `${jobsAlias(j.file)}.${j.exportName}`).join(', ')}] as const\n`,
+    })
+  }
+
+  // Listeners are passed to eventsProvider({ listeners }) in app.ts, so the file always exists once
+  // the app uses events (an empty list until there are any).
+  const listeners = await loadListeners(project)
+  if (listeners.length > 0 || usesPackage(project, '@caldera/events')) {
+    const listenerFilesUsed = [...new Set(listeners.map((l) => l.file))]
+    const listenersAlias = (file: string) => `listeners${listenerFilesUsed.indexOf(file)}`
+    generated.push({
+      path: `${dir}/listeners.gen.ts`,
+      contents:
+        HEADER +
+        listenerFilesUsed.map((file) => `import * as ${listenersAlias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+        `${listenerFilesUsed.length ? '\n' : ''}export const listeners = [${listeners.map((l) => `${listenersAlias(l.file)}.${l.exportName}`).join(', ')}] as const\n`,
     })
   }
 

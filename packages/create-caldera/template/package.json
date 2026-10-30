@@ -16,6 +16,7 @@
     "@caldera/cache": "^0.0.0",
     "@caldera/core": "^0.0.0",
     "@caldera/db": "^0.0.0",
+    "@caldera/events": "^0.0.0",
     "@caldera/http": "^0.0.0",
     "@caldera/inertia": "^0.0.0",
     "@caldera/queue": "^0.0.0",

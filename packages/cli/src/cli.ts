@@ -215,6 +215,8 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   provider: 'Create a provider in src/providers/',
   page: 'Create an Inertia page in resources/pages/ (e.g. Posts/Index)',
   job: 'Create a queued job in src/jobs/',
+  event: 'Create an event in src/events/',
+  listener: 'Create an event listener in src/listeners/ (needs --event)',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -225,11 +227,12 @@ function makeCommand(kind: MakeKind) {
       ...shared,
       force: { type: 'boolean', description: 'Overwrite existing files' },
       ...(kind === 'model' ? { table: { type: 'boolean', description: 'Also create the table (use --no-table for an existing one)', default: true } } : {}),
+      ...(kind === 'listener' ? { event: { type: 'string', description: 'The event it listens to, e.g. UserRegistered' } } : {}),
     },
     run: ({ args }) =>
       run(wantsJson(args.json), async () => {
         const name = requireArg(args.name as string | undefined, 'name', `Usage: caldera make:${kind} <name>`)
-        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table })
+        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table, event: (args as { event?: string }).event })
         const text = [
           ...result.created.map((path) => `created   ${path}`),
           ...result.hints.map((hint) => `next      ${hint}`),

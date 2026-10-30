@@ -29,6 +29,7 @@
     "jiti": "2.7.0"
   },
   "devDependencies": {
+    "@caldera/events": "workspace:*",
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",
     "@caldera/queue": "workspace:*",

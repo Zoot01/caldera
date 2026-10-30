@@ -20,6 +20,8 @@ Pages get their data from the route that renders them: no API layer. A page's pr
 | Frontend entry and CSS (Vite) | `resources/app.tsx`, `resources/app.css` | |
 | Providers | `src/providers/*.ts` (add to `src/app.ts`) | `caldera make:provider <name>` |
 | Queued jobs (`dispatch(Job, payload)` from `@caldera/queue`) | `src/jobs/*.ts` | `caldera make:job <Name>` |
+| Events (`emit(Event, payload)` from `@caldera/events`) | `src/events/*.ts` | `caldera make:event <Name>` |
+| Listeners (in process, or a job: `listen(Event, Job.fromEvent(map))`) | `src/listeners/*.ts` | `caldera make:listener <Name> --event <Event>` |
 | Factories / seeders | `src/db/factories/`, `src/db/seeders/` | `caldera make:factory`, `caldera make:seeder` |
 
 Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). With `REDIS_URL` and `QUEUE_CONNECTION=redis` they go to BullMQ, and `pnpm worker` (`caldera queue:work`) runs them; the cache moves to Redis too. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.

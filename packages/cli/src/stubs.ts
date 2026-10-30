@@ -94,6 +94,21 @@ export const {{ Name }} = defineJob({
   },
 })
 `,
+  event: `import { defineEvent } from '@caldera/events'
+import { z } from 'zod'
+
+export const {{ Name }} = defineEvent({
+  name: '{{ kebab }}',
+  payload: z.object({ id: z.string() }),
+})
+`,
+  listener: `import { listen } from '@caldera/events'
+import { {{ Event }} } from '../events/{{ eventKebab }}.js'
+
+export const {{ name }} = listen({{ Event }}, async (event, ctx) => {
+  // Runs in the emitting request, in order. ctx.services has the app's services.
+})
+`,
   page: `import { Head } from '@inertiajs/react'
 
 export default function {{ Name }}({ title }: { title: string }) {

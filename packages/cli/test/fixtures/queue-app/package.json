@@ -1,1 +1,1 @@
-{ "name": "fixture-queue-app", "private": true, "type": "module", "dependencies": { "@caldera/queue": "workspace:*" } }
+{"name": "fixture-queue-app", "private": true, "type": "module", "dependencies": {"@caldera/queue": "workspace:*", "@caldera/events": "workspace:*"}}
