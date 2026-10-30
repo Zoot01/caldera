@@ -1,4 +1,4 @@
-import { CalderaError, defineProvider, type RegisteredConfig, type RegisteredEnv } from '@caldera/core'
+import { BootError, CalderaError, defineProvider, type RegisteredConfig, type RegisteredEnv } from '@caldera/core'
 import { defaultDatabase } from '@caldera/db'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import type { AuthUser } from './policy.js'
@@ -9,6 +9,7 @@ import type { AuthUser } from './policy.js'
  */
 export interface BetterAuthLike {
   handler(request: Request): Promise<Response>
+  options?: { trustedOrigins?: unknown }
   api: {
     getSession(options: { headers: Headers }): Promise<{ user: { id: string }; session: { id: string; expiresAt: Date } } | null>
   }
@@ -25,7 +26,13 @@ export interface BetterAuthProviderOptions<A extends BetterAuthLike> {
    * Builds the Better Auth instance, once, on first use. `db` is the app's Drizzle client, for
    * `drizzleAdapter(db, { provider, schema: { users, session, account, verification } })`.
    */
-  create: (ctx: { db: unknown; env: RegisteredEnv; config: RegisteredConfig }) => A
+  create: (ctx: { db: unknown; env: RegisteredEnv; config: RegisteredConfig; trustedOrigins: string[] }) => A
+  /**
+   * The same list you pass to `originCheck()` from `@caldera/http`. Hand it to Better Auth as
+   * `trustedOrigins: ctx.trustedOrigins`; Caldera refuses to start if the two disagree, so one
+   * layer can never block requests the other allows.
+   */
+  trustedOrigins?: readonly string[]
   /**
    * Loads `c.var.user` through this model (usually `User`), so hidden columns stay hidden and
    * the type is the app's own row type. Defaults to Better Auth's user object.
@@ -41,7 +48,12 @@ export function betterAuthProvider<A extends BetterAuthLike>(options: BetterAuth
   return defineProvider({
     name: 'auth',
     register: (app) => ({
-      auth: app.singleton(() => options.create({ db: defaultDatabase().client, env: app.env, config: app.config })),
+      auth: app.singleton(() => {
+        const trustedOrigins = [...(options.trustedOrigins ?? [])]
+        const auth = options.create({ db: defaultDatabase().client, env: app.env, config: app.config, trustedOrigins })
+        if (options.trustedOrigins) assertSameOrigins(trustedOrigins, auth.options?.trustedOrigins)
+        return auth
+      }),
       authUserModel: options.userModel ?? null,
     }),
     request: {
@@ -83,4 +95,15 @@ export function authenticate(options: { required?: boolean } = {}): MiddlewareHa
 /** Mounts Better Auth's endpoints (sign-up, sign-in, OAuth callbacks…) under `basePath`. */
 export function authRoutes(basePath = '/api/auth'): Hono {
   return new Hono().on(['GET', 'POST'], `${basePath.replace(/\/$/, '')}/*`, (c: Context) => (c.var as unknown as AuthVars).auth.handler(c.req.raw))
+}
+
+function assertSameOrigins(expected: string[], actual: unknown) {
+  const normalize = (list: readonly string[]) => [...new Set(list.map((o) => new URL(o).origin))].sort()
+  const given = Array.isArray(actual) ? normalize(actual as string[]) : undefined
+  if (!given || given.join() !== normalize(expected).join()) {
+    throw new BootError(
+      'trusted_origins_mismatch',
+      `Better Auth's trustedOrigins (${given?.join(', ') ?? 'not set'}) differ from Caldera's (${normalize(expected).join(', ')}). Pass \`trustedOrigins: ctx.trustedOrigins\` to betterAuth().`,
+    )
+  }
 }
