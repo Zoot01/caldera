@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createCacheService, LockUnavailableError, type CacheService } from '../src/index.js'
+import { redisDriver } from '../src/redis.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
 let redis: Awaited<ReturnType<typeof startRedis>> | undefined
@@ -15,7 +16,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const stores = [
   { name: 'memory', make: () => createCacheService({ default: 'memory', stores: { memory: { driver: 'memory' } }, prefix: `t${Math.random()}` }) },
   ...(hasRedis
-    ? [{ name: 'redis', make: () => createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis!.url } }, prefix: `t${Math.random()}` }) }]
+    ? [{ name: 'redis', make: () => createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis!.url } }, prefix: `t${Math.random()}` }, { drivers: [redisDriver] }) }]
     : []),
 ]
 
@@ -115,7 +116,9 @@ describe.each(stores)('cache on $name', ({ make }) => {
 })
 
 it('reports a missing store at boot and checks capabilities', () => {
-  expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'localhost' } } })).toThrow(/cache\.r \(redis\): url: must be a redis:\/\//)
+  expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'localhost' } } }, { drivers: [redisDriver] })).toThrow(/cache\.r \(redis\): url: must be a redis:\/\//)
+  // Without the driver, the error says where it is.
+  expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'redis://x' } } })).toThrow(/It's in '@caldera\/cache\/redis'/)
   const cache = createCacheService({ default: 'memory', stores: { memory: { driver: 'memory' } } })
   expect(cache.manager.describe().instances[0]).toMatchObject({ name: 'memory', capabilities: { locks: true, shared: false } })
 })

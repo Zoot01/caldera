@@ -75,6 +75,8 @@ export function createManager<I, Caps, const N extends string>(options: {
   kind: string
   drivers: readonly DriverDefinition<I, Caps>[]
   config: ManagerConfig<N>
+  /** How to get drivers that ship separately, by name, for the "unknown driver" error. */
+  hints?: Record<string, string>
 }): Manager<I, Caps, N> {
   const { kind, config } = options
   const drivers = new Map<string, DriverDefinition<I, Caps>>()
@@ -92,7 +94,8 @@ export function createManager<I, Caps, const N extends string>(options: {
     if (!instance) throw new CalderaError('instance_missing', `${kind}: no instance named "${name}". Configured: ${names.join(', ')}.`, { kind, name })
     const driver = drivers.get(instance.driver)
     if (!driver) {
-      throw new BootError('driver_missing', `${kind}.${name}: unknown driver "${instance.driver}". Available: ${[...drivers.keys()].join(', ')}.`, { kind, name, driver: instance.driver })
+      const hint = options.hints?.[instance.driver]
+      throw new BootError('driver_missing', `${kind}.${name}: unknown driver "${instance.driver}". ${hint ?? `Available: ${[...drivers.keys()].join(', ')}.`}`, { kind, name, driver: instance.driver })
     }
     return { instance, driver }
   }

@@ -1,5 +1,5 @@
 import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredServices } from '@caldera/core'
-import { bullmqDriver } from './bullmq.js'
+import { cloudflareDriver } from './cloudflare.js'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
 import { deferredDriver, memoryDriver, memoryQueue, syncDriver } from './drivers.js'
 import type { Envelope, Outcome } from './envelope.js'
@@ -75,7 +75,12 @@ interface BatchMeta {
 
 const BATCH_TTL = '7d'
 
-export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, deferredDriver, memoryDriver, bullmqDriver]
+/** Built in. Drivers with their own dependencies ship as subpaths, so edge bundles never see them. */
+export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, deferredDriver, memoryDriver, cloudflareDriver]
+
+const HINTS = {
+  bullmq: "It's in '@caldera/queue/bullmq': import { bullmqDriver } from it and pass `drivers: [bullmqDriver]`.",
+}
 
 export interface Queue<N extends string = string> {
   dispatch<J extends AnyJob>(job: J, payload: PayloadOf<J>, options?: DispatchOptions<N>): Promise<DispatchResult>
@@ -117,7 +122,12 @@ export function createQueue<const N extends string>(
     waitUntil?: () => ((promise: Promise<unknown>) => void) | undefined
   } = {},
 ): Queue<N> {
-  const manager = createManager({ kind: 'queue', drivers: options.drivers ?? QUEUE_DRIVERS, config: { default: config.default, instances: config.connections } })
+  const manager = createManager({
+    kind: 'queue',
+    drivers: [...QUEUE_DRIVERS, ...(options.drivers ?? [])],
+    config: { default: config.default, instances: config.connections },
+    hints: HINTS,
+  })
   const jobs = new Map<string, AnyJob>()
   const register = (job: AnyJob) => {
     const existing = jobs.get(job.name)

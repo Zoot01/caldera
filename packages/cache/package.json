@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./redis": {
+      "types": "./dist/redis.d.ts",
+      "default": "./dist/redis.js"
     }
   },
   "files": [

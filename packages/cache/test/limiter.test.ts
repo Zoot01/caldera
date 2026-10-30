@@ -3,6 +3,7 @@ import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession
 import { Hono } from 'hono'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cacheProvider, createCacheService, defineLimiter, every, gcra, perMinute } from '../src/index.js'
+import { redisDriver } from '../src/redis.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
 let redis: Awaited<ReturnType<typeof startRedis>> | undefined
@@ -18,7 +19,7 @@ const backends = [{ name: 'memory', store: () => ({ driver: 'memory' }) }, ...(h
 function makeHttp(store: { driver: string; [k: string]: unknown }) {
   const app = createApp({
     env: defineEnv({}),
-    providers: [cacheProvider(() => ({ default: 'main', stores: { main: store }, prefix: `t${Math.random()}` })), sessionProvider(() => ({ keys: ['k'.repeat(40)] }))],
+    providers: [cacheProvider(() => ({ default: 'main', stores: { main: store }, prefix: `t${Math.random()}` }), { drivers: [redisDriver] }), sessionProvider(() => ({ keys: ['k'.repeat(40)] }))],
   })
   const api = defineLimiter('api', { limits: [perMinute(5)], key: (c) => c.req.header('x-client') ?? 'anon' })
   const burst = defineLimiter('burst', { limits: [every(3, '1s'), perMinute(4)], key: () => 'one' })
@@ -123,7 +124,7 @@ describe('integration', () => {
     const limiter = defineLimiter('x', { limits: [perMinute(1)] })
     const weak = createCacheService(
       { default: 'kv', stores: { kv: { driver: 'weak' } } },
-      [{ kind: 'caldera.driver', name: 'weak', capabilities: { locks: false, atomicCounters: false, consistentReads: false, shared: true }, create: () => ({}) as never }],
+      { drivers: [{ kind: 'caldera.driver', name: 'weak', capabilities: { locks: false, atomicCounters: false, consistentReads: false, shared: true }, create: () => ({}) as never }] },
     )
     await expect(limiter.attempt(weak, 'k')).rejects.toThrow(/can't count atomically/)
   })

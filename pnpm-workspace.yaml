@@ -4,3 +4,5 @@ allowBuilds:
   esbuild: true
   # Its install script only compiles when no prebuilt binary exists; the prebuilt one is installed.
   msgpackr-extract: false
+  # Miniflare's runtime (queue tests only): its script checks or fetches the platform binary.
+  workerd: true

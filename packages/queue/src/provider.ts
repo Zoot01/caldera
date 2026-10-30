@@ -1,6 +1,6 @@
 import { defineProvider, type DriverDefinition, type RegisterContext } from '@caldera/core'
 import type { QueueCapabilities, QueueDriver } from './driver.js'
-import { createQueue, QUEUE_DRIVERS, setDefaultQueue, type Queue, type QueueConfig, type QueueStore } from './queue.js'
+import { createQueue, setDefaultQueue, type Queue, type QueueConfig, type QueueStore } from './queue.js'
 
 /**
  * Registers `queue` from your config: `queueProvider((app) => app.config.queue, { store: (s) => s.cache })`.
@@ -16,7 +16,7 @@ export function queueProvider<const N extends string>(
     register: (app) => {
       // Services are set at boot (below); the store is read lazily, when a job needs it.
       const queue: Queue<N> = createQueue(resolve(app), {
-        drivers: [...QUEUE_DRIVERS, ...(options.drivers ?? [])],
+        ...(options.drivers ? { drivers: options.drivers } : {}),
         ...(options.store ? { store: (): QueueStore => options.store!(queue.services as Record<string, unknown>) } : {}),
         waitUntil: () => {
           const c = app.current()?.context

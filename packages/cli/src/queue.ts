@@ -27,6 +27,17 @@ export interface WorkerEvent {
   error?: string
 }
 
+/** Every job exported from src/jobs, with where it's defined. */
+export async function loadJobs(project: Project): Promise<{ file: string; exportName: string; job: { name: string; queue: string; tries: number; timeout: number } }[]> {
+  const found = []
+  for (const file of jobFiles(project)) {
+    for (const { exportName, value } of exportsOfKind<{ name: string; queue: string; tries: number; timeout: number }>(await project.load(file), 'caldera.job')) {
+      found.push({ file, exportName, job: value })
+    }
+  }
+  return found
+}
+
 /**
  * `caldera queue:work`: boots the app with its `.env`, registers every job in src/jobs, and consumes
  * until stopped. On stop it lets running jobs finish (up to their timeout), then shuts the app down.
@@ -42,11 +53,9 @@ export async function startWorker(
   if (!queue) throw new CalderaError('queue_not_configured', `${CONVENTIONS.app} has no queue: add queueProvider() to its providers.`)
 
   const names: string[] = []
-  for (const file of jobFiles(project)) {
-    for (const { value } of exportsOfKind<{ name: string }>(await project.load(file), 'caldera.job')) {
-      queue.register(value)
-      names.push(value.name)
-    }
+  for (const { job } of await loadJobs(project)) {
+    queue.register(job)
+    names.push(job.name)
   }
   const worker = queue.work({
     ...(options.queues ? { queues: options.queues } : {}),

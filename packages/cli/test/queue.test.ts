@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } fr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createQueue } from '@caldera/queue'
+import { bullmqDriver } from '@caldera/queue/bullmq'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { generate, make, openProject } from '../src/index.js'
 import { Greet } from './fixtures/queue-app/src/jobs/greet.js'
@@ -48,7 +49,7 @@ describe.runIf(hasRedis)('caldera queue:work', () => {
     await until(() => lines().some((l) => l.type === 'started'))
     expect(lines()[0]).toMatchObject({ type: 'started', jobs: ['fixture.greet'] })
 
-    const queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis!.url } } })
+    const queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis!.url } } }, { drivers: [bullmqDriver] })
     await queue.dispatch(Greet, { name: 'ann' })
     await queue.dispatch(Greet, { name: 'flaky' })
     await until(() => existsSync(join(out, 'ann.txt')) && existsSync(join(out, 'flaky.txt')))
@@ -61,6 +62,14 @@ describe.runIf(hasRedis)('caldera queue:work', () => {
     expect(await exited).toBe(0)
     expect(lines().at(-1)).toMatchObject({ type: 'stopped' })
   }, 30_000)
+})
+
+it('generates the job list edge consumers import', async () => {
+  const dir = join(tmp, `${PREFIX}gen-${Math.random().toString(36).slice(2)}`)
+  cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  await generate(openProject(dir))
+  expect(readFileSync(join(dir, '.caldera/jobs.gen.ts'), 'utf8')).toContain(`import * as jobs0 from '../src/jobs/greet.js'\n\nexport const jobs = [jobs0.Greet] as const\n`)
+  rmSync(dir, { recursive: true, force: true })
 })
 
 it('make:job creates a job in src/jobs', async () => {

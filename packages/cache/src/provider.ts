@@ -1,7 +1,6 @@
 import { createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
 import { createCache, type Cache } from './cache.js'
 import { memoryDriver } from './memory.js'
-import { redisDriver } from './redis.js'
 import type { CacheCapabilities, CacheStore } from './store.js'
 
 export interface CacheConfig<N extends string = string> {
@@ -17,10 +16,19 @@ export type CacheService<N extends string = string> = Cache & {
   readonly manager: Manager<CacheStore, CacheCapabilities, N>
 }
 
-export const CACHE_DRIVERS: readonly DriverDefinition<CacheStore, CacheCapabilities>[] = [memoryDriver, redisDriver]
+/** Built in. Drivers with their own dependencies ship as subpaths, so edge bundles never see them. */
+export const CACHE_DRIVERS: readonly DriverDefinition<CacheStore, CacheCapabilities>[] = [memoryDriver]
 
-export function createCacheService<const N extends string>(config: CacheConfig<N>, drivers: readonly DriverDefinition<CacheStore, CacheCapabilities>[] = CACHE_DRIVERS): CacheService<N> {
-  const manager = createManager({ kind: 'cache', drivers, config: { default: config.default, instances: config.stores } })
+const HINTS = {
+  redis: "It's in '@caldera/cache/redis': import { redisDriver } from it and pass `drivers: [redisDriver]`.",
+}
+
+export function createCacheService<const N extends string>(
+  config: CacheConfig<N>,
+  options: { drivers?: readonly DriverDefinition<CacheStore, CacheCapabilities>[] } = {},
+): CacheService<N> {
+  const drivers = [...CACHE_DRIVERS, ...(options.drivers ?? [])]
+  const manager = createManager({ kind: 'cache', drivers, config: { default: config.default, instances: config.stores }, hints: HINTS })
   const caches = new Map<string, Cache>()
   const store = (name: N) => {
     let cache = caches.get(name)
@@ -44,7 +52,8 @@ export function createCacheService<const N extends string>(config: CacheConfig<N
 
 /**
  * Registers `cache` from your config: `cacheProvider((app) => app.config.cache)`. Stores connect on
- * first use; their config is checked at boot. Extra drivers (your own, or from other packages) go in `drivers`.
+ * first use; their config is checked at boot. Other drivers (`redisDriver` from `@caldera/cache/redis`, your
+ * own) go in `drivers`.
  */
 export function cacheProvider<const N extends string>(
   resolve: (app: RegisterContext<unknown>) => CacheConfig<N>,
@@ -53,7 +62,7 @@ export function cacheProvider<const N extends string>(
   return defineProvider({
     name: 'cache',
     register: (app) => {
-      const service = createCacheService(resolve(app), [...CACHE_DRIVERS, ...(options.drivers ?? [])])
+      const service = createCacheService(resolve(app), options)
       return { cache: service }
     },
     shutdown: async ({ services }) => {

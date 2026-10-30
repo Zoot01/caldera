@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./bullmq": {
+      "types": "./dist/bullmq.d.ts",
+      "default": "./dist/bullmq.js"
     }
   },
   "files": [
@@ -40,8 +44,10 @@
     "@electric-sql/pglite": "0.5.13",
     "bullmq": "6.5.1",
     "drizzle-orm": "1.0.0-rc.5",
+    "esbuild": "0.28.2",
     "hono": "^4.13.14",
     "ioredis": "6.0.0",
+    "miniflare": "4.20260730.0",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
   }

@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createCacheService } from '@caldera/cache'
+import { redisDriver } from '@caldera/cache/redis'
+import { bullmqDriver } from '../src/bullmq.js'
 import { createQueue, defineJob, type Envelope, type Outcome, type Queue, type Worker } from '../src/index.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
@@ -16,7 +18,8 @@ const Flaky = defineJob({
   payload: z.object({ id: z.string(), failTimes: z.number() }),
   tries: 3,
   backoff: [0.2, 0.4],
-  handle: ({ failTimes }, ctx) => {
+  handle: ({ id, failTimes }, ctx) => {
+    started.push(id)
     if (ctx.attempt <= failTimes) throw new Error(`boom ${ctx.attempt}`)
   },
   failed: ({ id }) => void failed.push(id),
@@ -28,7 +31,10 @@ const Later = defineJob({
   tries: 2,
   handle: (_p, ctx) => (ctx.attempt === 1 ? ctx.release(0.3) : undefined),
 })
-const Step = defineJob({ name: 'bull.step', payload: z.object({ id: z.string() }), queue: 'other', handle: () => {} })
+// When each chain step's handler started: the outcome log can't show order, because a step queues
+// the next one before its own outcome is recorded (another worker may finish that one first).
+const started: string[] = []
+const Step = defineJob({ name: 'bull.step', payload: z.object({ id: z.string() }), queue: 'other', handle: ({ id }) => void started.push(id) })
 const callbacks: string[] = []
 const Part = defineJob({
   name: 'bull.part',
@@ -57,8 +63,8 @@ const runsOf = (id: string) => runs.filter((r) => (r.payload as { id: string }).
 describe.runIf(hasRedis)('bullmq driver (real Redis)', () => {
   beforeAll(async () => {
     redis = await startRedis()
-    const cache = createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis.url } }, prefix: `c${Date.now()}` })
-    queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis.url, prefix: `t${Date.now()}` } } }, { store: () => cache })
+    const cache = createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis.url } }, prefix: `c${Date.now()}` }, { drivers: [redisDriver] })
+    queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis.url, prefix: `t${Date.now()}` } } }, { store: () => cache, drivers: [bullmqDriver] })
     queue.register(Flaky, Final, Later, Step, Part, Done)
     worker = queue.work({ queues: ['default', 'other'], concurrency: 4, onOutcome: record })
   })
@@ -122,6 +128,6 @@ describe.runIf(hasRedis)('bullmq driver (real Redis)', () => {
   it('runs a chain across queues', async () => {
     await queue.chain([Step.with({ id: 'c1' }), Flaky.with({ id: 'c2', failTimes: 0 }), Step.with({ id: 'c3' })]).dispatch()
     await until(() => (runsOf('c3').length ? true : undefined))
-    expect(runs.filter((r) => ['c1', 'c2', 'c3'].includes((r.payload as { id: string }).id)).map((r) => (r.payload as { id: string }).id)).toEqual(['c1', 'c2', 'c3'])
+    expect(started.filter((id) => id.startsWith('c'))).toEqual(['c1', 'c2', 'c3'])
   })
 })
