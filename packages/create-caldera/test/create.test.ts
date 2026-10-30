@@ -77,7 +77,7 @@ describe('createProject', () => {
       ['database', 'skipped'],
       ['git', 'skipped'],
     ])
-    expect(result.next).toEqual([`cd ${join(base, 'app')}`, 'npm install', 'npm exec -- caldera generate', 'npm exec -- caldera db:push -- --force', 'npm run dev'])
+    expect(result.next).toEqual([`cd ${join(base, 'app')}`, 'npm install', 'npm exec -- caldera generate', 'npm exec -- caldera db:generate -- --name init && npm exec -- caldera db:migrate', 'npm run dev'])
   })
 
   it('records the package manager version only when the package manager reported it', () => {

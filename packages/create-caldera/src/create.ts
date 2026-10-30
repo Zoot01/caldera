@@ -53,7 +53,7 @@ export class CreateError extends Error {
 
 const TEMPLATE = new URL('../template/', import.meta.url)
 const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
-const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'i18n', 'next']
+const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'i18n', 'next', 'testing']
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -124,7 +124,19 @@ export function createProject(options: CreateOptions): CreateResult {
   attempt('install', install, [pm, 'install'])
   const installed = steps.at(-1)!.status === 'done'
   attempt('generate', installed, [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : []), 'caldera', 'generate'])
-  attempt('database', installed, [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : []), 'caldera', 'db:push', '--', '--force'])
+  // Migrations first, as in production: the initial one is generated and applied (and committed with
+  // the app); tests build their database from the same migrations.
+  const exec = [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : [])]
+  const migrate = [...exec, 'caldera', 'db:migrate']
+  attempt('database', installed, [...exec, 'caldera', 'db:generate', '--', '--name', 'init'])
+  if (steps.at(-1)!.status === 'done') {
+    steps.pop()
+    attempt('database', true, migrate)
+  } else {
+    // Not generated, so not applied either: finishing takes both.
+    const step = steps.at(-1)!
+    step.command = `${step.command} && ${migrate.join(' ')}`
+  }
   const git = (options.git ?? true) && commandExists('git', env)
   if (git) {
     attempt('git', true, ['git', 'init', '-q'])

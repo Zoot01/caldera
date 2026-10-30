@@ -1,16 +1,21 @@
-import { expect, it } from 'vitest'
+import { setupApp } from '@caldera/testing'
+import { it } from 'vitest'
+import { app } from '../src/app.js'
 import { http } from '../src/http.js'
+import { User } from '../src/models/user.js'
 
-const env = { APP_KEY: 'test-key-0123456789-0123456789-0123', DATABASE_URL: ':memory:' }
+// A fresh database from drizzle/ (your migrations) for this file; each test is rolled back.
+const t = setupApp(app)
 
 it('answers the API under /api', async () => {
-  const res = await http.request('/api/hello', {}, env)
-  expect(res.status).toBe(200)
-  expect(await res.json()).toEqual({ message: 'Your app is running.' })
+  ;(await t.client(http).get('/api/hello')).assertOk().assertJson({ message: 'Your app is running.' })
+})
+
+it('lists users from the database', async () => {
+  await User.create({ name: 'Ann', email: 'ann@example.test' })
+  ;(await t.client(http).get('/api/users')).assertJson({ users: [{ name: 'Ann' }] })
 })
 
 it('uses the error envelope for unknown API routes', async () => {
-  const res = await http.request('/api/nope', {}, env)
-  expect(res.status).toBe(404)
-  expect((await res.json()).error.code).toBe('not_found')
+  ;(await t.client(http).get('/api/nope')).assertNotFound().assertJson({ error: { code: 'not_found' } })
 })
