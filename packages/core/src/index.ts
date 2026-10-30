@@ -29,4 +29,4 @@ export type {
   ServicesOf,
   Singleton,
 } from './provider.js'
-export type { Register, RegisteredConfig, RegisteredEnv } from './register.js'
+export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv } from './register.js'

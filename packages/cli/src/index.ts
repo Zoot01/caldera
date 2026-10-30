@@ -1,0 +1,6 @@
+export { buildGeneratedFiles, generate } from './codegen.js'
+export type { GenerateResult, GeneratedFile } from './codegen.js'
+export { describeProject } from './describe.js'
+export { CONVENTIONS, openProject } from './project.js'
+export type { Project } from './project.js'
+export { main, runCli } from './cli.js'

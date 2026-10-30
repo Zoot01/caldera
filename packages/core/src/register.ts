@@ -14,8 +14,14 @@ import type { AnyEnvDefinition, EnvOf } from './env.js'
  */
 export interface Register {}
 
-export type RegisteredEnv = Register extends { env: infer E extends AnyEnvDefinition } ? EnvOf<E> : Readonly<Record<string, unknown>>
+/**
+ * Stand-in type before codegen has run. Reading any key fails with an error whose
+ * message names the fix, instead of a vague "is of type 'unknown'".
+ */
+export interface NotGenerated {
+  readonly 'Run `caldera generate` to type env and config': true
+}
 
-export type RegisteredConfig = Register extends { config: infer C extends readonly AnyConfigDefinition[] }
-  ? ConfigMap<C>
-  : Readonly<Record<string, unknown>>
+export type RegisteredEnv = Register extends { env: infer E extends AnyEnvDefinition } ? EnvOf<E> : NotGenerated
+
+export type RegisteredConfig = Register extends { config: infer C extends readonly AnyConfigDefinition[] } ? ConfigMap<C> : NotGenerated
