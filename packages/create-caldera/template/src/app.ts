@@ -3,6 +3,7 @@ import { redisDriver } from '@caldera/cache/redis'
 import { createApp } from '@caldera/core'
 import { databaseProvider } from '@caldera/db'
 import { eventsProvider } from '@caldera/events'
+import { i18nProvider } from '@caldera/i18n'
 import { mailProvider } from '@caldera/mail'
 import { sesDriver } from '@caldera/mail/ses'
 import { smtpDriver } from '@caldera/mail/smtp'
@@ -18,6 +19,7 @@ import { localStorageDriver } from '@caldera/storage/local'
 import { s3StorageDriver } from '@caldera/storage/s3'
 import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
+import { messages, pages } from '../.caldera/i18n.gen.js'
 import { listeners } from '../.caldera/listeners.gen.js'
 import { mails } from '../.caldera/mails.gen.js'
 import { notifications } from '../.caldera/notifications.gen.js'
@@ -35,6 +37,8 @@ export const app = createApp({
       connect: (app) => drizzle({ connection: { url: app.config.database.url }, relations }),
     }),
     sessionProvider((app) => app.config.session),
+    // Messages from lang/; c.var.i18n is this request's translator (user, cookie, Accept-Language).
+    i18nProvider((app) => app.config.i18n, { messages, pages }),
     cacheProvider((app) => app.config.cache, { drivers: [redisDriver] }),
     // Unique jobs and batches keep their state in the cache above.
     queueProvider((app) => app.config.queue, { drivers: [databaseDriver, bullmqDriver] }),

@@ -19,6 +19,7 @@
     "@caldera/db": "^0.0.0",
     "@caldera/events": "^0.0.0",
     "@caldera/http": "^0.0.0",
+    "@caldera/i18n": "^0.0.0",
     "@caldera/inertia": "^0.0.0",
     "@caldera/mail": "^0.0.0",
     "@caldera/notifications": "^0.0.0",
