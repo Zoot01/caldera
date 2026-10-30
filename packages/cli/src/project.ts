@@ -13,6 +13,7 @@ export const CONVENTIONS = {
   routesDir: 'src/routes',
   relations: 'src/db/relations.ts',
   modelsDir: 'src/models',
+  seedersDir: 'src/db/seeders',
   app: 'src/app.ts',
   generatedDir: '.caldera',
 } as const
@@ -27,7 +28,9 @@ export interface Project {
 
 export function openProject(root: string = process.cwd()): Project {
   const absoluteRoot = resolve(root)
-  const jiti = createJiti(join(absoluteRoot, 'caldera.ts'), { moduleCache: false, fsCache: false })
+  // One module graph per command, as in a real process: app.ts, seeders and models must share
+  // the same table and model instances. (A future watch mode will need a fresh project per change.)
+  const jiti = createJiti(join(absoluteRoot, 'caldera.ts'), { moduleCache: true, fsCache: false })
   const path = (relativePath: string) => join(absoluteRoot, relativePath)
 
   return {
@@ -60,6 +63,7 @@ export function sourceFiles(project: Project, dir: string): string[] {
 export const configFiles = (project: Project) => sourceFiles(project, CONVENTIONS.configDir)
 export const routeFiles = (project: Project) => sourceFiles(project, CONVENTIONS.routesDir)
 export const modelFiles = (project: Project) => sourceFiles(project, CONVENTIONS.modelsDir)
+export const seederFiles = (project: Project) => sourceFiles(project, CONVENTIONS.seedersDir)
 
 /** Finds exported values tagged with a Caldera `kind`, e.g. `caldera.config`. */
 export function exportsOfKind<T>(module: Record<string, unknown>, kind: string): { exportName: string; value: T }[] {

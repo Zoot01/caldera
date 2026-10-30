@@ -17,18 +17,29 @@ function isApp(value: unknown): value is DescribableApp {
   )
 }
 
+/** Loads `src/app.ts` and returns the app it exports. */
+export async function loadApp(project: Project): Promise<DescribableApp & { shutdown(): Promise<void> }> {
+  const module = await project.load(CONVENTIONS.app)
+  const app = module.app ?? module.default
+  if (!isApp(app)) {
+    throw new CalderaError('app_definition', `${CONVENTIONS.app} must export the result of createApp(...) as \`app\`.`)
+  }
+  return app as DescribableApp & { shutdown(): Promise<void> }
+}
+
+/** The project's `.env`, with real environment variables taking precedence. */
+export function projectEnv(project: Project): Record<string, unknown> {
+  return { ...readDotEnv(project), ...process.env }
+}
+
 /**
  * Loads `src/app.ts`, boots it with the project's `.env` (real environment variables
  * win), and returns `app.describe()`. Booting never builds singletons, so this opens
  * no database connections. With `boot: false` it describes the app without env.
  */
 export async function describeProject(project: Project, options: { boot?: boolean } = {}): Promise<AppDescription> {
-  const module = await project.load(CONVENTIONS.app)
-  const app = module.app ?? module.default
-  if (!isApp(app)) {
-    throw new CalderaError('app_definition', `${CONVENTIONS.app} must export the result of createApp(...) as \`app\`.`)
-  }
-  if (options.boot !== false) await app.boot({ env: { ...readDotEnv(project), ...process.env } })
+  const app = await loadApp(project)
+  if (options.boot !== false) await app.boot({ env: projectEnv(project) })
   return app.describe()
 }
 

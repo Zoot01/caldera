@@ -24,10 +24,10 @@
   "dependencies": {
     "@caldera/core": "workspace:*",
     "citty": "0.2.2",
-    "jiti": "2.7.0"
+    "jiti": "2.7.0",
+    "@caldera/db": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/db": "workspace:*",
     "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "drizzle-kit": "1.0.0-rc.5",

@@ -216,3 +216,38 @@ describe('caldera db:generate / db:migrate / db:push', () => {
     expect(cli('db:generate').json.error).toMatchObject({ code: 'missing_file', details: { file: 'drizzle.config.ts' } })
   })
 })
+
+describe('caldera db:seed', () => {
+  const seedApp = join(here, 'fixtures/seed-app')
+  const seed = (...args: string[]) => {
+    const result = spawnSync(process.execPath, [bin, 'db:seed', '--cwd', seedApp, '--json', ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_ENV: 'test', CALDERA_ENV: '' },
+    })
+    return { code: result.status, json: JSON.parse(result.stdout) as Record<string, any> }
+  }
+
+  it('boots the app, runs seeders in dependency order and reports the seed', () => {
+    const { code, json } = seed('--seed', '99')
+    expect(json.error).toBeUndefined()
+    expect(code).toBe(0)
+    expect(json.seed).toBe(99)
+    expect(json.environment).toBe('test')
+    // Dependencies first; otherwise file order, then export order (alphabetical within a module).
+    expect(json.seeders.map((s: { name: string; status: string }) => [s.name, s.status])).toEqual([
+      ['schema', 'ran'],
+      ['demo', 'skipped'],
+      ['users', 'ran'],
+    ])
+    // Same seed, same data.
+    const users = (report: Record<string, any>) => report.seeders.find((s: { name: string }) => s.name === 'users').logs
+    expect(users(json)[0]).toMatch(/^users: .+ \| .+ \| .+$/)
+    expect(users(seed('--seed', '99').json)).toEqual(users(json))
+  }, 60_000)
+
+  it('runs a subset with --only and refuses production without --force', () => {
+    expect(seed('--only', 'schema').json.seeders.map((s: { name: string }) => s.name)).toEqual(['schema'])
+    const result = spawnSync(process.execPath, [bin, 'db:seed', '--cwd', seedApp, '--json'], { encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' } })
+    expect(JSON.parse(result.stdout).error).toMatchObject({ code: 'confirmation_required' })
+  }, 60_000)
+})

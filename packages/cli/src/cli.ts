@@ -6,6 +6,7 @@ import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
 import { runMigrations, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
+import { seedProject } from './seed.js'
 
 const VERSION = '0.0.0'
 
@@ -134,6 +135,29 @@ function migrationCommand(command: MigrationCommand, description: string) {
   })
 }
 
+const dbSeedCommand = defineCommand({
+  meta: { name: 'db:seed', description: 'Run the seeders in src/db/seeders (dependencies first, in one transaction)' },
+  args: {
+    ...shared,
+    seed: { type: 'string', description: 'Faker seed, to reproduce the same data' },
+    only: { type: 'string', description: 'Comma-separated seeder names to run (plus their dependencies)' },
+    force: { type: 'boolean', description: 'Allow seeding production (only seeders marked production: true run)' },
+  },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const report = await seedProject(openProject(args.cwd), {
+        force: args.force,
+        seed: args.seed === undefined ? undefined : Number(args.seed),
+        only: args.only?.split(',').map((s) => s.trim()).filter(Boolean),
+      })
+      const text = [
+        ...report.seeders.map((s) => (s.status === 'ran' ? `✓ ${s.name} (${s.ms}ms)` : `- ${s.name} skipped: ${s.reason}`)),
+        `seed ${report.seed} (rerun with --seed=${report.seed} for the same data)`,
+      ].join('\n')
+      return { data: report, text }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
@@ -144,6 +168,7 @@ export const main = defineCommand({
     'db:schema': dbSchemaCommand,
     'db:generate': migrationCommand('generate', 'Generate SQL migrations from your Drizzle schema (drizzle-kit generate)'),
     'db:migrate': migrationCommand('migrate', 'Apply pending migrations (drizzle-kit migrate)'),
+    'db:seed': dbSeedCommand,
     'db:push': migrationCommand('push', 'Push the schema straight to the database, for prototyping (drizzle-kit push)'),
   },
 })
