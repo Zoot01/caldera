@@ -90,9 +90,23 @@ export type Model<K extends TableKey, Name extends string, H extends string, G e
   forceDelete(row: RowRef): Promise<void>
   /** Adds `appends` (recursively through loaded relations). Call it at the response boundary. */
   serialize<R extends object | null | undefined>(rows: R): SerializeOut<K, R>
+  /** The model's definition as JSON, for `caldera model:show` and agents. */
+  describe(): ModelDescription
   /** The same model bound to a specific database instead of the default one. */
   using(database: Database<any>): Model<K, Name, H, G, A, Sc, SD>
 } & { [N in keyof Sc]: Sc[N] extends (...args: infer P) => any ? (...args: P) => QueryApi<K> : never }
+
+export interface ModelDescription {
+  name: string
+  primaryKey: string
+  routeKey: string
+  hidden: readonly string[]
+  guarded: readonly string[]
+  softDeletes: string | null
+  scopes: string[]
+  appends: string[]
+  hooks: string[]
+}
 
 export type AnyModel = {
   readonly kind: 'caldera.model'
@@ -326,6 +340,17 @@ export function defineModel<
       withHidden: () => build({ ...state, withHidden: true }),
       using: (db: Database<any>) => build({ ...state, database: db }),
       serialize: (rows: unknown) => serialize(runtime, rows, () => relational().relations, table),
+      describe: () => ({
+        name: config.name,
+        primaryKey,
+        routeKey,
+        hidden: runtime.hidden,
+        guarded: runtime.guarded,
+        softDeletes: runtime.softDeletes ?? null,
+        scopes: Object.keys(config.scopes ?? {}),
+        appends: Object.keys(runtime.appends),
+        hooks: Object.keys(hooks).filter((name) => typeof (hooks as Record<string, unknown>)[name] === 'function'),
+      }),
     }
     for (const [scopeName, scope] of Object.entries(config.scopes ?? {})) {
       model[scopeName] = (...args: unknown[]) => build({ ...state, where: [...state.where, (scope as Function)(...args)] })

@@ -3,7 +3,7 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeProject, generate, listRoutes, openProject } from '../src/index.js'
+import { describeModel, describeProject, describeSchema, generate, listRoutes, openProject } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -153,5 +153,34 @@ describe('caldera route:list', () => {
     expect(code).toBe(0)
     expect(json.schemaVersion).toBe(1)
     expect(json.routes).toHaveLength(3)
+  })
+})
+
+describe('caldera model:show and db:schema', () => {
+  it('describes a model with hidden columns, relations and its source file', async () => {
+    const user = await describeModel(openProject(root), 'user')
+    expect(user).toMatchObject({ name: 'user', key: 'users', table: 'users', file: 'src/models/user.ts', primaryKey: 'id', routeKey: 'id', hidden: ['passwordHash'] })
+    expect(user.columns.find((c) => c.name === 'passwordHash')).toMatchObject({ column: 'password_hash', type: 'text', hidden: true, nullable: false })
+    expect(user.columns.find((c) => c.name === 'id')).toMatchObject({ primary: true, type: 'uuid', hasDefault: true })
+    expect(user.relations).toEqual([{ name: 'posts', type: 'many', target: 'posts', model: 'post' }])
+
+    const post = await describeModel(openProject(root), 'posts')
+    expect(post).toMatchObject({ name: 'post', routeKey: 'slug', appends: ['url'] })
+  })
+
+  it('lists known models when asked for an unknown one', async () => {
+    await expect(describeModel(openProject(root), 'comment')).rejects.toThrow(/Known models: post, user/)
+    const { code, json } = cli('model:show', 'comment')
+    expect(code).toBe(1)
+    expect(json.error).toMatchObject({ code: 'unknown_model', details: { known: ['post', 'user'] } })
+  })
+
+  it('describes every table with its model', async () => {
+    const { tables } = await describeSchema(openProject(root))
+    expect(tables.map((t) => [t.key, t.model, t.columns.length])).toEqual([
+      ['users', 'user', 3],
+      ['posts', 'post', 4],
+    ])
+    expect(tables[1]!.relations).toEqual([{ name: 'author', type: 'one', target: 'users' }])
   })
 })

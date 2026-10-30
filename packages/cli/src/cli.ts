@@ -4,6 +4,7 @@ import { generate } from './codegen.js'
 import { describeProject } from './describe.js'
 import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
+import { describeModel, describeSchema } from './schema.js'
 
 const VERSION = '0.0.0'
 
@@ -84,9 +85,47 @@ const routeListCommand = defineCommand({
     }),
 })
 
+const modelShowCommand = defineCommand({
+  meta: { name: 'model:show', description: 'Show a model: columns (hidden/guarded), relations, scopes, hooks and route key' },
+  args: { name: { type: 'positional', description: 'Model name or relations key', required: true }, ...shared },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const model = await describeModel(openProject(args.cwd), args.name)
+      const flags = (c: { primary: boolean; hidden: boolean; guarded: boolean; nullable: boolean }) =>
+        [c.primary && 'primary', c.hidden && 'hidden', c.guarded && 'guarded', c.nullable && 'nullable'].filter(Boolean).join(', ')
+      const text = [
+        `${model.name}  (${model.table}, ${model.file})`,
+        ...model.columns.map((c) => `  ${c.name.padEnd(16)} ${c.type.padEnd(26)} ${flags(c)}`),
+        ...model.relations.map((r) => `  ${r.name.padEnd(16)} ${r.type} → ${r.model ?? r.target}`),
+      ].join('\n')
+      return { data: model, text }
+    }),
+})
+
+const dbSchemaCommand = defineCommand({
+  meta: { name: 'db:schema', description: 'Describe every table: columns, relations and models' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const schema = await describeSchema(openProject(args.cwd))
+      const text = schema.tables.length
+        ? schema.tables
+            .map((t) => `${t.table}${t.model ? ` (model ${t.model})` : ''}: ${t.columns.map((c) => c.column).join(', ')}`)
+            .join('\n')
+        : 'No tables found in src/db/relations.ts.'
+      return { data: schema, text }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
-  subCommands: { generate: generateCommand, describe: describeCommand, 'route:list': routeListCommand },
+  subCommands: {
+    generate: generateCommand,
+    describe: describeCommand,
+    'route:list': routeListCommand,
+    'model:show': modelShowCommand,
+    'db:schema': dbSchemaCommand,
+  },
 })
 
 export function runCli() {
