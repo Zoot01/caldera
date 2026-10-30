@@ -1,5 +1,5 @@
 export { BROADCAST_JOB, broadcast, broadcastProvider, createBroadcaster, defaultBroadcaster, setDefaultBroadcaster } from './broadcaster.js'
-export type { AuthorizeRequest, AuthorizeResult, BroadcastConfig, Broadcaster, BroadcastFake, SentBroadcast } from './broadcaster.js'
+export type { AuthorizeRequest, AuthorizeResult, BroadcastConfig, Broadcaster, BroadcastRegister, BroadcastFake, SentBroadcast } from './broadcaster.js'
 export { defineChannel, isChannel } from './channel.js'
 export type { AnyChannel, AuthorizeContext, ChannelBinder, ChannelDefinition, ChannelOptions, ChannelParams, ChannelRef, ChannelType, MemberInfo, ParamNames } from './channel.js'
 export { hmacHex, logDriver, nullDriver, signSubscription } from './driver.js'

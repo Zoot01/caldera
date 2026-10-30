@@ -6,6 +6,13 @@ import { isChannel, type AnyChannel, type ChannelRef } from './channel.js'
 import { logDriver, nullDriver, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage, type ClientConfig } from './driver.js'
 import { pusherDriver } from './pusher.js'
 
+/**
+ * Filled by `caldera generate` (register.d.ts), for typed hooks in the browser: channels by pattern
+ * and broadcast events by the name browsers receive.
+ * `declare module '@caldera/broadcast' { interface BroadcastRegister { channels: { 'posts.{post}': typeof PostChannel }; events: { 'post.updated': typeof PostUpdated } } }`
+ */
+export interface BroadcastRegister {}
+
 export interface BroadcastConfig<N extends string = string> {
   default: NoInfer<N>
   connections: { [K in N]?: ({ driver: string } & Record<string, unknown>) | undefined }

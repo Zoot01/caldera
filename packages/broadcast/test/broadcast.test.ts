@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
+import { serve } from '@hono/node-server'
 import { createApp, defineEnv } from '@caldera/core'
 import { createDatabase, setDefaultDatabase } from '@caldera/db'
 import { createEvents, defineEvent, setDefaultEvents, type BroadcastPayload } from '@caldera/events'
@@ -391,6 +392,60 @@ describe('the hub', () => {
     } finally {
       client.disconnect()
       await worker.stop()
+    }
+  }, 30_000)
+})
+
+describe('the browser client', () => {
+  it('joins once per channel, hears events, whispers, lists members, and sends X-Socket-ID', async () => {
+    const hub = await startBroadcastServer({ ...SOKETI_APP, port: 0 })
+    const setup = makeApp({ driver: 'pusher', host: '127.0.0.1', port: hub.port, ...SOKETI_APP })
+    await setup.app.boot()
+    // The app over HTTP, as the browser reaches it; the user comes from a header this test sets.
+    let user = 'ann'
+    const site = serve({ fetch: (request) => {
+      const headers = new Headers(request.headers)
+      headers.set('x-user', user)
+      return setup.http.fetch(new Request(request, { headers }))
+    }, port: 0 })
+    await new Promise((resolve) => site.once('listening', resolve))
+    const siteUrl = `http://127.0.0.1:${(site.address() as { port: number }).port}`
+    const client = await import('../src/client.js')
+    try {
+      client.registerChannels({ 'posts.{post}': 'private', 'rooms.{roomId}': 'presence', news: 'public' })
+      expect(client.channelName('posts.{post}', { post: 1 })).toBe('private-posts.1')
+      expect(() => client.channelName('nope')).toThrow(/No channel "nope"/)
+      client.configureBroadcast({ ...setup.broadcaster().client()!, authEndpoint: `${siteUrl}/_caldera/broadcast/auth` })
+
+      const first = client.subscribe('posts.{post}', { post: 1 })!
+      const second = client.subscribe('posts.{post}', { post: 1 })!
+      expect(first.channel).toBe(second.channel)
+      await new Promise((resolve) => first.listen('pusher:subscription_succeeded', resolve))
+      const heard = new Promise((resolve) => second.listen('post.updated', resolve))
+      await setup.broadcaster().send(PostChannel.with({ post: '1' }), 'post.updated', { title: 'Hi' })
+      expect(await heard).toEqual({ title: 'Hi' })
+      expect(client.withSocketId({ headers: { accept: 'x' } }).headers).toEqual({ accept: 'x', 'X-Socket-ID': client.socketId() })
+      first.leave()
+      expect(client.connection()!.channel('private-posts.1')).toBeDefined() // still used by `second`
+      second.leave()
+      expect(client.connection()!.channel('private-posts.1')).toBeUndefined()
+
+      const room = client.subscribe('rooms.{roomId}', { roomId: 'r9' })!
+      await new Promise((resolve) => room.listen('pusher:subscription_succeeded', resolve))
+      expect(client.membersOf(room)).toEqual([{ id: 'ann', info: { id: 'ann', name: 'User ann' } }])
+      // Another user's browser, whispering.
+      user = 'bob'
+      const other = new Pusher(SOKETI_APP.key, { ...setup.broadcaster().client()!, cluster: '', channelAuthorization: { endpoint: `${siteUrl}/_caldera/broadcast/auth`, transport: 'ajax' } })
+      const whispered = new Promise((resolve) => room.listen('client-typing', (data, meta) => resolve({ data, meta })))
+      const otherRoom = other.subscribe('presence-rooms.r9')
+      await new Promise((resolve) => otherRoom.bind('pusher:subscription_succeeded', resolve))
+      otherRoom.trigger('client-typing', { at: 5 })
+      expect(await whispered).toEqual({ data: { at: 5 }, meta: { user_id: 'bob' } })
+      other.disconnect()
+    } finally {
+      client.configureBroadcast(null)
+      site.close()
+      await hub.close()
     }
   }, 30_000)
 })

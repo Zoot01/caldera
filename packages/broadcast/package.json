@@ -21,6 +21,14 @@
     "./cloudflare": {
       "types": "./dist/cloudflare.d.ts",
       "default": "./dist/cloudflare.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
     }
   },
   "files": [
@@ -34,10 +42,18 @@
     "@caldera/auth": "workspace:*",
     "@caldera/events": "workspace:*",
     "hono": "^4.13.14",
-    "zod": "^4.6.0"
+    "zod": "^4.6.0",
+    "pusher-js": "^8.4.0",
+    "react": "^19.0.0"
   },
   "peerDependenciesMeta": {
     "@caldera/auth": {
+      "optional": true
+    },
+    "pusher-js": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   },
@@ -52,13 +68,17 @@
     "@caldera/http": "workspace:*",
     "@caldera/queue": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
-    "drizzle-orm": "1.0.0-rc.5",
-    "hono": "^4.13.14",
-    "pusher-js": "8.6.0",
-    "typescript": "5.9.3",
-    "zod": "^4.6.7",
+    "@hono/node-server": "^2.1.5",
+    "@types/react": "19.3.0",
     "@types/ws": "^8.18.1",
+    "drizzle-orm": "1.0.0-rc.5",
     "esbuild": "0.28.2",
-    "miniflare": "4.20260730.0"
+    "hono": "^4.13.14",
+    "miniflare": "4.20260730.0",
+    "pusher-js": "8.6.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
   }
 }
