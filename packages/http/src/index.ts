@@ -1,3 +1,4 @@
+export type { BindEnv, Binder, Bindings } from './bind.js'
 export {
   BadRequestError,
   errorHandler,

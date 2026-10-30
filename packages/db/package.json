@@ -34,6 +34,7 @@
     "@caldera/core": "workspace:*"
   },
   "devDependencies": {
+    "@caldera/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",

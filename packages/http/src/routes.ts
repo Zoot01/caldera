@@ -1,6 +1,7 @@
 import type { RegisteredHonoEnv } from '@caldera/core'
 import { Hono, type Context, type Env, type MiddlewareHandler } from 'hono'
 import type { HandlerResponse, MergePath, ParamKeys, Schema, ToSchema, TypedResponse } from 'hono/types'
+import { bindingMiddleware, describeBindings, type BindEnv, type Bindings } from './bind.js'
 import { DEFAULT_PRIORITY, sortByPriority, type NamedMiddleware } from './middleware.js'
 import { requestJsonSchemas, requestMiddleware, type AnyRequest, type InputOf } from './request.js'
 
@@ -10,8 +11,10 @@ type MergeTypedResponse<T> =
 
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
 
-export interface RouteOptions<R extends AnyRequest | undefined> {
+export interface RouteOptions<R extends AnyRequest | undefined, B extends Bindings = {}> {
   request?: R
+  /** Route model binding: `{ post: Post }` loads `:post` into a typed `c.var.post`, or 404s. */
+  bind?: B
   middleware?: NamedMiddleware[]
   description?: string
 }
@@ -24,6 +27,8 @@ export interface RouteRecord {
   params: string[]
   middleware: { name: string; options: unknown }[]
   input: Record<string, unknown>
+  /** Bound parameters and what loads them (model name, or `custom`). */
+  bindings?: Record<string, string>
   description?: string
   source?: { file: string; line: number }
 }
@@ -34,11 +39,11 @@ interface GroupOptions<Prefix extends string> {
 }
 
 type RouteMethod<M extends Method, G extends string, E extends Env, S extends Schema, Prefix extends string, Names> = {
-  <const N extends string, P extends string, Res extends HandlerResponse<any>, Req extends AnyRequest | undefined = undefined>(
+  <const N extends string, P extends string, Res extends HandlerResponse<any>, Req extends AnyRequest | undefined = undefined, B extends Bindings = {}>(
     name: N,
     path: P,
-    options: RouteOptions<Req>,
-    handler: (c: Context<E, MergePath<Prefix, P>, InputOf<Req>>) => Res,
+    options: RouteOptions<Req, B>,
+    handler: (c: Context<E & BindEnv<B>, MergePath<Prefix, P>, InputOf<Req>>) => Res,
   ): RouteGroup<G, E, S & ToSchema<M, MergePath<Prefix, P>, InputOf<Req>, MergeTypedResponse<Res>>, Prefix, Names & { [K in `${G}.${N}`]: MergePath<Prefix, P> }>
   <const N extends string, P extends string, Res extends HandlerResponse<any>>(
     name: N,
@@ -85,7 +90,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
 
   const add =
     (method: Method) =>
-    (routeName: string, path: string, optionsOrHandler: RouteOptions<AnyRequest | undefined> | Function, maybeHandler?: Function) => {
+    (routeName: string, path: string, optionsOrHandler: RouteOptions<AnyRequest | undefined, Bindings> | Function, maybeHandler?: Function) => {
       const routeOptions = typeof optionsOrHandler === 'function' ? {} : optionsOrHandler
       const handler = (typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler) as (c: Context) => unknown
       const fullName = `${name}.${routeName}`
@@ -96,6 +101,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
       const named: { name: string; options: unknown; handler: MiddlewareHandler }[] = [
         ...groupMiddleware,
         ...(routeOptions.middleware ?? []),
+        ...(routeOptions.bind ? [{ name: 'bind', options: undefined, handler: bindingMiddleware(routeOptions.bind, fullPath) }] : []),
         ...(routeOptions.request ? requestMiddleware(routeOptions.request).map((m) => ({ ...m, options: undefined })) : []),
       ]
       const priority = [...groupMiddleware, ...(routeOptions.middleware ?? [])][0]?.priority ?? DEFAULT_PRIORITY
@@ -110,6 +116,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
         params: paramNames(fullPath),
         middleware: ordered.filter((m) => m.name !== 'validate').map((m) => ({ name: m.name, options: m.options ?? null })),
         input: routeOptions.request ? requestJsonSchemas(routeOptions.request) : {},
+        ...(routeOptions.bind ? { bindings: describeBindings(routeOptions.bind) } : {}),
         ...(routeOptions.description ? { description: routeOptions.description } : {}),
         ...callerSource(),
       })
