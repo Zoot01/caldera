@@ -58,7 +58,8 @@ export interface Hooks<K extends TableKey, H, G> {
   updating?: (args: { before: RowOf<K, H>; patch: Patch<K, G> }) => Patch<K, G> | Promise<Patch<K, G>>
   updated?: (args: { before: RowOf<K, H>; patch: Patch<K, G>; after: RowOf<K, H> }) => unknown
   deleting?: (row: RowOf<K, H>) => unknown
-  deleted?: (row: RowOf<K, H>) => unknown
+  /** `soft`: the row was only soft-deleted (it can be restored), not removed. */
+  deleted?: (row: RowOf<K, H>, info: { soft: boolean }) => unknown
 }
 
 type RowRef = string | number | Record<string, unknown>
@@ -163,7 +164,7 @@ interface LooseHooks {
   updating?: (args: { before: AnyRecord; patch: AnyRecord }) => AnyRecord | Promise<AnyRecord>
   updated?: (args: { before: AnyRecord; patch: AnyRecord; after: AnyRecord }) => unknown
   deleting?: (row: AnyRecord) => unknown
-  deleted?: (row: AnyRecord) => unknown
+  deleted?: (row: AnyRecord, info: { soft: boolean }) => unknown
 }
 
 type Trashed = 'exclude' | 'include' | 'only'
@@ -262,10 +263,14 @@ export function defineModel<
       if (!db.capabilities.returning) throw new CapabilityError(db.driver, 'INSERT … RETURNING', 'Models need it to return written rows.')
     }
     const resolve = async (ref: RowRef, trashed: Trashed = 'exclude') => {
-      if (typeof ref === 'object') return ref
-      const row = await build({ ...state, trashed, withHidden: false }).find(ref)
-      if (!row) throw new ModelNotFoundError(config.name, ref)
-      return row as Record<string, unknown>
+      // A row object is re-read by its key: hooks get the stored row as `before`, not a caller's
+      // possibly stale copy (file cleanup would delete the wrong object). A row the caller holds may
+      // be soft-deleted, so it's found either way.
+      const id = typeof ref === 'object' ? ref[primaryKey] : ref
+      if (id === undefined || id === null) throw new CalderaError('model_row_key', `A ${config.name} row was passed without its "${primaryKey}".`)
+      const row = await build({ ...state, trashed: typeof ref === 'object' && trashed === 'exclude' ? 'include' : trashed, withHidden: true }).find(id as string | number)
+      if (!row) throw new ModelNotFoundError(config.name, id)
+      return visible(row as Record<string, unknown>)
     }
     const afterCommit = (fn: () => unknown) => database().afterCommit(fn)
 
@@ -308,13 +313,13 @@ export function defineModel<
         const id = row[primaryKey]
         if (sdColumn) await client().update(table).set({ [runtime.softDeletes!]: new Date() }).where(eq((table as any)[primaryKey], id))
         else await client().delete(table).where(eq((table as any)[primaryKey], id))
-        if (hooks.deleted) await afterCommit(() => hooks.deleted!(row))
+        if (hooks.deleted) await afterCommit(() => hooks.deleted!(row, { soft: Boolean(sdColumn) }))
       },
       async forceDelete(ref: RowRef) {
         const row = await resolve(ref, 'include')
         if (hooks.deleting) await hooks.deleting(row)
         await client().delete(table).where(eq((table as any)[primaryKey], row[primaryKey]))
-        if (hooks.deleted) await afterCommit(() => hooks.deleted!(row))
+        if (hooks.deleted) await afterCommit(() => hooks.deleted!(row, { soft: false }))
       },
       async restore(ref: RowRef) {
         if (!sdColumn) throw new CalderaError('model_definition', `Model "${config.name}" doesn't use softDeletes.`)

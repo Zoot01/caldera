@@ -45,3 +45,14 @@ it('runs async transactions with savepoints and after-commit hooks on libsql', a
   }).catch(() => {})
   expect((await Note.findMany()).map((n: any) => n.title)).toEqual(['kept'])
 })
+
+it('gives hooks the stored row as `before`, even when the caller passes a stale copy', async () => {
+  const seen: string[] = []
+  const Tracked: any = defineModel(notes as any, { name: 'tracked', hooks: { updated: ({ before }: any) => void seen.push(before.title), deleted: (row: any, info: any) => void seen.push(`deleted ${row.title} soft=${info.soft}`) } } as any)
+  const stale = await Tracked.create({ title: 'v1' })
+  await Tracked.update(stale.id, { title: 'v2' })
+  await Tracked.update(stale, { title: 'v3' }) // `stale` still says v1
+  await Tracked.delete(stale)
+  expect(seen).toEqual(['v1', 'v2', 'deleted v3 soft=false'])
+  await expect(Tracked.update({ title: 'no id' }, { title: 'x' })).rejects.toThrow(/without its "id"/)
+})
