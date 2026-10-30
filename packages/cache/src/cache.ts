@@ -36,7 +36,7 @@ export class LockUnavailableError extends CalderaError {
 
 export interface Cache {
   /** The store's name in config, e.g. `redis`. */
-  readonly store: string
+  readonly name: string
   readonly capabilities: CacheCapabilities
   get<T = unknown>(key: string, options?: ReadOptions<T>): Promise<T | undefined>
   has(key: string): Promise<boolean>
@@ -102,7 +102,7 @@ function build(options: CreateCacheOptions, prefix: string, scopeKey: (key: stri
   }
 
   const cache: Cache = {
-    store: options.name,
+    name: options.name,
     capabilities,
     async get(key, opts) {
       return decode(await store.get(await k(key)), opts?.schema).value

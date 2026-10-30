@@ -12,7 +12,7 @@ import { qstashDriver, qstashReceiver } from '../src/qstash.js'
 
 const freePort = () =>
   new Promise<number>((resolve) => {
-    const server = createServer().listen(0, () => {
+    const server = createServer().listen(0, '127.0.0.1', () => {
       const { port } = server.address() as { port: number }
       server.close(() => resolve(port))
     })
@@ -38,17 +38,32 @@ let appUrl: string
 beforeAll(async () => {
   // The real QStash protocol, from Upstash's local development server.
   const bin = join(dirname(createRequire(import.meta.url).resolve('@upstash/qstash-cli/package.json')), 'bin/qstash')
-  const qstashPort = await freePort()
-  qstash = spawn(bin, ['dev', '-port', String(qstashPort)])
-  const credentials = await new Promise<Record<string, string>>((resolve, reject) => {
-    let output = ''
-    qstash.stdout!.on('data', (chunk: Buffer) => {
-      output += chunk.toString()
-      const found = Object.fromEntries([...output.matchAll(/^(QSTASH_\w+)=(\S+)$/gm)].map((m) => [m[1]!, m[2]!]))
-      if (found.QSTASH_NEXT_SIGNING_KEY) resolve(found)
+  // Besides -port, qstash dev binds -port + 1 and three ephemeral ports it picks itself. Test files
+  // start servers in parallel and macOS hands out ports in sequence, so one of those can be taken by
+  // another file first: on "address already in use", wait a moment (out of the burst) and try again.
+  let credentials: Record<string, string> | undefined
+  for (let attempt = 1; !credentials; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, 200 + Math.random() * 600))
+    const qstashPort = await freePort()
+    const child = spawn(bin, ['dev', '-port', String(qstashPort)])
+    qstash = child
+    credentials = await new Promise<Record<string, string> | undefined>((resolve, reject) => {
+      let output = ''
+      let errors = ''
+      child.stdout!.on('data', (chunk: Buffer) => {
+        output += chunk.toString()
+        const found = Object.fromEntries([...output.matchAll(/^(QSTASH_\w+)=(\S+)$/gm)].map((m) => [m[1]!, m[2]!]))
+        if (found.QSTASH_NEXT_SIGNING_KEY) resolve(found)
+      })
+      child.stderr!.on('data', (chunk: Buffer) => (errors += chunk.toString()))
+      child.once('exit', (code) => {
+        // Its fatal errors go to stdout.
+        const log = `${output}${errors}`
+        if (log.includes('address already in use') && attempt < 10) resolve(undefined)
+        else reject(new Error(`qstash dev exited with ${code}: ${log}`))
+      })
     })
-    qstash.once('exit', (code) => reject(new Error(`qstash dev exited with ${code}`)))
-  })
+  }
 
   const port = await freePort()
   appUrl = `http://127.0.0.1:${port}`
@@ -85,7 +100,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   server?.close()
-  qstash?.kill('SIGTERM')
+  // Wait for the server to exit (it shuts down gracefully), so no process outlives the tests.
+  if (qstash && qstash.exitCode === null) {
+    const exited = new Promise((resolve) => qstash.once('exit', resolve))
+    qstash.kill('SIGTERM')
+    const timer = setTimeout(() => qstash.kill('SIGKILL'), 3000)
+    await exited
+    clearTimeout(timer)
+  }
 })
 
 async function until(check: () => boolean, ms = 15_000) {

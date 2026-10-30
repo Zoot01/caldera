@@ -122,3 +122,13 @@ it('reports a missing store at boot and checks capabilities', () => {
   const cache = createCacheService({ default: 'memory', stores: { memory: { driver: 'memory' } } })
   expect(cache.manager.describe().instances[0]).toMatchObject({ name: 'memory', capabilities: { locks: true, shared: false } })
 })
+
+it('types the service: store(name) for other stores, name for the store’s own name', () => {
+  const cache = createCacheService({ default: 'memory', stores: { memory: { driver: 'memory' }, other: { driver: 'memory' } } })
+  expect(cache.name).toBe('memory')
+  expect(cache.store('other').name).toBe('other')
+  // @ts-expect-error not a configured store
+  void (() => cache.store('missing'))
+  const fn: (name: 'memory' | 'other') => unknown = cache.store
+  void fn
+})
