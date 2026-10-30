@@ -61,6 +61,46 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/broadcast:
+    dependencies:
+      '@caldera/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@caldera/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@caldera/db':
+        specifier: workspace:*
+        version: link:../db
+      '@caldera/events':
+        specifier: workspace:*
+        version: link:../events
+      '@caldera/http':
+        specifier: workspace:*
+        version: link:../http
+      '@caldera/queue':
+        specifier: workspace:*
+        version: link:../queue
+      '@electric-sql/pglite':
+        specifier: 0.5.13
+        version: 0.5.13
+      drizzle-orm:
+        specifier: 1.0.0-rc.5
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.7)
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
+      pusher-js:
+        specifier: 8.6.0
+        version: 8.6.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   packages/cache:
     dependencies:
       '@caldera/core':
@@ -2847,6 +2887,9 @@ packages:
     resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
     engines: {node: '>= 0.10'}
 
+  pusher-js@8.6.0:
+    resolution: {integrity: sha512-wShJPfCS/kYkCBVzVW67wa9cnQIgHTszEK2XHNrFkOgGruuGw081aERAxfRjfdFU+WcIt8x6dvbwkTW4iZuQ8Q==}
+
   qs@6.17.1:
     resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
     engines: {node: '>=0.6'}
@@ -3035,6 +3078,9 @@ packages:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
+
+  tweetnacl@1.0.3:
+    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
 
   type-is@2.1.0:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
@@ -4789,6 +4835,10 @@ snapshots:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
 
+  pusher-js@8.6.0:
+    dependencies:
+      tweetnacl: 1.0.3
+
   qs@6.17.1:
     dependencies:
       es-define-property: 1.0.1
@@ -5057,6 +5107,8 @@ snapshots:
       esbuild: 0.28.2
     optionalDependencies:
       fsevents: 2.3.3
+
+  tweetnacl@1.0.3: {}
 
   type-is@2.1.0:
     dependencies:

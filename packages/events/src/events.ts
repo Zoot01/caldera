@@ -1,21 +1,52 @@
 import { CalderaError, defineProvider, type RegisteredServices } from '@caldera/core'
 import type { z } from 'zod'
 
-export interface EventDefinition<P extends z.ZodType = z.ZodType> {
+/** A channel to broadcast on: `PostChannel.with({ postId })` from `@caldera/broadcast`. */
+export interface BroadcastTarget {
+  readonly kind: 'caldera.channel-ref'
+  readonly pattern: string
+  readonly name: string
+}
+
+/** Sends the event to browsers too, over `@caldera/broadcast`. */
+export interface BroadcastOptions<Out = any, With = unknown> {
+  /** The channels, from the payload: `(p) => PostChannel.with({ postId: p.postId })`. */
+  on: (payload: Out) => BroadcastTarget | readonly BroadcastTarget[]
+  /** What browsers receive (default: the payload). Pick fields: every subscriber sees all of it. */
+  with?: (payload: Out) => With
+  /** The name browsers listen for (default: the event's name). */
+  as?: string
+  /** Send from a queued job instead of right after the response. */
+  queue?: boolean
+}
+
+export interface EventDefinition<P extends z.ZodType = z.ZodType, W = z.output<P>> {
   readonly kind: 'caldera.event'
   /** Stable id, e.g. `user.registered`. */
   readonly name: string
   readonly payload: P
+  readonly broadcast?: BroadcastOptions<z.output<P>, W>
 }
-export type AnyEvent = EventDefinition<any>
-export type EventInput<E> = E extends EventDefinition<infer P> ? z.input<P> : never
-export type EventPayload<E> = E extends EventDefinition<infer P> ? z.output<P> : never
+export type AnyEvent = EventDefinition<any, any>
+/** What a broadcast event's subscribers receive: `with`'s result, or the payload. */
+export type BroadcastPayload<E> = E extends EventDefinition<any, infer W> ? W : never
+export type EventInput<E> = E extends EventDefinition<infer P, any> ? z.input<P> : never
+export type EventPayload<E> = E extends EventDefinition<infer P, any> ? z.output<P> : never
 
-export function defineEvent<P extends z.ZodType>(options: { name: string; payload: P }): EventDefinition<P> {
+export function defineEvent<P extends z.ZodType, W = z.output<P>>(options: {
+  name: string
+  payload: P
+  /** Also send it to browsers subscribed to these channels (needs broadcastProvider from @caldera/broadcast). */
+  broadcast?: BroadcastOptions<z.output<P>, W>
+}): EventDefinition<P, W> {
   if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(options.name)) {
     throw new CalderaError('event_name_invalid', `Event name "${options.name}" should be a stable id like "user.registered".`)
   }
-  return { kind: 'caldera.event', name: options.name, payload: options.payload }
+  const as = options.broadcast?.as ?? options.name
+  if (options.broadcast && /^(client-|pusher:|pusher_internal:)/.test(as)) {
+    throw new CalderaError('event_broadcast_name_reserved', `Event "${options.name}" broadcasts as "${as}": names starting client-, pusher: or pusher_internal: are reserved for the protocol.`)
+  }
+  return { kind: 'caldera.event', name: options.name, payload: options.payload, ...(options.broadcast ? { broadcast: options.broadcast } : {}) }
 }
 
 export interface ListenerContext {
@@ -59,6 +90,8 @@ export function listen<E extends AnyEvent>(
 export interface EmitOptions {
   /** Emit only once the surrounding database transaction commits (dropped on rollback). */
   afterCommit?: boolean
+  /** Broadcast events: skip the browser that made this request (its `X-Socket-ID` header). */
+  toOthers?: boolean
 }
 
 export interface EventsFake {
@@ -100,12 +133,14 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
   }
   for (const listener of options.listeners ?? []) register(listener)
 
-  const run = async (event: AnyEvent, payload: unknown) => {
+  const run = async (event: AnyEvent, payload: unknown, opts: EmitOptions) => {
     const listeners = byEvent.get(event.name) ?? []
     for (const listener of listeners) {
       if (listener.handle) await listener.handle(payload, { event: event.name, services: events.services })
       else if (listener.queued) await queue().dispatch(listener.queued.job, listener.queued.map(payload))
     }
+    // Once the listeners succeeded: a failed emit doesn't tell browsers it happened.
+    if (event.broadcast) await broadcaster(event).broadcast(event, payload, { toOthers: opts.toOthers ?? false })
     return { listeners: listeners.length }
   }
 
@@ -127,11 +162,11 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
       if (opts.afterCommit) {
         let result = { listeners: 0 }
         await afterCommit(async () => {
-          result = await run(event, payload)
+          result = await run(event, payload, opts)
         })
         return result
       }
-      return run(event, payload)
+      return run(event, payload, opts)
     },
     async until(event, input) {
       const payload = event.payload.parse(input)
@@ -175,6 +210,16 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
 function queue(): QueueLike {
   const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.queue.default')] as QueueLike | undefined
   if (!found) throw new CalderaError('no_queue', 'A queued listener needs a queue: add queueProvider() from @caldera/queue to the app.')
+  return found
+}
+
+interface BroadcasterLike {
+  broadcast(event: AnyEvent, payload: unknown, options: { toOthers: boolean }): Promise<unknown>
+}
+
+function broadcaster(event: AnyEvent): BroadcasterLike {
+  const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.broadcast.default')] as BroadcasterLike | undefined
+  if (!found) throw new CalderaError('no_broadcast', `"${event.name}" is a broadcast event, which needs broadcastProvider() from @caldera/broadcast in the app.`)
   return found
 }
 
