@@ -95,9 +95,10 @@ export function requestMiddleware(request: AnyRequest): NamedHandler[] {
     if (!schema) continue
     handlers.push({
       name: 'validate',
-      handler: validator(target, (value) => {
+      // Async, so schemas can check what needs awaiting (zfile() reads an upload's bytes).
+      handler: validator(target, async (value) => {
         const input = request.prepare ? request.prepare(value, target) : value
-        const result = (schema as Schema).safeParse(input)
+        const result = await (schema as Schema).safeParseAsync(input)
         if (!result.success) throw ValidationError.fromZod(result.error)
         return result.data as {}
       }) as MiddlewareHandler,
