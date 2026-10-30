@@ -1,0 +1,68 @@
+{
+  "name": "@caldera/mail",
+  "version": "0.0.0",
+  "description": "Caldera mail: React Email templates with typed props, sent now or queued, over Resend, Postmark, SES, SMTP and more.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ses": {
+      "types": "./dist/ses.d.ts",
+      "default": "./dist/ses.js"
+    },
+    "./smtp": {
+      "types": "./dist/smtp.d.ts",
+      "default": "./dist/smtp.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "aws4fetch": "^1.0.20",
+    "hono": "^4.13.0",
+    "nodemailer": ">=7.0.0",
+    "react": ">=19.0.0",
+    "react-dom": ">=19.0.0",
+    "zod": "^4.6.0"
+  },
+  "peerDependenciesMeta": {
+    "aws4fetch": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    },
+    "nodemailer": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@caldera/core": "workspace:*",
+    "@react-email/render": "2.1.1"
+  },
+  "devDependencies": {
+    "@caldera/queue": "workspace:*",
+    "@caldera/storage": "workspace:*",
+    "@hono/node-server": "^2.1.5",
+    "@react-email/components": "1.0.12",
+    "@types/nodemailer": "8.0.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "aws4fetch": "1.0.20",
+    "hono": "^4.13.14",
+    "nodemailer": "10.1.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
+  }
+}
