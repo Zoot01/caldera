@@ -17,6 +17,10 @@
     "./qstash": {
       "types": "./dist/qstash.d.ts",
       "default": "./dist/qstash.js"
+    },
+    "./database": {
+      "types": "./dist/database.d.ts",
+      "default": "./dist/database.js"
     }
   },
   "files": [
@@ -27,17 +31,25 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@caldera/db": "workspace:*",
     "@upstash/qstash": "^2.12.0",
     "bullmq": ">=5.0.0",
+    "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.0",
     "ioredis": ">=5.0.0",
     "zod": "^4.6.0"
   },
   "peerDependenciesMeta": {
+    "@caldera/db": {
+      "optional": true
+    },
     "@upstash/qstash": {
       "optional": true
     },
     "bullmq": {
+      "optional": true
+    },
+    "drizzle-orm": {
       "optional": true
     },
     "hono": {
@@ -55,6 +67,8 @@
     "@caldera/db": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@hono/node-server": "^2.1.5",
+    "@libsql/client": "0.18.0",
+    "@types/pg": "^8.15.0",
     "@upstash/qstash": "2.12.1",
     "@upstash/qstash-cli": "2.40.12",
     "bullmq": "6.5.1",
@@ -63,6 +77,7 @@
     "hono": "^4.13.14",
     "ioredis": "6.0.0",
     "miniflare": "4.20260730.0",
+    "pg": "8.23.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
   }

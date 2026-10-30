@@ -87,6 +87,7 @@ export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabili
 const HINTS = {
   bullmq: "It's in '@caldera/queue/bullmq': import { bullmqDriver } from it and pass `drivers: [bullmqDriver]`.",
   qstash: "It's in '@caldera/queue/qstash': import { qstashDriver } from it and pass `drivers: [qstashDriver]`.",
+  database: "It's in '@caldera/queue/database': import { databaseDriver } from it and pass `drivers: [databaseDriver]`.",
 }
 
 export interface Queue<N extends string = string> {
