@@ -37,6 +37,9 @@ describe('caldera generate', () => {
       ['.caldera/routes.gen.ts', 'created'],
       ['.caldera/.gitignore', 'created'],
     ])
+    const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
+    expect(register).toContain(`declare module '@caldera/db'`)
+    expect(register).toContain('    posts: typeof models0.default\n    users: typeof models1.User\n')
     const routes = readFileSync(join(root, '.caldera/routes.gen.ts'), 'utf8')
     expect(routes).toContain('export const router = createRouter(routes0.default, routes1.posts)')
     const barrel = readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')
@@ -52,6 +55,13 @@ describe('caldera generate', () => {
     await generate(openProject(root))
     const withRegister = typecheck(root)
     expect(withRegister.stdout + withRegister.stderr).toBe('')
+    expect(withRegister.status).toBe(0)
+
+    // Without the @caldera/db half, model queries lose their relational types.
+    const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
+    writeFileSync(join(root, '.caldera/register.d.ts'), register.slice(0, register.indexOf("\nimport type { relations }")))
+    expect(typecheck(root).stdout).toMatch(/type-checks\.ts\(\d+,\d+\): error/)
+    writeFileSync(join(root, '.caldera/register.d.ts'), register)
     expect(withRegister.status).toBe(0)
 
     // Keep the barrel but drop the Register augmentation: env becomes untyped again.

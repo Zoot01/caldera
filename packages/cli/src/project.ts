@@ -11,6 +11,8 @@ export const CONVENTIONS = {
   env: 'src/env.ts',
   configDir: 'src/config',
   routesDir: 'src/routes',
+  relations: 'src/db/relations.ts',
+  modelsDir: 'src/models',
   app: 'src/app.ts',
   generatedDir: '.caldera',
 } as const
@@ -57,6 +59,7 @@ export function sourceFiles(project: Project, dir: string): string[] {
 
 export const configFiles = (project: Project) => sourceFiles(project, CONVENTIONS.configDir)
 export const routeFiles = (project: Project) => sourceFiles(project, CONVENTIONS.routesDir)
+export const modelFiles = (project: Project) => sourceFiles(project, CONVENTIONS.modelsDir)
 
 /** Finds exported values tagged with a Caldera `kind`, e.g. `caldera.config`. */
 export function exportsOfKind<T>(module: Record<string, unknown>, kind: string): { exportName: string; value: T }[] {
