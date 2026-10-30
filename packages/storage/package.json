@@ -1,0 +1,55 @@
+{
+  "name": "@caldera/storage",
+  "version": "0.0.0",
+  "description": "Caldera file storage: disks on web types (memory, local, S3/R2/MinIO, R2 binding), signed URLs and safe upload validation.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./local": {
+      "types": "./dist/local.d.ts",
+      "default": "./dist/local.js"
+    },
+    "./s3": {
+      "types": "./dist/s3.d.ts",
+      "default": "./dist/s3.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "aws4fetch": "^1.0.20",
+    "hono": "^4.13.0",
+    "zod": "^4.6.0"
+  },
+  "peerDependenciesMeta": {
+    "aws4fetch": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@caldera/core": "workspace:*",
+    "file-type": "21.3.4"
+  },
+  "devDependencies": {
+    "@caldera/http": "workspace:*",
+    "aws4fetch": "1.0.20",
+    "esbuild": "0.28.2",
+    "hono": "^4.13.14",
+    "miniflare": "4.20260730.0",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
+  }
+}
