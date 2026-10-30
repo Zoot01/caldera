@@ -1,24 +1,33 @@
 import { defineCommand, runMain } from 'citty'
+import { askCreateOptions } from './ask.js'
 import { createProject, CreateError, type PackageManager } from './create.js'
+import { isInteractive, readlinePrompter } from './prompt.js'
 
 const main = defineCommand({
   meta: { name: 'create-caldera', description: 'Create a Caldera app' },
   args: {
-    directory: { type: 'positional', description: 'Folder to create', required: false, default: 'my-caldera-app' },
+    directory: { type: 'positional', description: 'Folder to create (asked for in a terminal; default my-caldera-app)', required: false },
     pm: { type: 'enum', options: ['pnpm', 'npm', 'yarn', 'bun'], description: 'Package manager (default: the one running this)' },
-    install: { type: 'boolean', description: 'Install dependencies (use --no-install to skip)', default: true },
+    install: { type: 'boolean', description: 'Install dependencies (use --no-install to skip)' },
     git: { type: 'boolean', description: 'Create a git repository (use --no-git to skip)', default: true },
     json: { type: 'boolean', description: 'Print machine-readable JSON (default when output is not a terminal)' },
     link: { type: 'string', description: 'Development: use @caldera/* packages from a local checkout' },
   },
-  run({ args }) {
+  async run({ args }) {
     const json = args.json ?? !process.stdout.isTTY
     try {
-      const result = createProject({
-        directory: args.directory,
-        install: args.install,
-        git: args.git,
+      const given = {
+        ...(args.directory ? { directory: args.directory as string } : {}),
         ...(args.pm ? { packageManager: args.pm as PackageManager } : {}),
+        ...(args.install !== undefined ? { install: args.install as boolean } : {}),
+      }
+      // A person at a terminal is asked for what's missing; CI and agents get defaults instead.
+      const chosen = !json && isInteractive() ? await askCreateOptions(readlinePrompter(), given) : given
+      const result = createProject({
+        directory: chosen.directory ?? 'my-caldera-app',
+        install: chosen.install ?? true,
+        git: args.git,
+        ...(chosen.packageManager ? { packageManager: chosen.packageManager } : {}),
         ...(args.link ? { link: args.link } : {}),
       })
       if (json) return void process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)

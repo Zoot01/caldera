@@ -59,12 +59,9 @@ export function createProject(options: CreateOptions): CreateResult {
   const name = packageName(basename(directory))
 
   // Validate before any side effect: nothing is ever deleted or merged into.
-  if (existsSync(directory) && (!statSync(directory).isDirectory() || readdirSync(directory).length > 0)) {
-    const suggestion = freeName(directory)
-    throw new CreateError('dir_not_empty', `${directory} already exists and isn't empty. Try \`${basename(suggestion)}\` instead.`, {
-      directory,
-      suggestion: basename(suggestion),
-    })
+  const suggestion = unavailable(directory)
+  if (suggestion) {
+    throw new CreateError('dir_not_empty', `${directory} already exists and isn't empty. Try \`${suggestion}\` instead.`, { directory, suggestion })
   }
   if (!existsSync(TEMPLATE)) throw new CreateError('template_missing', 'The bundled template is missing; reinstall create-caldera.')
 
@@ -190,6 +187,13 @@ function packageName(folder: string): string {
     .replace(/^[-._]+|-+$/g, '')
   if (!name) throw new CreateError('invalid_name', `Can't derive a package name from "${folder}".`)
   return name
+}
+
+/** A free sibling name when `directory` exists and isn't empty, otherwise undefined. */
+export function unavailable(directory: string): string | undefined {
+  const target = resolve(directory)
+  if (!existsSync(target) || (statSync(target).isDirectory() && readdirSync(target).length === 0)) return undefined
+  return basename(freeName(target))
 }
 
 function freeName(directory: string): string {
