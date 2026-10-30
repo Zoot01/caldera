@@ -42,7 +42,8 @@ function makeHttp(store: { driver: string; [k: string]: unknown }) {
   return { http: new Hono().use(app.middleware()).use(startSession()).route('/', router.app).onError(errorHandler({ report: () => {} })), router, api }
 }
 
-describe.each(backends)('limiters on $name', ({ store, setup }) => {
+// Database backends run the concurrency tests through real round trips (D1 through workerd), so they get time.
+describe.each(backends)('limiters on $name', { timeout: 20_000 }, ({ store, setup }) => {
   beforeAll(async () => {
     await setup?.()
   })
