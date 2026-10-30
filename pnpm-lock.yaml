@@ -330,6 +330,31 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/schedule:
+    dependencies:
+      '@caldera/core':
+        specifier: workspace:*
+        version: link:../core
+      '@caldera/queue':
+        specifier: workspace:*
+        version: link:../queue
+      croner:
+        specifier: 10.0.1
+        version: 10.0.1
+    devDependencies:
+      '@caldera/cache':
+        specifier: workspace:*
+        version: link:../cache
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
 packages:
 
   '@better-auth/core@1.7.14':
@@ -1185,6 +1210,10 @@ packages:
   cron-parser@5.10.2:
     resolution: {integrity: sha512-JfAYMY0LZaWQTuict8PhtF/ksSnq8xefSDmQUnnoqvkPYkU/y3UP0DTWzJKFBz0P1IXsDG8q0vY3zHkoFZOhvw==}
     engines: {node: '>=18'}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -2424,6 +2453,8 @@ snapshots:
   cron-parser@5.10.2:
     dependencies:
       luxon: 3.7.2
+
+  croner@10.0.1: {}
 
   csstype@3.2.3: {}
 

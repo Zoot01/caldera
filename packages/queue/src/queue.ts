@@ -21,6 +21,11 @@ export interface DispatchOptions<N extends string = string> {
   queue?: string
   /** A connection other than the default. */
   connection?: N
+  /**
+   * At most one job with this key queued or running, whatever the job's own `unique` says (the
+   * scheduler's `withoutOverlapping` uses it). Needs a store with locks.
+   */
+  unique?: { key: string; for: Duration }
 }
 
 export interface DispatchResult {
@@ -235,10 +240,14 @@ export function createQueue<const N extends string>(
   const dispatchEnvelope = async (job: AnyJob, envelope: Envelope, opts: DispatchOptions<N>): Promise<DispatchResult> => {
     register(job)
     const go = async (): Promise<DispatchResult> => {
-      if (job.unique && !fake) {
-        const key = `unique:${job.name}:${job.unique.key(job.payload.parse(envelope.payload))}`
-        if (!(await locks().add(key, envelope.id, job.unique.for))) return { id: envelope.id, dispatched: false }
-        envelope.uniqueKey = key
+      const unique = opts.unique
+        ? { key: `unique:${job.name}:${opts.unique.key}`, for: opts.unique.for }
+        : job.unique
+          ? { key: `unique:${job.name}:${job.unique.key(job.payload.parse(envelope.payload))}`, for: job.unique.for }
+          : undefined
+      if (unique && !fake) {
+        if (!(await locks().add(unique.key, envelope.id, unique.for))) return { id: envelope.id, dispatched: false }
+        envelope.uniqueKey = unique.key
       }
       await send(envelope, opts.delay === undefined ? 0 : parseDuration(opts.delay), opts.connection)
       return { id: envelope.id, dispatched: true }
