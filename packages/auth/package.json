@@ -17,6 +17,10 @@
     "./organization": {
       "types": "./dist/organization.d.ts",
       "default": "./dist/organization.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
     }
   },
   "files": [

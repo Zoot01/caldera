@@ -74,7 +74,7 @@ async function makeServer() {
     .use(app.middleware())
     .use(startSession())
     .route('/', authRoutes()).route('/', createRouter(me, posts).app).onError(errorHandler())
-  return { http, client }
+  return { http, client, app }
 }
 
 let server: Awaited<ReturnType<typeof makeServer>>
@@ -198,5 +198,24 @@ describe('trusted origins', () => {
     })
     await app.boot({ env: {} })
     expect(() => app.services.auth).toThrow(/differ from Caldera's/)
+  })
+})
+
+describe('sessionCookieFor (actingAs in @caldera/testing)', () => {
+  it('signs in as a user through Better Auth’s own sessions, without a password', async () => {
+    const { sessionCookieFor } = await import('../src/testing.js')
+    const { http, app } = await makeServer()
+    const signUp = await http.request(`${ORIGIN}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN },
+      body: JSON.stringify({ email: 'tess@example.test', password: 'correct horse battery', name: 'Tess' }),
+    })
+    const { user } = (await signUp.json()) as { user: { id: string } }
+    expect(await (await http.request(`${ORIGIN}/whoami`)).json()).toEqual({ user: null })
+    // The app's Better Auth instance, as setupApp(app).services.auth gives it.
+    const cookie = await sessionCookieFor(app.services.auth, user)
+    const res = await http.request(`${ORIGIN}/me`, { headers: { cookie: `${cookie.name}=${cookie.value}` } })
+    expect(await res.json()).toMatchObject({ email: 'tess@example.test' })
+    await expect(sessionCookieFor(app.services.auth, { id: '00000000-0000-0000-0000-000000000000' })).rejects.toThrow(/no user with id/)
   })
 })
