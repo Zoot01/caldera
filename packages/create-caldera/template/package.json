@@ -21,6 +21,7 @@
     "@caldera/http": "^0.0.0",
     "@caldera/inertia": "^0.0.0",
     "@caldera/mail": "^0.0.0",
+    "@caldera/notifications": "^0.0.0",
     "@caldera/queue": "^0.0.0",
     "@caldera/schedule": "^0.0.0",
     "@caldera/storage": "^0.0.0",

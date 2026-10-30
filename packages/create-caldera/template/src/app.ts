@@ -7,6 +7,8 @@ import { mailProvider } from '@caldera/mail'
 import { sesDriver } from '@caldera/mail/ses'
 import { smtpDriver } from '@caldera/mail/smtp'
 import { sessionProvider } from '@caldera/http'
+import { notificationsProvider } from '@caldera/notifications'
+import { databaseChannel } from '@caldera/notifications/database'
 import { queueProvider } from '@caldera/queue'
 import { bullmqDriver } from '@caldera/queue/bullmq'
 import { databaseDriver } from '@caldera/queue/database'
@@ -18,8 +20,10 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
 import { listeners } from '../.caldera/listeners.gen.js'
 import { mails } from '../.caldera/mails.gen.js'
+import { notifications } from '../.caldera/notifications.gen.js'
 import { schedules } from '../.caldera/schedules.gen.js'
 import { relations } from './db/relations.js'
+import { UserNotifiable } from './models/user.js'
 import { env } from './env.js'
 
 export const app = createApp({
@@ -42,5 +46,8 @@ export const app = createApp({
     storageProvider((app) => app.config.storage, { drivers: [localStorageDriver, s3StorageDriver] }),
     // Mailers in src/config/mail.ts; every mail in src/mail. c.var.mail, or `mail` from '@caldera/mail'.
     mailProvider((app) => app.config.mail, { mails, drivers: [sesDriver, smtpDriver] }),
+    // Every notification in src/notifications. `notify(user, Welcome, payload)`; `inbox(user)` reads
+    // the database channel (the caldera_notifications table).
+    notificationsProvider({ notifications, notifiable: UserNotifiable, channels: [databaseChannel()] }),
   ],
 })

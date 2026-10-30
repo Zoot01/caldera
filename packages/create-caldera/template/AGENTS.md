@@ -27,6 +27,7 @@ Pages get their data from the route that renders them: no API layer. A page's pr
 | Disks (local, public, s3) | `src/config/storage.ts` | |
 | Mail (React Email + `defineMail`) | `src/mail/*.tsx` | `caldera make:mail <Name>` |
 | Mailers (log, resend, postmark, ses, smtp) | `src/config/mail.ts` | |
+| Notifications (mail, database and custom channels) | `src/notifications/*.ts` | `caldera make:notification <Name>` |
 | Factories / seeders | `src/db/factories/`, `src/db/seeders/` | `caldera make:factory`, `caldera make:seeder` |
 
 Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). In production set `QUEUE_CONNECTION=database` (jobs in the `caldera_jobs` table, `src/db/tables/caldera-jobs.ts`) or `redis` (BullMQ, with `REDIS_URL`; the cache moves to Redis too), and run `pnpm worker` (`caldera queue:work`). Failed database jobs: `caldera queue:failed`, `queue:retry <id>|--all`, `queue:forget`. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.
@@ -36,6 +37,8 @@ Schedules run from `pnpm scheduler` (`caldera schedule:work`) on a server, or `*
 Files: `c.var.storage` is the default disk (`storage/app` here, S3 once `S3_BUCKET` is set); `storage.disk('public')` is served at `/storage`. Validate uploaded files with `zfile({ maxSize, mimes })` in `defineRequest` (it checks the bytes, not the client's type). For big files, or on Vercel (4.5MB request limit), upload straight to the bucket: define a kind in `src/uploads.ts` and use `useUpload()`. Store the result in a `zjson(fileRef)` column; `cleanupFiles('column')` in the model's hooks deletes replaced files. S3 buckets need CORS allowing PUT from your site for direct uploads.
 
 Mail: `await mail.to(user).send(WelcomeEmail, props)` sends now; `.queue(...)` queues it (it renders in the worker). Nothing is queued implicitly. `MAIL_MAILER=log` (the default) prints a line and keeps an outbox at `/_caldera/mail/outbox`; `/_caldera/mail` previews every mail with its `PreviewProps`. In tests, `app.services.mail.fake()` records mail for `assertSent`/`assertQueued`.
+
+Notifications: `await notify(user, Welcome, payload)` (from `@caldera/notifications`) sends one notification over each of its `channels`; `via()` picks channels per user. With `queue: true` each channel is its own job (a failed email retries alone), queued after the transaction commits. The `database` channel stores rows in `caldera_notifications` (`src/db/tables/caldera-notifications.ts`); read them with `inbox(user).list({ unread: true })`, `.unreadCount()`, `.markRead(ids)`. Inbox calls are scoped to that user, so ids from a request can't touch anyone else's. Send to an address without a user via `notify(route({ mail: 'ops@example.com' }), ...)`. Custom channels (Slack, SMS): `defineChannel`, passed in `channels` in `src/app.ts`. In tests, `app.services.notifications.fake()` records sends for `assertSentTo`.
 
 Security headers are on by default in `src/http.ts`, including a strict CSP: only scripts with this request's nonce run (and what they load). Page and Vite tags get the nonce automatically; any inline `<script>` you add in a custom `rootView` needs `nonce="${nonce}"`. Don't loosen `script-src`; add other directives with `securityHeaders({ csp: { imgSrc: [...] } })`.
 
