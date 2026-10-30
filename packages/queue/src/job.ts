@@ -63,6 +63,11 @@ export interface JobDefinition<P extends z.ZodType = z.ZodType> {
   readonly failed: JobOptions<P>['failed'] | undefined
   /** A payload bound to this job, for `chain([...])`. */
   with(payload: z.input<P>): PendingJob
+  /**
+   * This job as an event listener (`@caldera/events`): `listen(UserRegistered, SendWelcome.fromEvent((e) => ({ userId: e.userId })))`.
+   * Each emit dispatches the job with the mapped payload.
+   */
+  fromEvent<E>(map: (event: E) => z.input<P>): { readonly kind: 'caldera.queued-listener'; readonly job: JobDefinition<P>; map(payload: unknown): unknown }
 }
 
 export type AnyJob = JobDefinition<any>
@@ -94,6 +99,7 @@ export function defineJob<P extends z.ZodType>(options: JobOptions<P>): JobDefin
     handle: options.handle,
     failed: options.failed,
     with: (payload) => ({ job, payload }),
+    fromEvent: (map) => ({ kind: 'caldera.queued-listener', job, map: map as (payload: unknown) => unknown }),
   }
   return job
 }
