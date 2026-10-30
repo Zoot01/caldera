@@ -1,0 +1,9 @@
+{
+  "validation_failed": "Die übermittelten Daten sind ungültig.",
+  "not_found": "Nicht gefunden.",
+  "unauthenticated": "Sie müssen sich anmelden, um das zu tun.",
+  "forbidden": "Sie dürfen das nicht tun.",
+  "rate_limited": "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
+  "bad_request": "Die Anfrage konnte nicht verstanden werden.",
+  "server_error": "Etwas ist schiefgelaufen."
+}

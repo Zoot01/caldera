@@ -1,0 +1,9 @@
+{
+  "validation_failed": "The given data was invalid.",
+  "not_found": "Not found.",
+  "unauthenticated": "You need to sign in to do that.",
+  "forbidden": "You are not allowed to do that.",
+  "rate_limited": "Too many requests. Try again later.",
+  "bad_request": "The request could not be understood.",
+  "server_error": "Something went wrong."
+}

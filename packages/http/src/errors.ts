@@ -105,6 +105,28 @@ export interface ErrorHandlerOptions {
   loginUrl?: string | ((c: Context) => string)
 }
 
+/** The messages Caldera's own errors use; with @caldera/i18n these come from `errors.<code>` instead. */
+const DEFAULT_MESSAGES: Record<string, string> = {
+  validation_failed: 'The given data was invalid.',
+  not_found: 'Not found.',
+  unauthenticated: 'You need to sign in to do that.',
+  forbidden: 'You are not allowed to do that.',
+  rate_limited: 'Too many requests. Try again later.',
+  bad_request: 'The request could not be understood.',
+  server_error: 'Something went wrong.',
+}
+
+/** A default message in the request's locale. Messages an app wrote itself are left as they are. */
+function localized(c: Context, code: string, message: string): string {
+  if (DEFAULT_MESSAGES[code] !== message) return message
+  const i18n = (c.var as { i18n?: { errorMessage?: (code: string) => string | undefined } }).i18n
+  try {
+    return i18n?.errorMessage?.(code) ?? message
+  } catch {
+    return message
+  }
+}
+
 export function requestIdOf(c: Context): string {
   const fromVar = (c.var as { requestId?: unknown }).requestId
   if (typeof fromVar === 'string') return fromVar
@@ -131,10 +153,11 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
     }
     if (!known) report(error, c)
     const status = known?.status ?? 500
+    const code = known?.code ?? 'server_error'
     const body: ErrorBody = {
       error: {
-        code: known?.code ?? 'server_error',
-        message: known?.message ?? 'Something went wrong.',
+        code,
+        message: localized(c, code, known?.message ?? DEFAULT_MESSAGES.server_error!),
         status,
         ...(known?.fields ? { fields: known.fields } : {}),
         ...(known instanceof TooManyRequestsError ? { retryAfter: known.retryAfter } : {}),
@@ -194,7 +217,7 @@ async function validationRedirect(c: Context, error: ValidationError): Promise<R
 /** Use as `app.notFound(notFoundHandler())` so unmatched routes use the envelope too. */
 export function notFoundHandler(): NotFoundHandler {
   return (c) => {
-    const body: ErrorBody = { error: { code: 'not_found', message: 'Not found.', status: 404, requestId: requestIdOf(c) } }
+    const body: ErrorBody = { error: { code: 'not_found', message: localized(c, 'not_found', DEFAULT_MESSAGES.not_found!), status: 404, requestId: requestIdOf(c) } }
     return c.json(body, 404)
   }
 }

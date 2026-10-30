@@ -50,7 +50,7 @@ export interface RootViewContext {
 
 export interface InertiaOptions<S extends Record<string, unknown> = Record<string, unknown>> {
   /** Props every page gets, e.g. the signed-in user. Functions inside are only called when sent. */
-  share?: (c: Context) => S | Promise<S>
+  share?: (c: Context, page: { component: string }) => S | Promise<S>
   /** Script and style tags from `viteAssets()`; also sets the asset version. */
   assets?: ViteAssets
   /** Overrides the version from `assets`. A mismatch makes the client do a full reload. */
@@ -146,7 +146,7 @@ async function render(c: Context, options: InertiaOptions, version: string | nul
   const partial = c.req.header('x-inertia-partial-component') === component
   const only = partial ? listHeader(c, 'x-inertia-partial-data') : undefined
   const except = partial ? listHeader(c, 'x-inertia-partial-except') : undefined
-  const shared = (await options.share?.(c)) ?? {}
+  const shared = (await options.share?.(c, { component })) ?? {}
   const sessionStarted = isSessionStarted(c)
 
   const deferred: Record<string, string[]> = {}
@@ -245,9 +245,27 @@ export function serializePage(page: PageObject): string {
   return JSON.stringify(page).replaceAll('<', '\\u003c').replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029')
 }
 
+/** `lang` (and `dir` for right-to-left scripts) from @caldera/i18n's locale, matched by shape; `en` without it. */
+export function htmlLang(c: Context): string {
+  let locale = 'en'
+  try {
+    locale = (c.var as { i18n?: { locale?: string } }).i18n?.locale ?? 'en'
+  } catch {
+    locale = 'en'
+  }
+  let dir = 'ltr'
+  try {
+    const info = new Intl.Locale(locale) as Intl.Locale & { getTextInfo?(): { direction?: string }; textInfo?: { direction?: string } }
+    dir = (info.getTextInfo?.() ?? info.textInfo)?.direction ?? 'ltr'
+  } catch {
+    dir = 'ltr'
+  }
+  return `lang="${escapeAttribute(locale)}"${dir === 'rtl' ? ' dir="rtl"' : ''}`
+}
+
 function defaultRootView(title = 'Caldera') {
-  return ({ page, assets }: RootViewContext) => `<!doctype html>
-<html lang="en">
+  return ({ page, assets, c }: RootViewContext) => `<!doctype html>
+<html ${htmlLang(c)}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

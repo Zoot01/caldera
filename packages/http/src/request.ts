@@ -96,9 +96,11 @@ export function requestMiddleware(request: AnyRequest): NamedHandler[] {
     handlers.push({
       name: 'validate',
       // Async, so schemas can check what needs awaiting (zfile() reads an upload's bytes).
-      handler: validator(target, async (value) => {
+      handler: validator(target, async (value, c) => {
         const input = request.prepare ? request.prepare(value, target) : value
-        const result = await (schema as Schema).safeParseAsync(input)
+        // With @caldera/i18n, messages come in the request's locale (matched by shape, no dependency).
+        const zodError = (c.var as { i18n?: { zodError?: (issue: unknown) => string | undefined } }).i18n?.zodError
+        const result = await (schema as Schema).safeParseAsync(input, zodError ? { error: zodError as never } : undefined)
         if (!result.success) throw ValidationError.fromZod(result.error)
         return result.data as {}
       }) as MiddlewareHandler,

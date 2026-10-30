@@ -1,0 +1,9 @@
+{
+  "validation_failed": "Les données fournies ne sont pas valides.",
+  "not_found": "Introuvable.",
+  "unauthenticated": "Vous devez vous connecter pour faire cela.",
+  "forbidden": "Vous n’êtes pas autorisé à faire cela.",
+  "rate_limited": "Trop de requêtes. Réessayez plus tard.",
+  "bad_request": "La requête n’a pas pu être comprise.",
+  "server_error": "Une erreur est survenue."
+}

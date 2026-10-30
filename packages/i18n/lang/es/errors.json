@@ -1,0 +1,9 @@
+{
+  "validation_failed": "Los datos proporcionados no son válidos.",
+  "not_found": "No encontrado.",
+  "unauthenticated": "Debes iniciar sesión para hacer eso.",
+  "forbidden": "No tienes permiso para hacer eso.",
+  "rate_limited": "Demasiadas solicitudes. Inténtalo más tarde.",
+  "bad_request": "No se pudo entender la solicitud.",
+  "server_error": "Algo salió mal."
+}

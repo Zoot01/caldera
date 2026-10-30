@@ -1,4 +1,4 @@
-export { defineInertia, location, serializePage } from './inertia.js'
+export { defineInertia, htmlLang, location, serializePage } from './inertia.js'
 export type {
   InertiaDefinition,
   InertiaOptions,
