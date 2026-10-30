@@ -14,6 +14,8 @@ export interface SsrRenderer {
   prepare?(): Promise<unknown>
   /** Milliseconds before giving up and rendering on the client. Default 2000. */
   readonly timeout?: number
+  /** Pages that always render in the browser, by component name. */
+  skips?(component: string): boolean
 }
 
 const RENDER = Symbol.for('caldera.inertia.ssr')
@@ -42,7 +44,16 @@ const warnOnce = (message: string) => {
  * - a bundled deployment passes the render function to `setSsrRender()`.
  * Whatever fails, the page still renders: on the client, as without SSR.
  */
-export function viteSsr(options: { bundle?: string; hotFile?: string; timeout?: number } = {}): SsrRenderer {
+export function viteSsr(
+  options: {
+    bundle?: string
+    hotFile?: string
+    timeout?: number
+    /** Components never rendered on the server: names or patterns with `*` (`Admin/*`, `Places/Map`), for pages using browser-only code. */
+    except?: readonly string[]
+  } = {},
+): SsrRenderer {
+  const except = (options.except ?? []).map((pattern) => new RegExp(`^${pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`))
   const bundle = options.bundle ?? 'build/ssr/ssr.js'
   let loaded: Promise<RenderPage | null> | undefined
 
@@ -64,6 +75,7 @@ export function viteSsr(options: { bundle?: string; hotFile?: string; timeout?: 
 
   return {
     ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+    skips: (component) => except.some((pattern) => pattern.test(component)),
     async prepare() {
       const provided = (globalThis as { [key: symbol]: unknown })[RENDER]
       if (provided || isTestRun() || (await devServerUrl(options.hotFile))) return
@@ -89,6 +101,7 @@ export function viteSsr(options: { bundle?: string; hotFile?: string; timeout?: 
 
 /** Runs the renderer with its timeout; any failure is logged and means client rendering. */
 export async function renderOnServer(renderer: SsrRenderer, page: PageObject): Promise<SsrResult | null> {
+  if (renderer.skips?.(page.component)) return null
   const timeout = renderer.timeout ?? 2000
   let timer: ReturnType<typeof setTimeout> | undefined
   try {

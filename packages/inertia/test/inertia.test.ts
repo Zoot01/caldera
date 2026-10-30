@@ -6,7 +6,7 @@ import { back, errorHandler, redirect, sessionOf, sessionProvider, startSession,
 import { Hono } from 'hono'
 import { secureHeaders, NONCE } from 'hono/secure-headers'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { always, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps } from '../src/index.js'
+import { always, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps, type SsrRenderer } from '../src/index.js'
 
 // What `caldera generate` writes from resources/pages and src/inertia.ts.
 declare module '../src/inertia.js' {
@@ -327,5 +327,33 @@ describe('server-side rendering, cold start', () => {
       },
     })
     expect(await (await http.request('/home')).text()).toContain('<div data-server-rendered="true" id="app">Home</div>')
+  })
+})
+
+describe('server-side rendering, opting pages out', () => {
+  it('skips the server for c.render(…, { ssr: false }) and for viteSsr({ except }) patterns, quietly', async () => {
+    const { viteSsr } = await import('../src/index.js')
+    const seen: string[] = []
+    const renderer = { render: async (page: { component: string }) => (seen.push(page.component), { head: [], body: `<div data-server-rendered="true" id="app">${page.component}</div>` }) }
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const app = createApp({ env: defineEnv({}), providers: [sessionProvider(() => ({ keys: [KEY] }))] })
+    const http = (ssr: SsrRenderer) =>
+      new Hono()
+        .use(app.middleware())
+        .use(startSession())
+        .use(defineInertia({ version: 'v1', ssr }).middleware())
+        .get('/home', (c) => c.render('Home', { greeting: 'hi' }))
+        .get('/map', (c) => c.render('Places/Map' as never, {} as never, { ssr: false }))
+        .get('/admin', (c) => c.render('Admin/Users' as never, {} as never))
+    const withRenderer = http(renderer)
+    expect(await (await withRenderer.request('/home')).text()).toContain('data-server-rendered')
+    expect(await (await withRenderer.request('/map')).text()).toContain('<div id="app"></div>')
+    expect(seen).toEqual(['Home'])
+    // Patterns, on viteSsr (here with a render function supplied, as bundled deployments do).
+    const patterned = viteSsr({ except: ['Admin/*', '*/Map'] })
+    expect([patterned.skips!('Admin/Users'), patterned.skips!('Places/Map'), patterned.skips!('Home'), patterned.skips!('Administration')]).toEqual([true, true, false, false])
+    expect(await (await http(patterned).request('/admin')).text()).toContain('<div id="app"></div>')
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
   })
 })

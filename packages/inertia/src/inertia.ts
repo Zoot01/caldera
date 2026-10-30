@@ -38,6 +38,8 @@ export interface RenderOptions {
   clearHistory?: boolean
   /** Encrypt this page's history state in the browser. */
   encryptHistory?: boolean
+  /** `false`: render this page in the browser only (it uses browser-only code: maps, charts, editors). */
+  ssr?: boolean
 }
 
 export interface RootViewContext {
@@ -178,7 +180,7 @@ async function render(c: Context, options: InertiaOptions, version: string | nul
     return c.json(page, 200, { 'x-inertia': 'true' })
   }
   const nonce = (c.var as { secureHeadersNonce?: string }).secureHeadersNonce
-  const [assets, ssr] = await Promise.all([options.assets ? options.assets.tags(nonce) : '', options.ssr ? renderOnServer(options.ssr, page) : null])
+  const [assets, ssr] = await Promise.all([options.assets ? options.assets.tags(nonce) : '', options.ssr && renderOptions.ssr !== false ? renderOnServer(options.ssr, page) : null])
   const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c, ssr })
   return c.html(html)
 }
