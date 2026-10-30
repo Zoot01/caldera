@@ -47,44 +47,56 @@ function matches(entry: string, found: Sniffed): boolean {
 }
 
 /**
+ * The checks zfile() runs, on the first bytes of a file and its total size, so they also apply to
+ * a file already in a bucket (the upload flow reads its first 64KB with a range request).
+ */
+export async function inspectFile(head: Uint8Array, size: number, options: ZFileOptions = {}): Promise<{ ok: true; detected: DetectedFile } | { ok: false; message: string }> {
+  const max = options.maxSize === undefined ? undefined : parseSize(options.maxSize)
+  const min = options.minSize === undefined ? undefined : parseSize(options.minSize)
+  const allow = new Set(options.allow ?? [])
+  const refuse = (message: string) => ({ ok: false as const, message })
+  if (max !== undefined && size > max) return refuse(`The file is ${human(size)}; the limit is ${human(max)}.`)
+  if (min !== undefined && size < min) return refuse(`The file must be at least ${human(min)}.`)
+  if (size === 0) return refuse('The file is empty.')
+  const found = await sniff(head)
+  const kind = !found ? undefined : found.ext === 'svg' ? 'svg' : found.mime === 'text/html' ? 'html' : EXECUTABLES.has(found.ext) ? 'executable' : undefined
+  if (kind && !allow.has(kind)) return refuse(kind === 'executable' ? 'Programs can’t be uploaded.' : `${kind.toUpperCase()} files can’t be uploaded.`)
+  if (options.mimes && (!found || !options.mimes.some((m) => matches(m, found)))) return refuse(`The file must be ${options.mimes.join(', ')}${found ? ` (it is ${found.ext})` : ''}.`)
+  if (!found) return refuse('The file type couldn’t be recognised.')
+  const detected: DetectedFile = { mime: found.mime, ext: found.ext }
+  if (options.image) {
+    const dimensions = imageSize(head, found.mime)
+    if (!dimensions) return refuse('The file must be an image (PNG, JPEG, GIF or WebP).')
+    const { maxWidth, maxHeight, minWidth, minHeight } = options.image
+    if ((maxWidth && dimensions.width > maxWidth) || (maxHeight && dimensions.height > maxHeight)) {
+      return refuse(`The image is ${dimensions.width}×${dimensions.height}; the limit is ${maxWidth ?? '∞'}×${maxHeight ?? '∞'}.`)
+    }
+    if ((minWidth && dimensions.width < minWidth) || (minHeight && dimensions.height < minHeight)) {
+      return refuse(`The image is ${dimensions.width}×${dimensions.height}; it must be at least ${minWidth ?? 0}×${minHeight ?? 0}.`)
+    }
+    Object.assign(detected, dimensions)
+  }
+  return { ok: true, detected }
+}
+
+/** Bytes read from the start of a file for inspection: enough for every signature file-type knows. */
+export const INSPECT_BYTES = 64 * 1024
+
+/**
  * A Zod schema for an uploaded `File` that trusts the bytes, never the client: the type is sniffed
  * from magic numbers, sizes are measured, image dimensions are read from the header. SVG, HTML and
  * executables are refused unless `allow`ed. The parsed value is the same File, with `detected`.
  * Async: parse with `safeParseAsync` (`defineRequest` does).
  */
 export function zfile(options: ZFileOptions = {}): z.ZodType<ValidatedFile, File> {
-  const max = options.maxSize === undefined ? undefined : parseSize(options.maxSize)
-  const min = options.minSize === undefined ? undefined : parseSize(options.minSize)
-  const allow = new Set(options.allow ?? [])
+  // Fail on a bad size string when the schema is defined, not on the first upload.
+  if (options.maxSize !== undefined) parseSize(options.maxSize)
+  if (options.minSize !== undefined) parseSize(options.minSize)
   return z
     .instanceof(File, { message: 'Upload a file.' })
     .superRefine(async (file, ctx) => {
-      if (max !== undefined && file.size > max) return void ctx.addIssue({ code: 'custom', message: `The file is ${human(file.size)}; the limit is ${human(max)}.` })
-      if (min !== undefined && file.size < min) return void ctx.addIssue({ code: 'custom', message: `The file must be at least ${human(min)}.` })
-      if (file.size === 0) return void ctx.addIssue({ code: 'custom', message: 'The file is empty.' })
-      const head = new Uint8Array(await file.slice(0, 64 * 1024).arrayBuffer())
-      const found = await sniff(head)
-      const kind = !found ? undefined : found.ext === 'svg' ? 'svg' : found.mime === 'text/html' ? 'html' : EXECUTABLES.has(found.ext) ? 'executable' : undefined
-      if (kind && !allow.has(kind)) {
-        return void ctx.addIssue({ code: 'custom', message: kind === 'executable' ? 'Programs can’t be uploaded.' : `${kind.toUpperCase()} files can’t be uploaded.` })
-      }
-      if (options.mimes && (!found || !options.mimes.some((m) => matches(m, found)))) {
-        return void ctx.addIssue({ code: 'custom', message: `The file must be ${options.mimes.join(', ')}${found ? ` (it is ${found.ext})` : ''}.` })
-      }
-      if (!found && !options.mimes) return void ctx.addIssue({ code: 'custom', message: 'The file type couldn’t be recognised.' })
-      const detected: DetectedFile = { mime: found!.mime, ext: found!.ext }
-      if (options.image) {
-        const size = imageSize(head, found!.mime)
-        if (!size) return void ctx.addIssue({ code: 'custom', message: 'The file must be an image (PNG, JPEG, GIF or WebP).' })
-        const { maxWidth, maxHeight, minWidth, minHeight } = options.image
-        if ((maxWidth && size.width > maxWidth) || (maxHeight && size.height > maxHeight)) {
-          return void ctx.addIssue({ code: 'custom', message: `The image is ${size.width}×${size.height}; the limit is ${maxWidth ?? '∞'}×${maxHeight ?? '∞'}.` })
-        }
-        if ((minWidth && size.width < minWidth) || (minHeight && size.height < minHeight)) {
-          return void ctx.addIssue({ code: 'custom', message: `The image is ${size.width}×${size.height}; it must be at least ${minWidth ?? 0}×${minHeight ?? 0}.` })
-        }
-        Object.assign(detected, size)
-      }
-      Object.defineProperty(file, 'detected', { value: detected, enumerable: false, configurable: true })
+      const result = await inspectFile(new Uint8Array(await file.slice(0, INSPECT_BYTES).arrayBuffer()), file.size, options)
+      if (!result.ok) return void ctx.addIssue({ code: 'custom', message: result.message })
+      Object.defineProperty(file, 'detected', { value: result.detected, enumerable: false, configurable: true })
     }) as unknown as z.ZodType<ValidatedFile, File>
 }

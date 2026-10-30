@@ -17,6 +17,10 @@
     "./s3": {
       "types": "./dist/s3.d.ts",
       "default": "./dist/s3.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
     }
   },
   "files": [
@@ -29,6 +33,7 @@
   "peerDependencies": {
     "aws4fetch": "^1.0.20",
     "hono": "^4.13.0",
+    "react": ">=19.0.0",
     "zod": "^4.6.0"
   },
   "peerDependenciesMeta": {
@@ -37,6 +42,9 @@
     },
     "hono": {
       "optional": true
+    },
+    "react": {
+      "optional": true
     }
   },
   "dependencies": {
@@ -44,11 +52,17 @@
     "file-type": "21.3.4"
   },
   "devDependencies": {
+    "@caldera/db": "workspace:*",
     "@caldera/http": "workspace:*",
+    "@electric-sql/pglite": "0.5.13",
+    "@libsql/client": "0.18.0",
+    "@types/react": "19.3.0",
     "aws4fetch": "1.0.20",
+    "drizzle-orm": "1.0.0-rc.5",
     "esbuild": "0.28.2",
     "hono": "^4.13.14",
     "miniflare": "4.20260730.0",
+    "react": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
   }

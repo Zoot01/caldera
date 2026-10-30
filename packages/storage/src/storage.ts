@@ -1,5 +1,6 @@
 import { CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
 import { createDisk, type Disk } from './disk.js'
+import { setDefaultStorage } from './files.js'
 import type { StorageCapabilities, StorageDriver } from './driver.js'
 import { memoryStorage, memoryStorageDriver } from './memory.js'
 import { r2StorageDriver } from './r2.js'
@@ -98,7 +99,11 @@ export function storageProvider<const N extends string>(
 ) {
   return defineProvider({
     name: 'storage',
-    register: (app) => ({ storage: createStorage(resolve(app), options) }),
+    register: (app) => {
+      const storage = createStorage(resolve(app), options)
+      setDefaultStorage(storage)
+      return { storage }
+    },
     shutdown: async ({ services }) => {
       await services.storage.manager.purge()
     },
