@@ -45,6 +45,7 @@
     "@caldera/cli": "^0.0.0",
     "@caldera/testing": "^0.0.0",
     "@inertiajs/vite": "^3.9.1",
+    "@react-email/tailwind": "^2.0.7",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",
