@@ -8,6 +8,9 @@ import { queueProvider } from '@caldera/queue'
 import { bullmqDriver } from '@caldera/queue/bullmq'
 import { databaseDriver } from '@caldera/queue/database'
 import { scheduleProvider } from '@caldera/schedule'
+import { storageProvider } from '@caldera/storage'
+import { localStorageDriver } from '@caldera/storage/local'
+import { s3StorageDriver } from '@caldera/storage/s3'
 import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
 import { listeners } from '../.caldera/listeners.gen.js'
@@ -31,5 +34,7 @@ export const app = createApp({
     eventsProvider({ listeners }),
     // Every schedule in src/schedules. `pnpm scheduler` runs them locally; see AGENTS.md for platforms.
     scheduleProvider({ schedules }),
+    // Disks in src/config/storage.ts: c.var.storage, storage.disk('public').
+    storageProvider((app) => app.config.storage, { drivers: [localStorageDriver, s3StorageDriver] }),
   ],
 })
