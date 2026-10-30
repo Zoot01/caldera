@@ -97,9 +97,41 @@ export function authenticate(options: { required?: boolean } = {}): MiddlewareHa
   }
 }
 
-/** Mounts Better Auth's endpoints (sign-up, sign-in, OAuth callbacks…) under `basePath`. */
+/**
+ * Mounts Better Auth's endpoints (sign-up, sign-in, OAuth callbacks…) under `basePath`. With
+ * Caldera's app session (`startSession()` from `@caldera/http`), signing in regenerates it and
+ * signing out clears it, so flash data and remembered pages don't carry across users.
+ */
 export function authRoutes(basePath = '/api/auth'): Hono {
-  return new Hono().on(['GET', 'POST'], `${basePath.replace(/\/$/, '')}/*`, (c: Context) => (c.var as unknown as AuthVars).auth.handler(c.req.raw))
+  return new Hono().on(['GET', 'POST'], `${basePath.replace(/\/$/, '')}/*`, async (c: Context) => {
+    const response = await (c.var as unknown as AuthVars).auth.handler(c.req.raw)
+    syncAppSession(c, response)
+    return response
+  })
+}
+
+interface AppSession {
+  regenerate(): void
+  invalidate(): void
+}
+
+/**
+ * Reads the outcome from Better Auth's own session cookie, so every way of signing in (password,
+ * OAuth callbacks, magic links, plugins) is covered without hooking each endpoint.
+ */
+function syncAppSession(c: Context, response: Response) {
+  const token = response.headers.getSetCookie().find((cookie) => /^(?:__Secure-|__Host-)?[^=]*session_token=/.test(cookie))
+  if (!token) return
+  const value = token.slice(token.indexOf('=') + 1).split(';')[0]
+  const cleared = value === '' || /;\s*max-age=0/i.test(token)
+  try {
+    const session = (c.var as { session?: AppSession }).session
+    if (cleared) session?.invalidate()
+    else session?.regenerate()
+  } catch (error) {
+    // No app session in this app (startSession() isn't installed): nothing to keep in step.
+    if (!(error instanceof CalderaError && error.code === 'session_not_started')) throw error
+  }
 }
 
 function assertSameOrigins(expected: string[], actual: unknown) {

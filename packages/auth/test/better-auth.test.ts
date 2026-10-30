@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { createApp, defineEnv, type HonoEnvOf } from '@caldera/core'
 import { databaseProvider, type Row } from '@caldera/db'
-import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, type ErrorBody } from '@caldera/http'
+import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, sessionProvider, startSession, type ErrorBody } from '@caldera/http'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -36,6 +36,7 @@ function makeApp(client: PGlite) {
           }),
       }),
       authorizationProvider(),
+      sessionProvider(() => ({ keys: ['app-key-0123456789-0123456789-01234'] })),
     ],
   })
 }
@@ -58,6 +59,11 @@ async function makeServer() {
       return c.json({ email: c.var.user!.email, plan: c.var.user!.plan })
     })
     .get('optional', '/whoami', { middleware: [mw.auth({ required: false })] }, (c) => c.json({ user: c.var.user?.email ?? null }))
+    .post('remember', '/remember', (c) => {
+      c.var.session.put('cart', ['book'])
+      return c.json({ ok: true })
+    })
+    .get('recall', '/recall', (c) => c.json({ cart: c.var.session.get('cart') ?? null }))
   const posts = defineRoutes('posts').post('store', '/posts', { middleware: [mw.auth()], authorize: allows(Post, 'create') }, async (c) => {
     const post = await Post.create({ slug: `p-${Date.now()}`, authorId: c.var.user!.id })
     return c.json({ id: post.id }, 201)
@@ -66,6 +72,7 @@ async function makeServer() {
   const http = new Hono<HonoEnvOf<typeof app>>()
     .use(originCheck({ trustedOrigins: TRUSTED }))
     .use(app.middleware())
+    .use(startSession())
     .route('/', authRoutes()).route('/', createRouter(me, posts).app).onError(errorHandler())
   return { http, client }
 }
@@ -121,6 +128,41 @@ describe('Better Auth integration', () => {
     const other = await signUp('bob@example.test')
     await server.client.query(`delete from users where email = 'bob@example.test'`)
     expect((await call('GET', '/me', { cookie: other })).status).toBe(401)
+  })
+})
+
+describe('the app session', () => {
+  /** Keeps both cookies, like a browser. */
+  function jar() {
+    const cookies = new Map<string, string>()
+    return async (method: string, path: string, body?: unknown) => {
+      const headers: Record<string, string> = { origin: ORIGIN, cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join('; ') }
+      if (body) headers['content-type'] = 'application/json'
+      const res = await server.http.request(`${ORIGIN}${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) }, {})
+      for (const cookie of res.headers.getSetCookie()) {
+        const [pair] = cookie.split(';')
+        const [name, value] = [pair!.slice(0, pair!.indexOf('=')), pair!.slice(pair!.indexOf('=') + 1)]
+        if (value === '' || /max-age=0/i.test(cookie)) cookies.delete(name)
+        else cookies.set(name, value)
+      }
+      return { res, json: async () => (await res.json()) as Record<string, unknown>, appCookie: () => cookies.get('caldera_session') }
+    }
+  }
+
+  it('is reissued on sign-in and cleared on sign-out', async () => {
+    const send = jar()
+    await send('POST', '/remember')
+    const before = (await send('GET', '/recall')).appCookie()
+    const signedUp = await send('POST', '/api/auth/sign-up/email', { name: 'Ann', email: 'ann@example.test', password: 'correct-horse-battery' })
+    expect(signedUp.res.status).toBe(200)
+    // A fresh cookie value, same data: nothing from before sign-in is lost.
+    expect(signedUp.appCookie()).not.toBe(before)
+    expect(await (await send('GET', '/recall')).json()).toEqual({ cart: ['book'] })
+
+    const signedOut = await send('POST', '/api/auth/sign-out', {})
+    expect(signedOut.res.status).toBe(200)
+    expect(signedOut.appCookie()).toBeUndefined()
+    expect(await (await send('GET', '/recall')).json()).toEqual({ cart: null })
   })
 })
 
