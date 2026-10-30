@@ -3,3 +3,4 @@ import { app } from './app.js'
 
 export const port: number = app.config.site.port
 export const url: string = app.config.database.url
+export { postUrl } from './server.js'

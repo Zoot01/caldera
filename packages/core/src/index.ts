@@ -25,9 +25,11 @@ export type {
   LifecycleContext,
   ProviderDefinition,
   RegisterContext,
+  RequestFactories,
   RequestServicesOf,
+  ServicesFrom,
   ServicesOf,
   Singleton,
   UnionToIntersection,
 } from './provider.js'
-export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv } from './register.js'
+export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv, RegisteredHonoEnv } from './register.js'

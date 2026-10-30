@@ -4,6 +4,7 @@ import type { UnionToIntersection } from '@caldera/core'
 import type { AnyRouteGroup, RouteRecord } from './routes.js'
 
 type SchemaOf<G> = G extends { app: Hono<any, infer S> } ? S : never
+type EnvOf<Groups extends readonly AnyRouteGroup[]> = Groups[number] extends { app: Hono<infer E, any> } ? E : Env
 type NamesOf<G> = G extends { names: infer N } ? N : never
 
 export type RouteNames<Groups extends readonly AnyRouteGroup[]> = UnionToIntersection<NamesOf<Groups[number]>>
@@ -29,10 +30,10 @@ export interface Router<E extends Env, S extends Schema, Names> {
 }
 
 /** Combines route groups. Throws if two groups define the same route name. */
-export function createRouter<E extends Env, const Groups extends readonly AnyRouteGroup[]>(
+export function createRouter<const Groups extends readonly AnyRouteGroup[]>(
   ...groups: Groups
-): Router<E, MergedSchema<Groups>, RouteNames<Groups>> {
-  const app = new Hono<E>()
+): Router<EnvOf<Groups>, MergedSchema<Groups>, RouteNames<Groups>> {
+  const app = new Hono()
   const patterns = new Map<string, string>()
   for (const group of groups) {
     for (const route of group.routes) {

@@ -10,6 +10,7 @@ import { CalderaError } from '@caldera/core'
 export const CONVENTIONS = {
   env: 'src/env.ts',
   configDir: 'src/config',
+  routesDir: 'src/routes',
   app: 'src/app.ts',
   generatedDir: '.caldera',
 } as const
@@ -44,15 +45,18 @@ export function openProject(root: string = process.cwd()): Project {
   }
 }
 
-/** Config files in `src/config`, sorted so generated output is stable. */
-export function configFiles(project: Project): string[] {
-  const dir = project.path(CONVENTIONS.configDir)
-  if (!existsSync(dir)) return []
-  return readdirSync(dir)
+/** TypeScript files directly inside a convention directory, sorted so generated output is stable. */
+export function sourceFiles(project: Project, dir: string): string[] {
+  const absolute = project.path(dir)
+  if (!existsSync(absolute)) return []
+  return readdirSync(absolute)
     .filter((file) => file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
     .sort()
-    .map((file) => `${CONVENTIONS.configDir}/${file}`)
+    .map((file) => `${dir}/${file}`)
 }
+
+export const configFiles = (project: Project) => sourceFiles(project, CONVENTIONS.configDir)
+export const routeFiles = (project: Project) => sourceFiles(project, CONVENTIONS.routesDir)
 
 /** Finds exported values tagged with a Caldera `kind`, e.g. `caldera.config`. */
 export function exportsOfKind<T>(module: Record<string, unknown>, kind: string): { exportName: string; value: T }[] {

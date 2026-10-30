@@ -3,7 +3,7 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeProject, generate, openProject } from '../src/index.js'
+import { describeProject, generate, listRoutes, openProject } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -34,8 +34,11 @@ describe('caldera generate', () => {
     expect(result.files.map((f) => [f.path, f.status])).toEqual([
       ['.caldera/config.gen.ts', 'created'],
       ['.caldera/register.d.ts', 'created'],
+      ['.caldera/routes.gen.ts', 'created'],
       ['.caldera/.gitignore', 'created'],
     ])
+    const routes = readFileSync(join(root, '.caldera/routes.gen.ts'), 'utf8')
+    expect(routes).toContain('export const router = createRouter(routes0.default, routes1.posts)')
     const barrel = readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')
     expect(barrel).toContain(`import * as config0 from '../src/config/database.js'`)
     expect(barrel).toContain('export const config = [config0.database, config1.default] as const')
@@ -114,5 +117,31 @@ describe('caldera describe', () => {
     expect(code).toBe(1)
     expect(json.error).toMatchObject({ code: 'missing_file', details: { file: 'src/app.ts' } })
     expect(existsSync(join(root, 'src/app.ts'))).toBe(false)
+  })
+})
+
+describe('caldera route:list', () => {
+  it('lists every route with relative source locations and input schemas', async () => {
+    const { routes } = await listRoutes(openProject(root))
+    expect(routes.map((r) => `${r.method} ${r.path} ${r.name}`)).toEqual(['GET /health health.check', 'GET /posts posts.index', 'GET /posts/:post posts.show'])
+    const show = routes.find((r) => r.name === 'posts.show')!
+    expect(show.params).toEqual(['post'])
+    expect(show.source).toEqual({ file: 'src/routes/posts.ts', line: 8 })
+    expect(show.input.params).toMatchObject({ type: 'object', required: ['post'] })
+  })
+
+  it('reports duplicate route names across files', async () => {
+    writeFileSync(
+      join(root, 'src/routes/copy.ts'),
+      `import { defineRoutes } from '@caldera/http'\nexport const again = defineRoutes('health').get('check', '/other', (c) => c.text(''))\n`,
+    )
+    await expect(listRoutes(openProject(root))).rejects.toThrow(/Route "health.check" is defined in both src\/routes\/copy.ts and src\/routes\/health.ts/)
+  })
+
+  it('prints JSON through the binary', () => {
+    const { code, json } = cli('route:list')
+    expect(code).toBe(0)
+    expect(json.schemaVersion).toBe(1)
+    expect(json.routes).toHaveLength(3)
   })
 })

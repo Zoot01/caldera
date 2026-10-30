@@ -1,3 +1,4 @@
+import type { HonoEnvOf } from './app.js'
 import type { AnyConfigDefinition, ConfigMap } from './config.js'
 import type { AnyEnvDefinition, EnvOf } from './env.js'
 
@@ -8,7 +9,7 @@ import type { AnyEnvDefinition, EnvOf } from './env.js'
  *
  * ```ts
  * declare module '@caldera/core' {
- *   interface Register { env: typeof env; config: typeof config }
+ *   interface Register { env: typeof env; config: typeof config; app: typeof app }
  * }
  * ```
  */
@@ -25,3 +26,10 @@ export interface NotGenerated {
 export type RegisteredEnv = Register extends { env: infer E extends AnyEnvDefinition } ? EnvOf<E> : NotGenerated
 
 export type RegisteredConfig = Register extends { config: infer C extends readonly AnyConfigDefinition[] } ? ConfigMap<C> : NotGenerated
+
+/**
+ * The Hono env of the registered app, so route handlers see typed `c.var` services
+ * without passing a type argument. `app` is optional: codegen adds it when `src/app.ts`
+ * exports one. Nothing the app's own type depends on may read it, or the types would cycle.
+ */
+export type RegisteredHonoEnv = Register extends { app: infer A } ? HonoEnvOf<A> : {}

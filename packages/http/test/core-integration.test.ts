@@ -11,8 +11,15 @@ const greeter = defineProvider({
 })
 const app = createApp({ env: defineEnv({ APP_NAME: z.string().default('demo') }), providers: [greeter] })
 
+// What `caldera generate` writes for a real app.
+declare module '@caldera/core' {
+  interface Register {
+    app: typeof app
+  }
+}
+
 it('gives route handlers the typed Caldera services from c.var', async () => {
-  const greetings = defineRoutes<HonoEnvOf<typeof app>>('greetings').get('show', '/hello/:name', (c) => {
+  const greetings = defineRoutes('greetings').get('show', '/hello/:name', (c) => {
     expectTypeOf(c.var.greet).toEqualTypeOf<(name: string) => string>()
     expectTypeOf(c.var.locale).toEqualTypeOf<string>()
     return c.json({ text: c.var.greet(c.req.param('name')), locale: c.var.locale })

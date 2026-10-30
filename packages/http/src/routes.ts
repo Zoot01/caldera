@@ -1,3 +1,4 @@
+import type { RegisteredHonoEnv } from '@caldera/core'
 import { Hono, type Context, type Env, type MiddlewareHandler } from 'hono'
 import type { HandlerResponse, MergePath, ParamKeys, Schema, ToSchema, TypedResponse } from 'hono/types'
 import { DEFAULT_PRIORITY, sortByPriority, type NamedMiddleware } from './middleware.js'
@@ -68,10 +69,11 @@ export interface RouteGroup<G extends string, E extends Env, S extends Schema, P
 export type AnyRouteGroup = RouteGroup<string, any, any, string, any>
 
 /**
- * Starts a route group. `name` prefixes every route name (`posts` → `posts.show`), and
- * `E` is your app's Hono env, usually `HonoEnvOf<typeof app>` from `@caldera/core`.
+ * Starts a route group. `name` prefixes every route name (`posts` → `posts.show`).
+ * Handlers see your app's services on `c.var` once `caldera generate` has registered the app.
+ * `E` comes last on purpose: passing it explicitly would stop `G` and `Prefix` being inferred.
  */
-export function defineRoutes<E extends Env = Env, const G extends string = string, const Prefix extends string = '/'>(
+export function defineRoutes<const G extends string, const Prefix extends string = '/', E extends Env = RegisteredHonoEnv & Env>(
   name: G,
   options: GroupOptions<Prefix> = {},
 ): RouteGroup<G, E, {}, Prefix, {}> {

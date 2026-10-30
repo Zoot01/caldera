@@ -3,6 +3,7 @@ import { defineCommand, runMain } from 'citty'
 import { generate } from './codegen.js'
 import { describeProject } from './describe.js'
 import { openProject } from './project.js'
+import { listRoutes } from './routes.js'
 
 const VERSION = '0.0.0'
 
@@ -68,9 +69,24 @@ const describeCommand = defineCommand({
     }),
 })
 
+const routeListCommand = defineCommand({
+  meta: { name: 'route:list', description: 'List every route with its name, middleware and input schemas' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const manifest = await listRoutes(openProject(args.cwd))
+      const rows = manifest.routes.map((r) => [r.method, r.path, r.name, r.middleware.map((m) => m.name).join(', ')])
+      const widths = [0, 1, 2].map((i) => Math.max(...rows.map((row) => row[i]!.length), 6))
+      const text = rows.length
+        ? rows.map((row) => row.map((cell, i) => (i < 3 ? cell.padEnd(widths[i]!) : cell)).join('  ')).join('\n')
+        : 'No routes found in src/routes.'
+      return { data: manifest, text }
+    }),
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
-  subCommands: { generate: generateCommand, describe: describeCommand },
+  subCommands: { generate: generateCommand, describe: describeCommand, 'route:list': routeListCommand },
 })
 
 export function runCli() {
