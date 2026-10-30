@@ -119,7 +119,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       expect(body).toEqual({ users: [] }) // the database step created the table
       // The page loads its scripts from the Vite dev server, which compiles the entry.
       const html = await poll(() => fetch('http://localhost:3456/').then((r) => r.text()).then((t) => (t.includes('@vite/client') ? t : undefined)))
-      expect(html).toContain('<script type="module" src="http://localhost:5173/resources/app.tsx"></script>')
+      // With the CSP nonce, so the strict CSP lets the dev server's scripts run.
+      expect(html).toMatch(/<script type="module" src="http:\/\/localhost:5173\/resources\/app\.tsx" nonce="[\w+/=]+"><\/script>/)
       expect(html).toContain('"component":"Home"')
       const entry = await fetch('http://localhost:5173/resources/app.tsx').then((r) => r.text())
       expect(entry).toContain('createInertiaApp')
@@ -135,9 +136,9 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     const start = spawn('pnpm', ['start'], { cwd: dir, env: { ...process.env, PORT: '3457', NODE_ENV: 'production' }, detached: true })
     try {
       const html = await poll(() => fetch('http://localhost:3457/').then((r) => r.text()))
-      const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)">/.exec(html ?? '')?.[1]
+      const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)" nonce="[\w+/=]+">/.exec(html ?? '')?.[1]
       expect(script, html).toBeDefined()
-      expect(html).toMatch(/<link rel="stylesheet" href="\/build\/assets\/[^"]+\.css">/)
+      expect(html).toMatch(/<link rel="stylesheet" href="\/build\/assets\/[^"]+\.css" nonce="[\w+/=]+">/)
       const asset = await fetch(`http://localhost:3457${script}`)
       expect(asset.status).toBe(200)
       // A visit with the old asset version is told to reload the page.
