@@ -37,6 +37,27 @@ describe('createProject', () => {
     expect(existsSync(join(other.directory, 'pnpm-workspace.yaml'))).toBe(other.packageManager === 'pnpm')
   })
 
+  it('makes a Next.js app: Next renders app/, Caldera serves /api, imports follow bundler resolution', () => {
+    const result = createProject({ directory: join(base, 'next-app'), ...offline, packageManager: 'pnpm', frontend: 'next' })
+    const dir = result.directory
+    expect(result.frontend).toBe('next')
+    for (const file of ['next.config.ts', 'app/page.tsx', 'app/actions.ts', 'app/api/[[...route]]/route.ts', 'src/app.ts', 'src/http.ts', 'vitest.config.ts']) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    for (const file of ['resources', 'vite.config.ts', 'src/inertia.ts', 'src/server.ts']) expect(existsSync(join(dir, file)), file).toBe(false)
+    const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+    expect(manifest.dependencies).toMatchObject({ '@caldera/next': expect.any(String), next: expect.any(String) })
+    expect(manifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(manifest.devDependencies.vite).toBeUndefined()
+    expect(manifest.scripts).toMatchObject({ dev: 'caldera dev', build: 'next build', start: 'next start' })
+    expect(readFileSync(join(dir, 'src/app.ts'), 'utf8')).toContain("from '../.caldera/config.gen'")
+    expect(readFileSync(join(dir, 'src/http.ts'), 'utf8')).toContain(".basePath('/api')")
+    const agents = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
+    expect(agents).toContain('with a Next.js frontend')
+    expect(agents).not.toMatch(/resources\/pages|src\/inertia\.ts/)
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.next')
+  })
+
   it('never touches a non-empty folder, and suggests a free name', () => {
     const dir = join(base, 'taken')
     mkdirSync(dir)
@@ -150,4 +171,50 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-start.pid!, 'SIGTERM')
     }
   }, 300_000)
+  it('creates a Next.js app that type-checks, tests, builds and serves pages and the API', async () => {
+    const result = createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+    const typecheck = run('typecheck')
+    expect(typecheck.status, typecheck.stdout + typecheck.stderr).toBe(0)
+    const tests = run('test')
+    expect(tests.status, tests.stdout + tests.stderr).toBe(0)
+    const { spawn } = await import('node:child_process')
+    const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
+      for (let i = 0; i < 120; i++) {
+        const value = await read().catch(() => undefined)
+        if (value !== undefined) return value
+        await new Promise((r) => setTimeout(r, 500))
+      }
+      return undefined
+    }
+
+    // `caldera dev` runs `next dev`: pages and the API, with the error log for `caldera mcp`.
+    const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3458' }, detached: true })
+    try {
+      expect(await poll(() => fetch('http://localhost:3458/api/hello').then((r) => r.json()))).toEqual({ message: 'Your app is running.' })
+      const html = await poll(() => fetch('http://localhost:3458/').then((r) => (r.ok ? r.text() : undefined)))
+      expect(html).toContain('<h1>Welcome</h1>')
+      expect(existsSync(join(dir, '.caldera/dev-errors.jsonl'))).toBe(true)
+    } finally {
+      process.kill(-dev.pid!, 'SIGTERM')
+    }
+
+    const build = run('build')
+    expect(build.status, build.stdout + build.stderr).toBe(0)
+    const start = spawn('pnpm', ['start'], { cwd: dir, env: { ...process.env, PORT: '3459' }, detached: true })
+    try {
+      // The API first, so the page renders after another copy of the app has booted (Next bundles them apart).
+      expect(await poll(() => fetch('http://localhost:3459/api/users').then((r) => r.json()))).toEqual({ users: [] })
+      const html = await poll(() => fetch('http://localhost:3459/', { headers: { 'accept-language': 'en' } }).then((r) => (r.ok ? r.text() : undefined)))
+      expect(html).toContain('No users yet')
+      expect(html).toContain('<html lang="en">')
+      // /_caldera/* is rewritten to the API: an unsigned file link is refused there.
+      expect((await fetch('http://localhost:3459/_caldera/storage/local/x.txt')).status).toBe(403)
+      expect((await fetch('http://localhost:3459/api/nope').then((r) => r.json())).error.code).toBe('not_found')
+    } finally {
+      process.kill(-start.pid!, 'SIGTERM')
+    }
+  }, 600_000)
 })

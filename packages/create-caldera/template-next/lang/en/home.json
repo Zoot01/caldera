@@ -1,0 +1,11 @@
+{
+  "title": "Welcome",
+  "running": "Your app is running.",
+  "users": "{count, plural, =0 {No users yet} one {# user} other {# users}}",
+  "email_taken": "That email address is already registered.",
+  "added": "Added. A welcome email is on its way.",
+  "name": "Name",
+  "email": "Email",
+  "add": "Add user",
+  "from_api": "From the API:"
+}

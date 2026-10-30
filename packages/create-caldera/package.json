@@ -16,7 +16,8 @@
   "files": [
     "bin",
     "dist",
-    "template"
+    "template",
+    "template-next"
   ],
   "engines": {
     "node": ">=22"

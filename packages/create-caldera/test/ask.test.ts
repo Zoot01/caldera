@@ -35,15 +35,20 @@ function scripted(answers: string[]) {
 
 describe('askCreateOptions', () => {
   it('asks for everything missing, defaulting to the detected package manager', async () => {
-    const { prompter, asked } = scripted([join(base, 'blog'), '', 'n'])
+    const { prompter, asked } = scripted([join(base, 'blog'), 'next', '', 'n'])
     const options = await askCreateOptions(prompter, {}, { npm_config_user_agent: 'bun/1.4.3' })
-    expect(options).toEqual({ directory: join(base, 'blog'), packageManager: 'bun', install: false })
-    expect(asked).toEqual(['Project name (my-caldera-app)', 'Package manager (bun)', 'Install dependencies now? (true)'])
+    expect(options).toEqual({ directory: join(base, 'blog'), frontend: 'next', packageManager: 'bun', install: false })
+    expect(asked).toEqual([
+      'Project name (my-caldera-app)',
+      'Frontend (inertia: React pages served by the app; next: Next.js) (inertia)',
+      'Package manager (bun)',
+      'Install dependencies now? (true)',
+    ])
   })
 
   it('asks nothing that was given as a flag', async () => {
     const { prompter, asked } = scripted([])
-    const given = { directory: 'x', packageManager: 'npm' as const, install: true }
+    const given = { directory: 'x', frontend: 'inertia' as const, packageManager: 'npm' as const, install: true }
     expect(await askCreateOptions(prompter, given)).toEqual(given)
     expect(asked).toEqual([])
   })

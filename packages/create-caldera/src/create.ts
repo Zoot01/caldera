@@ -1,14 +1,19 @@
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
+/** `inertia`: React pages over Inertia, served by the app (Vite). `next`: a Next.js app with Caldera behind /api. */
+export type Frontend = 'inertia' | 'next'
+export const FRONTENDS = ['inertia', 'next'] as const
 
 export interface CreateOptions {
   /** Where to create the app. Must not exist, or be empty. */
   directory: string
   packageManager?: PackageManager
+  /** Default `inertia`. */
+  frontend?: Frontend
   install?: boolean
   git?: boolean
   /** Development only: point @caldera/* dependencies at a local checkout's packages/ folder. */
@@ -29,6 +34,7 @@ export interface CreateResult {
   directory: string
   name: string
   packageManager: PackageManager
+  frontend: Frontend
   steps: Step[]
   /** Commands to finish setup, in order. Empty when everything succeeded. */
   next: string[]
@@ -46,7 +52,8 @@ export class CreateError extends Error {
 }
 
 const TEMPLATE = new URL('../template/', import.meta.url)
-const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'i18n']
+const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
+const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'i18n', 'next']
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -73,6 +80,8 @@ export function createProject(options: CreateOptions): CreateResult {
   mkdirSync(directory, { recursive: true })
   cpSync(TEMPLATE, directory, { recursive: true })
   renameSync(join(directory, '_gitignore'), join(directory, '.gitignore'))
+  const frontend = options.frontend ?? 'inertia'
+  if (frontend === 'next') applyNext(directory)
   for (const file of listFiles(directory)) {
     const text = readFileSync(file, 'utf8')
     if (text.includes('{{')) writeFileSync(file, text.replaceAll('{{ name }}', name).replaceAll('{{ run }}', run))
@@ -136,7 +145,7 @@ export function createProject(options: CreateOptions): CreateResult {
     ...steps.filter((s) => s.status !== 'done' && s.command && s.name !== 'git').map((s) => s.command!),
     `${run} dev`,
   ]
-  return { schemaVersion: 1, directory, name, packageManager: pm, steps, next, log }
+  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, steps, next, log }
 }
 
 /** `--pm`, then the package manager that ran us, then what's installed, then npm. */
@@ -210,4 +219,48 @@ function listFiles(dir: string): string[] {
 function commandExists(command: string, env: NodeJS.ProcessEnv): boolean {
   const extensions = process.platform === 'win32' ? ['.cmd', '.exe', ''] : ['']
   return (env.PATH ?? '').split(delimiter).some((dir) => dir && extensions.some((ext) => existsSync(join(dir, command + ext))))
+}
+
+/** What the Next.js variant drops from the shared template: Inertia pages, Vite, the Node server entry. */
+const NEXT_REMOVES = ['resources', 'vite.config.ts', 'src/inertia.ts', 'src/server.ts', 'src/uploads.ts', 'public/build']
+
+/**
+ * Turns the shared template into the Next.js variant: Next renders pages from app/, and the Caldera
+ * app (models, jobs, mail, i18n…) serves /api and is used directly from Server Components and actions.
+ */
+function applyNext(directory: string) {
+  for (const path of NEXT_REMOVES) rmSync(join(directory, path), { recursive: true, force: true })
+  cpSync(TEMPLATE_NEXT, directory, { recursive: true, force: true })
+  const manifestPath = join(directory, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> }
+  for (const name of ['@caldera/inertia', '@inertiajs/core', '@inertiajs/react', '@hono/node-server']) delete manifest.dependencies[name]
+  for (const name of ['@inertiajs/vite', '@vitejs/plugin-react', 'vite']) delete manifest.devDependencies[name]
+  manifest.dependencies['@caldera/next'] = '^0.0.0'
+  manifest.dependencies.next = '^16.4.2'
+  manifest.dependencies = Object.fromEntries(Object.entries(manifest.dependencies).sort(([a], [b]) => a.localeCompare(b)))
+  Object.assign(manifest.scripts, { build: 'next build', start: 'next start' })
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  appendFileSync(join(directory, '.gitignore'), '.next\nnext-env.d.ts\n')
+  // Next resolves like a bundler: relative imports have no extension (the Inertia template, run by
+  // Node, imports `./app.js`). `caldera generate` and `make` follow the tsconfig.
+  for (const file of listFiles(directory)) {
+    if (!/\.tsx?$/.test(file) || file.includes(`${join(directory, 'node_modules')}`)) continue
+    const text = readFileSync(file, 'utf8')
+    const stripped = text.replace(/((?:from|import)\s*\(?\s*'\.{1,2}\/[^']+)\.js'/g, "$1'")
+    if (stripped !== text) writeFileSync(file, stripped)
+  }
+  const agentsPath = join(directory, 'AGENTS.md')
+  let agents = readFileSync(agentsPath, 'utf8')
+  agents = agents
+    .replace(/^A \[Caldera\].*$/m, 'A [Caldera](https://caldera.dev) app with a Next.js frontend: TypeScript, Hono, Drizzle, Zod. Next renders the pages (`app/`); the Caldera app serves `/api` and does the backend work.')
+    .replace(
+      /^Pages get their data.*$/m,
+      "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera/auth` for `user`), both from `@caldera/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
+    )
+    .split('\n')
+    .filter((line) => !/resources\/pages|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
+    .join('\n')
+    .replace('| Providers |', '| Pages, layouts, server actions (Next.js) | `app/**` | |\n| Providers |')
+    .replace(/A page lists what it needs with `export const messages[^.]*\.[^.]*\./, 'In Server Components and actions, translate with `requestContext(app)`’s `i18n`.')
+  writeFileSync(agentsPath, agents)
 }

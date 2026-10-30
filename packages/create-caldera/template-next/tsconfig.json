@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "isolatedModules": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "plugins": [{ "name": "next" }],
+    "types": ["node"]
+  },
+  "include": ["next-env.d.ts", "src", "app", "tests", ".next/types/**/*.ts", ".caldera/register.d.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,4 +1,4 @@
-import { detectPackageManager, unavailable, type CreateOptions, type PackageManager } from './create.js'
+import { detectPackageManager, FRONTENDS, unavailable, type CreateOptions, type Frontend, type PackageManager } from './create.js'
 import type { Prompter } from './prompt.js'
 
 const MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const
@@ -6,9 +6,9 @@ const MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const
 /** Asks only for what wasn't given on the command line. */
 export async function askCreateOptions(
   prompter: Prompter,
-  given: { directory?: string; packageManager?: PackageManager; install?: boolean },
+  given: { directory?: string; packageManager?: PackageManager; frontend?: Frontend; install?: boolean },
   env: NodeJS.ProcessEnv = process.env,
-): Promise<Pick<CreateOptions, 'directory' | 'packageManager' | 'install'>> {
+): Promise<Pick<CreateOptions, 'directory' | 'packageManager' | 'frontend' | 'install'>> {
   let directory = given.directory
   let question = 'Project name'
   let suggestion = 'my-caldera-app'
@@ -22,7 +22,8 @@ export async function askCreateOptions(
       suggestion = free
     }
   }
+  const frontend = given.frontend ?? (await prompter.select('Frontend (inertia: React pages served by the app; next: Next.js)', FRONTENDS, 'inertia'))
   const packageManager = given.packageManager ?? (await prompter.select('Package manager', MANAGERS, detectPackageManager(env)))
   const install = given.install ?? (await prompter.confirm('Install dependencies now?', true))
-  return { directory, packageManager, install }
+  return { directory, frontend, packageManager, install }
 }

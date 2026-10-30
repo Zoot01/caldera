@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+main {
+  max-width: 40rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+input,
+button {
+  font: inherit;
+  padding: 0.3rem 0.6rem;
+}
+.error {
+  color: #c00;
+}
