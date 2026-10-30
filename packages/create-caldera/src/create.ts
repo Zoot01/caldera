@@ -25,6 +25,8 @@ export interface CreateOptions {
   frontend?: Frontend
   /** Default `starter`. Inertia only: the Next.js variant has no kits yet. */
   kit?: Kit
+  /** Teams (Better Auth organizations): the starter kit only. Default false. */
+  teams?: boolean
   /** Default `sqlite` (libSQL: a local file, or Turso). */
   database?: Database
   /** Default `node`. */
@@ -54,6 +56,7 @@ export interface CreateResult {
   frontend: Frontend
   /** null for the Next.js variant. */
   kit: Kit | null
+  teams: boolean
   database: Database
   target: Target
   steps: Step[]
@@ -83,6 +86,9 @@ const KIT_LAYERS: Record<Kit, URL[]> = {
 const POSTGRES = new URL('../databases/postgres/', import.meta.url)
 // The starter's auth tables for Postgres (its own files are SQLite's).
 const STARTER_POSTGRES = new URL('../kits/starter-postgres/', import.meta.url)
+// Teams, over the starter; and its auth tables for Postgres.
+const STARTER_TEAMS = new URL('../kits/starter-teams/', import.meta.url)
+const STARTER_TEAMS_POSTGRES = new URL('../kits/starter-teams-postgres/', import.meta.url)
 // Added for the target, so the first install has them (the setup commands only write files).
 const TARGET_DEPENDENCIES: Record<Target, { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }> = {
   node: {},
@@ -124,6 +130,8 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const kit = frontend === 'next' ? null : (options.kit ?? 'starter')
   const database = options.database ?? 'sqlite'
   const target = options.target ?? 'node'
+  const teams = options.teams ?? false
+  if (teams && kit !== 'starter') throw new CreateError('unsupported', 'Teams come with the starter kit: leave out --blank and --next, or --teams.', { kit, frontend })
   const problem = unsupported(frontend, database, target)
   if (problem) throw new CreateError('unsupported', problem, { frontend, database, target })
 
@@ -140,6 +148,7 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   if (kit) {
     for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) copyLayer(layer, directory)
     if (kit === 'starter') applyStarter(directory, database)
+    if (teams) applyTeams(directory, database)
   } else applyNext(directory)
   if (database === 'postgres') applyPostgres(directory, name)
   // Both variants resolve like a bundler (Vite, Next, tsx): relative imports have no extension,
@@ -256,7 +265,7 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     ...later,
     `${run} dev`,
   ]
-  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, kit, database, target, steps, next, log }
+  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, kit, teams, database, target, steps, next, log }
 }
 
 /** Runs a command, collecting its output for .create.log (never thrown: a missing program is a failed step). */
@@ -385,6 +394,37 @@ const STARTER_AGENTS =
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
   'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (sidebar or header; simple, card or split), so switching is one line. Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
   'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`.'
+
+const TEAMS_AGENTS =
+  'Teams (Better Auth organizations, `src/teams.ts`): everyone gets a personal team at registration (it can\'t be deleted, left or shared); the current team is the session\'s active organization (`c.var.authSession.activeOrganizationId`), switched with the sidebar\'s team switcher (POST /teams/switch). ' +
+  'Settings → Teams (`src/routes/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, leave. ' +
+  'Roles and what they may do are in `src/roles.ts` (Better Auth access control: add your own resources there); policies check them with `g.org.id` (the current team) and `await g.org.has({ project: [\'create\'] })`. Scope a team\'s data by a `teamId` column and the current team, and check `g.org.id` in policies.'
+
+/** Teams over the starter: Better Auth's organization plugin, the gate's `g.org`, the switcher and settings. */
+function applyTeams(directory: string, database: Database) {
+  copyLayer(STARTER_TEAMS, directory)
+  if (database === 'postgres') cpSync(STARTER_TEAMS_POSTGRES, directory, { recursive: true, force: true })
+  edit(directory, 'src/auth.ts', [
+    ["import { User } from './models/user.js'\n", "import { User } from './models/user.js'\nimport { teamHooks, teamsPlugin } from './teams.js'\n"],
+    ['      // Both are always installed', '      // A personal team for every account; new sessions start in their first team (src/teams.ts).\n      databaseHooks: teamHooks(db),\n      // Both are always installed'],
+    ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL, appName: config.app.name }),\n'],
+  ])
+  edit(directory, 'src/app.ts', [
+    ["import { auth } from './auth.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
+    ['    auth,\n', '    auth,\n    // c.var.gate for policies, with g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ extend: organizationGate({ roles }) }),\n'],
+  ])
+  edit(directory, 'src/inertia.ts', [
+    ["import { getCookie } from 'hono/cookie'\n", "import { getCookie } from 'hono/cookie'\nimport { teamsFor } from './teams.js'\n"],
+    ['    // The signed-in user (or null), for the layouts and pages.\n', '    // The person\'s teams and the current one, for the team switcher (src/teams.ts).\n    teams: () => teamsFor(c),\n    // The signed-in user (or null), for the layouts and pages.\n'],
+  ])
+  edit(directory, 'resources/components/app-sidebar.tsx', [
+    ["import { AppLogo } from '@/components/app-logo'\n", ''],
+    ["import { UserInfo } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo } from '@/components/user-info'\n"],
+    [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
+  ])
+  edit(directory, 'resources/layouts/settings-layout.tsx', [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])
+}
 
 /** The starter kit's sign-in (src/auth.ts) as a provider of the app, and its tables for Postgres. */
 function applyStarter(directory: string, database: Database) {

@@ -49,6 +49,13 @@ describe('askCreateOptions', () => {
     ])
   })
 
+  it('asks about teams only for the starter kit', async () => {
+    const { prompter, asked } = scripted(['', 'y'])
+    const options = await askCreateOptions(prompter, { directory: 'x', database: 'sqlite', target: 'node', packageManager: 'pnpm', install: false })
+    expect(options).toMatchObject({ kit: 'starter', teams: true })
+    expect(asked).toEqual(['Starter kit (starter)', 'Add teams support? (false)'])
+  })
+
   it('offers only the targets that work with the answers so far', async () => {
     const offered: string[][] = []
     const { prompter } = scripted(['postgres'])
@@ -57,7 +64,7 @@ describe('askCreateOptions', () => {
       offered.push([question, ...options])
       return select(question, options, ...rest)
     }
-    const options = await askCreateOptions(prompter, { directory: 'x', packageManager: 'pnpm', install: false, kit: 'starter' })
+    const options = await askCreateOptions(prompter, { directory: 'x', packageManager: 'pnpm', install: false, kit: 'starter', teams: false })
     expect(options.database).toBe('postgres')
     // Workers apps use D1, so Postgres can't go there.
     expect(offered).toEqual([

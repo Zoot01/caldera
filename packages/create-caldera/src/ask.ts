@@ -3,12 +3,12 @@ import type { Prompter } from './prompt.js'
 
 const MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const
 
-export type Answers = Pick<CreateOptions, 'directory' | 'packageManager' | 'frontend' | 'kit' | 'database' | 'target' | 'install'>
+export type Answers = Pick<CreateOptions, 'directory' | 'packageManager' | 'frontend' | 'kit' | 'teams' | 'database' | 'target' | 'install'>
 
 /** Asks only for what wasn't given on the command line. */
 export async function askCreateOptions(
   prompter: Prompter,
-  given: { directory?: string; packageManager?: PackageManager; frontend?: Frontend; kit?: Kit; database?: Database; target?: Target; install?: boolean },
+  given: { directory?: string; packageManager?: PackageManager; frontend?: Frontend; kit?: Kit; teams?: boolean; database?: Database; target?: Target; install?: boolean },
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Answers> {
   let directory = given.directory
@@ -36,6 +36,8 @@ export async function askCreateOptions(
       ? undefined
       : (given.kit ??
         (await prompter.select('Starter kit', KITS, 'starter', { starter: 'Auth, settings and a dashboard', blank: 'Tailwind and the UI kit, one page' }, { starter: 'Starter', blank: 'Blank' })))
+  // Teams change the data model (every account gets a team), so they're asked for up front.
+  const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : undefined
   const database =
     given.database ??
     (await prompter.select('Database', DATABASES, 'sqlite', { sqlite: 'A local file; Turso or D1 in production', postgres: 'Needs a Postgres server' }, { sqlite: 'SQLite', postgres: 'Postgres' }))
@@ -53,5 +55,5 @@ export async function askCreateOptions(
         ))
   const packageManager = given.packageManager ?? (await prompter.select('Package manager', MANAGERS, detectPackageManager(env)))
   const install = given.install ?? (await prompter.confirm('Install dependencies now?', true))
-  return { directory, frontend, ...(kit ? { kit } : {}), database, target, packageManager, install }
+  return { directory, frontend, ...(kit ? { kit } : {}), ...(teams !== undefined ? { teams } : {}), database, target, packageManager, install }
 }

@@ -18,11 +18,12 @@ import { join } from 'node:path'
 const SHADCN = 'shadcn@4.23.0'
 const KITS = new URL('../packages/create-caldera/kits/', import.meta.url).pathname
 const KIT = join(KITS, 'blank')
-// What each kit's own code imports from components/ui. The starter is layered over the blank kit,
-// so it only lists (and gets) components the blank kit doesn't have.
+// What each kit's own code imports from components/ui. Each layer goes over the ones before it
+// (blank, then starter, then starter-teams), so it only gets components they don't have.
 const USES = {
   blank: ['card', 'toggle-group'],
   starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner'],
+  'starter-teams': ['badge'],
 }
 
 const scratch = mkdtempSync(join(tmpdir(), 'caldera-coss-'))

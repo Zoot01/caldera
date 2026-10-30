@@ -29,6 +29,7 @@ const main = defineCommand({
     pm: { type: 'enum', options: ['pnpm', 'npm', 'yarn', 'bun'], description: 'Package manager (default: the one running this)' },
     starter: { type: 'boolean', description: 'The starter kit: auth, settings and a dashboard (the default)' },
     blank: { type: 'boolean', description: 'The blank kit: the UI setup and one page' },
+    teams: { type: 'boolean', description: 'Teams (with the starter kit): a personal team for everyone, invitations and roles' },
     database: { type: 'enum', options: ['sqlite', 'postgres'], description: 'sqlite (libSQL, the default) or postgres' },
     target: { type: 'enum', options: ['node', 'vercel', 'cloudflare'], description: 'Where it will run: node (the default), vercel or cloudflare' },
     next: { type: 'boolean', description: 'A Next.js app with Caldera at /api, instead of Inertia pages (no kits yet)' },
@@ -49,6 +50,7 @@ const main = defineCommand({
       ...(args.pm ? { packageManager: args.pm as PackageManager } : {}),
       ...(args.next ? { frontend: 'next' as const } : {}),
       ...(kit ? { kit } : {}),
+      ...(args.teams !== undefined ? { teams: args.teams as boolean } : {}),
       ...(args.database ? { database: args.database as Database } : {}),
       ...(args.target ? { target: args.target as Target } : {}),
       ...(args.install !== undefined ? { install: args.install as boolean } : {}),
@@ -65,6 +67,7 @@ const main = defineCommand({
         ...(chosen.packageManager ? { packageManager: chosen.packageManager } : {}),
         ...(chosen.frontend ? { frontend: chosen.frontend } : {}),
         ...(chosen.kit ? { kit: chosen.kit } : {}),
+        ...(chosen.teams !== undefined ? { teams: chosen.teams } : {}),
         ...(chosen.database ? { database: chosen.database } : {}),
         ...(chosen.target ? { target: chosen.target } : {}),
         ...(args.link ? { link: args.link } : {}),
@@ -113,7 +116,7 @@ const main = defineCommand({
 
 /** "Starter kit, SQLite, Node server" */
 function describe(result: CreateResult): string {
-  const frontend = result.kit ? `${result.kit === 'starter' ? 'Starter' : 'Blank'} kit` : 'Next.js'
+  const frontend = result.kit ? `${result.kit === 'starter' ? 'Starter' : 'Blank'} kit${result.teams ? ' with teams' : ''}` : 'Next.js'
   const database = result.database === 'postgres' ? 'Postgres' : 'SQLite'
   const target = { node: 'Node server', vercel: 'Vercel', cloudflare: 'Cloudflare Workers' }[result.target]
   return `${frontend}, ${database}, ${target}`

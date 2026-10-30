@@ -141,6 +141,29 @@ describe('createProject', () => {
     expect(readFileSync(join(blank.directory, 'AGENTS.md'), 'utf8')).not.toContain('Auth (the starter kit)')
   })
 
+  it('adds teams to the starter kit: the organization plugin, g.org, the switcher and team settings', async () => {
+    const result = await createProject({ directory: join(base, 'teams'), ...offline, teams: true })
+    const read = (file: string) => readFileSync(join(result.directory, file), 'utf8')
+    expect(result.teams).toBe(true)
+    for (const file of ['src/teams.ts', 'src/roles.ts', 'src/routes/teams.ts', 'resources/components/team-switcher.tsx', 'resources/pages/settings/Team.tsx', 'tests/teams/teams.test.ts']) expect(existsSync(join(result.directory, file)), file).toBe(true)
+    expect(read('src/auth.ts')).toMatch(/databaseHooks: teamHooks\(db\)[\s\S]*plugins: \[\n[^\n]*\n        teamsPlugin\(/)
+    expect(read('src/app.ts')).toContain('authorizationProvider({ extend: organizationGate({ roles }) })')
+    expect(read('src/inertia.ts')).toContain('teams: () => teamsFor(c)')
+    expect(read('resources/components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
+    expect(read('resources/components/app-sidebar.tsx')).not.toContain('AppLogo')
+    expect(read('resources/layouts/settings-layout.tsx')).toContain("{ title: 'Teams', href: '/settings/teams' }")
+    expect(read('src/db/auth-schema.ts')).toContain("snakeCase.table('organization'")
+    expect(read('AGENTS.md')).toContain('Teams (Better Auth organizations')
+    // On Postgres, the Postgres tables.
+    const pg = await createProject({ directory: join(base, 'teams-pg'), ...offline, teams: true, database: 'postgres' })
+    expect(readFileSync(join(pg.directory, 'src/db/auth-schema.ts'), 'utf8')).toMatch(/from 'drizzle-orm\/pg-core'[\s\S]*snakeCase\.table\('organization'/)
+    expect(readFileSync(join(pg.directory, 'src/db/schema.ts'), 'utf8')).toContain('organization, member, invitation } = authSchema(users)')
+    // Without --teams, none of it.
+    const plain = await createProject({ directory: join(base, 'no-teams'), ...offline })
+    expect(plain.teams).toBe(false)
+    expect(existsSync(join(plain.directory, 'src/teams.ts'))).toBe(false)
+  })
+
   it('gives a starter app on Postgres the Postgres auth tables and adapter', async () => {
     const { directory: dir } = await createProject({ directory: join(base, 'starter-pg'), ...offline, database: 'postgres' })
     const read = (file: string) => readFileSync(join(dir, file), 'utf8')
@@ -204,6 +227,7 @@ describe('createProject', () => {
   it('refuses combinations that can’t work, before writing anything', async () => {
     await expect(createProject({ directory: join(base, 'a'), ...offline, database: 'postgres', target: 'cloudflare' })).rejects.toThrow(expect.objectContaining({ code: 'unsupported', message: expect.stringContaining('D1') }))
     await expect(createProject({ directory: join(base, 'b'), ...offline, frontend: 'next', target: 'cloudflare' })).rejects.toThrow(expect.objectContaining({ code: 'unsupported' }))
+    await expect(createProject({ directory: join(base, 'c'), ...offline, kit: 'blank', teams: true })).rejects.toThrow(expect.objectContaining({ code: 'unsupported', message: expect.stringContaining('starter kit') }))
     expect(existsSync(join(base, 'a'))).toBe(false)
   })
 
@@ -485,7 +509,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     }
   }, 600_000)
   it.runIf(hasPostgres)('creates a Postgres app that migrates, type-checks, tests (DATABASE_TEST_URL from .env) and serves', async () => {
-    const result = await createProject({ directory: join(base, 'e2e-pg'), packageManager: 'pnpm', link: repo, git: false, database: 'postgres' })
+    // With teams: the riskiest combination (the organization plugin's tables and hooks on Postgres).
+    const result = await createProject({ directory: join(base, 'e2e-pg'), packageManager: 'pnpm', link: repo, git: false, database: 'postgres', teams: true })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     expect(readdirSync(join(dir, 'drizzle')).some((f) => f.endsWith('_init'))).toBe(true)

@@ -14,7 +14,7 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 | `packages/cache` | cache stores, locks, tags, rate limiting |
 | `packages/queue` | jobs, dispatch, drivers, the worker runtime |
 | `packages/cli` | `caldera` commands: generate, dev, make:*, db:*, queue:work… |
-| `packages/create-caldera` | the scaffolder; apps are copied in layers: `template/` (shared base), then `kits/<kit>/` (Inertia) or `template-next/`, then `databases/postgres/`. A layer's `package.json` is merged. coss ui components in the kits come from `pnpm sync:coss` (`scripts/sync-coss.mjs`): change the kit's `USES` list there, not the files by hand |
+| `packages/create-caldera` | the scaffolder; apps are copied in layers: `template/` (shared base), then `kits/<kit>/` (Inertia: `blank`, then `starter`, then `starter-teams` with `--teams`; `*-postgres` layers hold their Postgres schema) or `template-next/`, with `databases/postgres/` underneath. Kits change earlier layers' files through checked `edit()`s in `create.ts`. A layer's `package.json` is merged. coss ui components in the kits come from `pnpm sync:coss` (`scripts/sync-coss.mjs`): change the kit's `USES` list there, not the files by hand |
 
 ## Commands
 
