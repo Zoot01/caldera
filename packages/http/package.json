@@ -1,0 +1,33 @@
+{
+  "name": "@caldera/http",
+  "version": "0.0.0",
+  "description": "Caldera HTTP layer: named typed routes, request validation, middleware priority, error envelope and security defaults.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "hono": "^4.13.0",
+    "zod": "^4.6.0"
+  },
+  "dependencies": {
+    "@caldera/core": "workspace:*"
+  },
+  "devDependencies": {
+    "hono": "^4.13.14",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
+  }
+}

@@ -13,7 +13,8 @@ let root: string
 // Each test gets a fresh copy inside test/.tmp so node_modules resolution still works.
 beforeEach(() => {
   root = join(here, '.tmp', `app-${Math.random().toString(36).slice(2)}`)
-  cpSync(join(here, 'fixtures/basic-app'), root, { recursive: true })
+  // Skip any .caldera/ generated in the fixture for editor support: tests start ungenerated.
+  cpSync(join(here, 'fixtures/basic-app'), root, { recursive: true, filter: (src) => !src.includes('/.caldera') })
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
 afterAll(() => rmSync(join(here, '.tmp'), { recursive: true, force: true }))

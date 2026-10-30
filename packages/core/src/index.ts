@@ -28,5 +28,6 @@ export type {
   RequestServicesOf,
   ServicesOf,
   Singleton,
+  UnionToIntersection,
 } from './provider.js'
 export type { NotGenerated, Register, RegisteredConfig, RegisteredEnv } from './register.js'

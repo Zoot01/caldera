@@ -49,6 +49,22 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/http:
+    dependencies:
+      '@caldera/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
 packages:
 
   '@jridgewell/resolve-uri@3.1.2':
