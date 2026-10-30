@@ -67,6 +67,12 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@caldera/http':
+        specifier: workspace:*
+        version: link:../http
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
       ioredis:
         specifier: 6.0.0
         version: 6.0.0

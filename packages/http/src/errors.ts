@@ -13,6 +13,8 @@ export interface ErrorBody {
     message: string
     status: number
     fields?: Record<string, string[]>
+    /** Seconds until a refused (429) request may be retried. */
+    retryAfter?: number
     requestId: string
     debug?: { name: string; stack?: string }
   }
@@ -22,11 +24,24 @@ export interface ErrorBody {
 export class HttpError extends CalderaError {
   readonly status: ContentfulStatusCode
   readonly fields: Record<string, string[]> | undefined
+  /** Headers the error response carries, e.g. `Retry-After`. */
+  readonly headers: Record<string, string> = {}
 
   constructor(status: ContentfulStatusCode, code: string, message: string, fields?: Record<string, string[]>) {
     super(code, message, fields ? { fields } : undefined)
     this.status = status
     this.fields = fields
+  }
+}
+
+/** 429. `@caldera/cache` limiters throw their own `rate_limited` error, which maps to this. */
+export class TooManyRequestsError extends HttpError {
+  readonly retryAfter: number
+
+  constructor(message = 'Too many requests. Try again later.', retryAfter = 60, headers: Record<string, string> = {}) {
+    super(429, 'rate_limited', message)
+    this.retryAfter = retryAfter
+    Object.assign(this.headers, { 'retry-after': String(retryAfter), ...headers })
   }
 }
 
@@ -103,6 +118,12 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
   return async (error, c) => {
     const known = toHttpError(error)
     if (known instanceof ValidationError && redirectsOnValidation(c)) return validationRedirect(c, known)
+    // A refused form post on an Inertia page shows on the form, like a validation error.
+    if (known instanceof TooManyRequestsError && c.req.method !== 'GET' && redirectsOnValidation(c)) {
+      const response = back(c).withErrors({ _: [known.message] }, c.req.header('x-inertia-error-bag') || undefined)
+      for (const [name, value] of Object.entries(known.headers)) response.headers.set(name, value)
+      return response
+    }
     if (known?.status === 401 && options.loginUrl && isPageVisit(c)) {
       const login = typeof options.loginUrl === 'function' ? options.loginUrl(c) : options.loginUrl
       // The login page itself must never bounce to itself.
@@ -116,11 +137,13 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
         message: known?.message ?? 'Something went wrong.',
         status,
         ...(known?.fields ? { fields: known.fields } : {}),
+        ...(known instanceof TooManyRequestsError ? { retryAfter: known.retryAfter } : {}),
         requestId: requestIdOf(c),
         ...(options.debug && error instanceof Error ? { debug: { name: error.name, stack: error.stack } } : {}),
       },
     }
     const response = c.json(body, status)
+    for (const [name, value] of Object.entries(known?.headers ?? {})) response.headers.set(name, value)
     if (error instanceof HTTPException) {
       // Keep headers an HTTPException carried, e.g. WWW-Authenticate.
       const original = error.getResponse()
@@ -184,6 +207,10 @@ function toHttpError(error: unknown): HttpError | undefined {
     if (error.code === 'not_found') return new NotFoundError()
     if (error.code === 'forbidden') return new ForbiddenError(error.message)
     if (error.code === 'unauthenticated') return new UnauthenticatedError(error.message)
+    if (error.code === 'rate_limited') {
+      const details = (error.details ?? {}) as { retryAfter?: number; headers?: Record<string, string> }
+      return new TooManyRequestsError(error.message, details.retryAfter, details.headers)
+    }
   }
   if (error instanceof ZodError) return ValidationError.fromZod(error)
   if (error instanceof HTTPException) {

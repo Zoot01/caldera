@@ -22,7 +22,16 @@ export interface RouteOptions<R extends AnyRequest | undefined, B extends Bindin
    */
   authorize?: (c: Context) => unknown
   middleware?: NamedMiddleware[]
+  /** Rate limits: limiters from `defineLimiter()` in `@caldera/cache`. They run after `auth`. */
+  throttle?: Throttle | readonly Throttle[]
   description?: string
+}
+
+/** What `throttle` accepts: a limiter, described structurally so http doesn't depend on the cache package. */
+export interface Throttle {
+  readonly kind: 'caldera.limiter'
+  readonly name: string
+  middleware(): MiddlewareHandler
 }
 
 /** One route as data: what `caldera route:list --json`, the MCP server and AGENTS.md read. */
@@ -37,6 +46,8 @@ export interface RouteRecord {
   bindings?: Record<string, string>
   /** The ability that guards the route (from `allows()`), or `custom` for any other check. */
   authorize?: { ability: string; param: string | null } | 'custom'
+  /** Names of the limiters on the route. */
+  throttle?: string[]
   description?: string
   source?: { file: string; line: number }
 }
@@ -106,9 +117,11 @@ export function defineRoutes<const G extends string, const Prefix extends string
       seen.add(fullName)
 
       const fullPath = joinPath(prefix, path)
+      const throttles = routeOptions.throttle === undefined ? [] : Array.isArray(routeOptions.throttle) ? routeOptions.throttle : [routeOptions.throttle as Throttle]
       const named: { name: string; options: unknown; handler: MiddlewareHandler }[] = [
         ...groupMiddleware,
         ...(routeOptions.middleware ?? []),
+        ...throttles.map((t) => ({ name: 'throttle', options: { limiter: t.name }, handler: t.middleware() })),
         ...(routeOptions.bind ? [{ name: 'bind', options: undefined, handler: bindingMiddleware(routeOptions.bind, fullPath) }] : []),
         ...(routeOptions.authorize ? [{ name: 'authorize', options: undefined, handler: authorizeMiddleware(routeOptions.authorize) }] : []),
         ...(routeOptions.request ? requestMiddleware(routeOptions.request).map((m) => ({ ...m, options: undefined })) : []),
@@ -127,6 +140,7 @@ export function defineRoutes<const G extends string, const Prefix extends string
         input: routeOptions.request ? requestJsonSchemas(routeOptions.request) : {},
         ...(routeOptions.bind ? { bindings: describeBindings(routeOptions.bind) } : {}),
         ...(routeOptions.authorize ? { authorize: describeAuthorize(routeOptions.authorize) } : {}),
+        ...(throttles.length ? { throttle: throttles.map((t) => t.name) } : {}),
         ...(routeOptions.description ? { description: routeOptions.description } : {}),
         ...callerSource(),
       })

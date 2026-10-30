@@ -1,6 +1,6 @@
 import { CalderaError, parseDuration, type Duration } from '@caldera/core'
 import type { z } from 'zod'
-import type { CacheCapabilities, CacheStore } from './store.js'
+import type { CacheCapabilities, CacheStore, ThrottleRequest, ThrottleResult } from './store.js'
 
 export interface ReadOptions<T> {
   /**
@@ -62,6 +62,8 @@ export interface Cache {
   tags(...names: string[]): Cache & { flush(): Promise<void> }
   /** Deletes every key of this cache (its prefix only, never the whole store). */
   flush(): Promise<void>
+  /** Rate limiting: checks and consumes several limits atomically. Needs `atomicCounters`. */
+  throttle(request: ThrottleRequest): Promise<ThrottleResult>
 }
 
 export interface CreateCacheOptions {
@@ -226,6 +228,15 @@ function build(options: CreateCacheOptions, prefix: string, scopeKey: (key: stri
     },
     async flush() {
       await store.flush(prefix)
+    },
+    async throttle(request) {
+      if (!capabilities.atomicCounters || !store.throttle) {
+        throw new CalderaError('capability_missing', `The "${options.name}" cache store can't count atomically, so it can't rate limit. Use Redis, or the memory store for a single server.`, {
+          store: options.name,
+          capability: 'atomicCounters',
+        })
+      }
+      return store.throttle({ ...request, limits: await Promise.all(request.limits.map(async (l) => ({ ...l, key: await k(l.key) }))) })
     },
   }
   return cache

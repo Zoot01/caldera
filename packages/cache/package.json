@@ -19,10 +19,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "hono": "^4.13.0",
     "ioredis": ">=5.0.0",
     "zod": "^4.6.0"
   },
   "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    },
     "ioredis": {
       "optional": true
     }
@@ -31,6 +35,8 @@
     "@caldera/core": "workspace:*"
   },
   "devDependencies": {
+    "@caldera/http": "workspace:*",
+    "hono": "^4.13.14",
     "ioredis": "6.0.0",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
