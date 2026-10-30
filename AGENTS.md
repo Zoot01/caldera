@@ -26,7 +26,7 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 ## Tests against real backends
 
 - **Redis:** cache, rate limiting, BullMQ and `caldera queue:work` tests start a throwaway `redis-server` on a free port (`test/redis-server.ts`). They're skipped when `redis-server` isn't installed (`brew install redis`). Don't mock Redis.
-- **Postgres:** PGlite, in-process. **SQLite:** libsql and `node:sqlite`.
+- **Postgres:** PGlite in-process for most tests; the database queue tests start a real Postgres cluster (`initdb` + `pg_ctl`, `test/postgres-server.ts`) to prove concurrent claiming, skipped without `brew install postgresql`. **SQLite:** libsql and `node:sqlite`.
 - **Browsers:** pages are checked in a real browser with the gstack `/browse` skill against an app created in the sandbox below.
 
 ## Sandbox for created apps: `~/Documents/testing-caldera`
