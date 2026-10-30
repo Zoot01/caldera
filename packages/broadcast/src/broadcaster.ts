@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { isChannel, type AnyChannel, type ChannelParams, type ChannelRef } from './channel.js'
 import { logDriver, nullDriver, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage, type ClientConfig } from './driver.js'
 import { pusherDriver } from './pusher.js'
+import { sseDriver } from './sse.js'
 
 /**
  * Filled by `caldera generate` (register.d.ts), for typed hooks in the browser: channels by pattern
@@ -108,7 +109,7 @@ export function createBroadcaster<const N extends string>(
 ): Broadcaster<N> {
   const manager = createManager<BroadcastDriver, BroadcastCapabilities, N>({
     kind: 'broadcast',
-    drivers: [pusherDriver, logDriver, nullDriver, ...(options.drivers ?? [])],
+    drivers: [pusherDriver, sseDriver, logDriver, nullDriver, ...(options.drivers ?? [])] as DriverDefinition<BroadcastDriver, BroadcastCapabilities>[],
     config: { default: config.default, instances: config.connections as never },
     hints: { 'durable-object': "It's in @caldera/broadcast/cloudflare: pass `drivers: [durableObjectDriver]` to broadcastProvider." },
   })

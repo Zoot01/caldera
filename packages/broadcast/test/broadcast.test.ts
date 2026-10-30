@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import { broadcastProvider, broadcastRoutes, channel, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster, type ModelBroadcastEvent } from '../src/index.js'
+import { broadcastProvider, broadcastRoutes, channel, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster, type ModelBroadcastEvent, type PusherClientConfig } from '../src/index.js'
 import { createHub, type HubConnection } from '../src/hub.js'
 import { md5 } from '../src/md5.js'
 import { startBroadcastServer } from '../src/server.js'
@@ -252,7 +252,7 @@ describe.each(servers)('over $name', { timeout: 30_000 }, ({ start }) => {
 
   // A browser: pusher-js, configured from the driver's client(), authorizing through the app's route.
   const connect = async (user: string) => {
-    const config = setup.broadcaster().client()!
+    const config = setup.broadcaster().client() as PusherClientConfig
     const client = new Pusher(config.key, {
       ...config,
       cluster: config.cluster ?? '',
@@ -421,14 +421,14 @@ describe('the browser client', () => {
       const stop = client.onConfigured(() => told.push(client.configVersion()))
       expect(client.subscribe('news')).toBeUndefined()
       const before = client.configVersion()
-      client.configureBroadcast({ ...setup.broadcaster().client()!, authEndpoint: `${siteUrl}/_caldera/broadcast/auth` })
-      client.configureBroadcast({ ...setup.broadcaster().client()!, authEndpoint: `${siteUrl}/_caldera/broadcast/auth` }) // the same: no change
+      client.configureBroadcast({ ...(setup.broadcaster().client() as PusherClientConfig), authEndpoint: `${siteUrl}/_caldera/broadcast/auth` })
+      client.configureBroadcast({ ...(setup.broadcaster().client() as PusherClientConfig), authEndpoint: `${siteUrl}/_caldera/broadcast/auth` }) // the same: no change
       expect(told).toEqual([before + 1])
       stop()
 
       const first = client.subscribe('posts.{post}', { post: 1 })!
       const second = client.subscribe('posts.{post}', { post: 1 })!
-      expect(first.channel).toBe(second.channel)
+      expect(client.connection()!.allChannels().map((c) => c.name)).toEqual(['private-posts.1']) // one subscription for both
       await new Promise((resolve) => first.listen('pusher:subscription_succeeded', resolve))
       const heard = new Promise((resolve) => second.listen('post.updated', resolve))
       await setup.broadcaster().send(PostChannel.with({ post: '1' }), 'post.updated', { title: 'Hi' })
@@ -444,7 +444,7 @@ describe('the browser client', () => {
       expect(client.membersOf(room)).toEqual([{ id: 'ann', info: { id: 'ann', name: 'User ann' } }])
       // Another user's browser, whispering.
       user = 'bob'
-      const other = new Pusher(SOKETI_APP.key, { ...setup.broadcaster().client()!, cluster: '', channelAuthorization: { endpoint: `${siteUrl}/_caldera/broadcast/auth`, transport: 'ajax' } })
+      const other = new Pusher(SOKETI_APP.key, { ...(setup.broadcaster().client() as PusherClientConfig), cluster: '', channelAuthorization: { endpoint: `${siteUrl}/_caldera/broadcast/auth`, transport: 'ajax' } })
       const whispered = new Promise((resolve) => room.listen('client-typing', (data, meta) => resolve({ data, meta })))
       const otherRoom = other.subscribe('presence-rooms.r9')
       await new Promise((resolve) => otherRoom.bind('pusher:subscription_succeeded', resolve))
@@ -640,5 +640,129 @@ describe.runIf(hasRedis)('several hubs over Redis', { timeout: 30_000 }, () => {
     const removed = new Promise((r) => annRoom.bind('pusher:member_removed', r))
     child.kill('SIGKILL')
     expect(await removed).toEqual({ id: 'carol', info: { name: 'carol' } })
+  })
+})
+
+// The sse driver: realtime from the app itself, read by the browser client over HTTP.
+describe('the sse driver', { timeout: 30_000 }, () => {
+  const sseApp = (connection: Record<string, unknown> = { driver: 'sse' }) => {
+    const setup = makeApp(connection)
+    // Without the presence channel: sse has no presence (checked at boot below).
+    return setup
+  }
+  const serveApp = async (http: { fetch(request: Request): Response | Promise<Response> }, as: () => string, port = 0) => {
+    const site = serve({ fetch: (request) => {
+      const headers = new Headers(request.headers)
+      headers.set('x-user', as())
+      return http.fetch(new Request(request, { headers }))
+    }, port })
+    await new Promise((resolve) => site.once('listening', resolve))
+    return { site: site as import('node:http').Server, url: `http://127.0.0.1:${(site.address() as { port: number }).port}` }
+  }
+  const sseOnly = (connection: Record<string, unknown>) => {
+    const app = createApp({ env: defineEnv({}), providers: [broadcastProvider(() => ({ default: 'main', connections: { main: connection as { driver: string } } }), { channels: [PostChannel, NewsChannel] })] })
+    const http = new Hono().use(app.middleware()).use(async (c, next) => {
+      const id = c.req.header('x-user')
+      c.set('user' as never, (id ? { id } : null) as never)
+      await next()
+    }).route('/', broadcastRoutes())
+    return { app, http, broadcaster: () => (app.services as unknown as { broadcast: Broadcaster }).broadcast }
+  }
+  const client = () => import('../src/client.js')
+  afterEach(async () => (await client()).configureBroadcast(null))
+
+  it('refuses presence channels at boot', async () => {
+    const { app } = sseApp()
+    await expect(app.boot()).rejects.toThrow(/presence channel/)
+  })
+
+  it('streams public and authorized private channels, refuses the rest, and skips the sender', async () => {
+    const setup = sseOnly({ driver: 'sse' })
+    await setup.app.boot()
+    let user = 'ann'
+    const { site, url } = await serveApp(setup.http, () => user)
+    const browser = await client()
+    try {
+      browser.registerChannels({ news: 'public', 'posts.{post}': 'private' })
+      expect(setup.broadcaster().client()).toEqual({ transport: 'sse', url: '/_caldera/broadcast/sse' })
+      browser.configureBroadcast({ transport: 'sse', url: `${url}/_caldera/broadcast/sse` })
+      const news = browser.subscribe('news')!
+      const post = browser.subscribe('posts.{post}', { post: 1 })!
+      await Promise.all([new Promise((r) => news.listen('pusher:subscription_succeeded', r)), new Promise((r) => post.listen('pusher:subscription_succeeded', r))])
+      expect(browser.socketId()).toMatch(/^\d+\.\d+$/)
+      const heard = Promise.all([new Promise((r) => news.listen('headline', r)), new Promise((r) => post.listen('post.updated', r))])
+      await setup.broadcaster().send('news', 'headline', { text: 'Hi' })
+      await setup.broadcaster().send(PostChannel.with({ post: 1 }), 'post.updated', { title: 'T' })
+      expect(await heard).toEqual([{ text: 'Hi' }, { title: 'T' }])
+      // toOthers: this stream's id is its X-Socket-ID.
+      const got: unknown[] = []
+      news.listen('headline', (d) => got.push(d))
+      await setup.broadcaster().send('news', 'headline', { text: 'not me' }, { except: browser.socketId()! })
+      await new Promise((r) => setTimeout(r, 300))
+      expect(got).toEqual([])
+      // Bob may not join ann's post.
+      user = 'bob'
+      const refused = await fetch(`${url}/_caldera/broadcast/sse/join`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stream: browser.socketId(), channel: 'private-posts.1' }) })
+      expect(refused.status).toBe(403)
+      const unknownStream = await fetch(`${url}/_caldera/broadcast/sse/join`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stream: '1.1', channel: 'news' }) })
+      expect(unknownStream.status).toBe(404)
+    } finally {
+      browser.configureBroadcast(null)
+      site.closeAllConnections()
+      site.close()
+    }
+  })
+
+  it('reconnects after the stream drops, and joins its channels again', async () => {
+    const setup = sseOnly({ driver: 'sse' })
+    await setup.app.boot()
+    const first = await serveApp(setup.http, () => 'ann')
+    const port = Number(new URL(first.url).port)
+    const browser = await client()
+    browser.registerChannels({ news: 'public' })
+    browser.configureBroadcast({ transport: 'sse', url: `${first.url}/_caldera/broadcast/sse` })
+    const news = browser.subscribe('news')!
+    await new Promise((r) => news.listen('pusher:subscription_succeeded', r))
+    // The server goes away (a deploy), and comes back on the same port.
+    first.site.closeAllConnections()
+    await new Promise((r) => first.site.close(r))
+    const second = await serveApp(setup.http, () => 'ann', port)
+    try {
+      await new Promise((r) => news.listen('pusher:subscription_succeeded', r))
+      const heard = new Promise((r) => news.listen('headline', r))
+      await setup.broadcaster().send('news', 'headline', { text: 'back' })
+      expect(await heard).toEqual({ text: 'back' })
+    } finally {
+      browser.configureBroadcast(null)
+      second.site.closeAllConnections()
+      second.site.close()
+    }
+  })
+
+  it.runIf(hasRedis)('shares broadcasts between app processes over Redis', async () => {
+    const redis = await startRedis()
+    const [one, two] = [sseOnly({ driver: 'sse', redis: redis.url }), sseOnly({ driver: 'sse', redis: redis.url })]
+    await one.app.boot()
+    await two.app.boot()
+    const site = await serveApp(two.http, () => 'ann')
+    const browser = await client()
+    try {
+      browser.registerChannels({ news: 'public' })
+      browser.configureBroadcast({ transport: 'sse', url: `${site.url}/_caldera/broadcast/sse` })
+      const news = browser.subscribe('news')!
+      await new Promise((r) => news.listen('pusher:subscription_succeeded', r))
+      await new Promise((r) => setTimeout(r, 200)) // both processes subscribed to Redis
+      const heard = new Promise((r) => news.listen('headline', r))
+      // Published by the other process, which holds no stream.
+      await one.broadcaster().send('news', 'headline', { text: 'from one' })
+      expect(await heard).toEqual({ text: 'from one' })
+    } finally {
+      browser.configureBroadcast(null)
+      site.site.closeAllConnections()
+      site.site.close()
+      await one.app.shutdown()
+      await two.app.shutdown()
+      await redis.stop()
+    }
   })
 })

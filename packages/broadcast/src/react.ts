@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { z } from 'zod'
 import type { BroadcastRegister } from './broadcaster.js'
 import type { ChannelDefinition, ChannelParams } from './channel.js'
-import { configVersion, membersOf, onConfigured, subscribe, type Member, type Subscription } from './client.js'
+import { configVersion, onConfigured, subscribe, type Member, type Subscription } from './client.js'
 
 type Channels = BroadcastRegister extends { channels: infer C } ? C : Record<string, ChannelDefinition<string, 'public' | 'private' | 'presence', any, any, any>>
 type Events = BroadcastRegister extends { events: infer E } ? E : Record<string, never>
@@ -67,14 +67,14 @@ function useSubscription<P extends ChannelPattern>(pattern: P, params: ChannelPa
     subscription.current = joined
     if (!joined) return
     const stops: (() => void)[] = []
-    const refreshMembers = () => presence && setMembers(membersOf(joined))
+    const refreshMembers = () => presence && setMembers(joined.members())
     stops.push(
       joined.listen('pusher:subscription_succeeded', () => (setSubscribed(true), setError(null), refreshMembers())),
       joined.listen('pusher:subscription_error', (failure) => setError(failure)),
     )
     if (presence) stops.push(joined.listen('pusher:member_added', refreshMembers), joined.listen('pusher:member_removed', refreshMembers))
     // Already joined by another component: no subscription_succeeded will come.
-    if (joined.channel.subscribed) (setSubscribed(true), refreshMembers())
+    if (joined.subscribed) (setSubscribed(true), refreshMembers())
     for (const event of Object.keys(latest.current.on ?? {})) {
       stops.push(joined.listen(event, (data) => (latest.current.on as Record<string, ((data: unknown) => void) | undefined> | undefined)?.[event]?.(data)))
     }

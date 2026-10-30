@@ -23,6 +23,9 @@ export const broadcast = defineConfig('broadcast', (env) => {
         ...(env.REDIS_URL ? { redis: env.REDIS_URL } : {}),
         ...(browser ? { client: { host: browser.hostname, port: Number(browser.port) || (secure ? 443 : 80), scheme: secure ? ('https' as const) : ('http' as const) } } : {}),
       },
+      // Server-sent events from the app itself: no realtime server, one-way (no presence, no whispers).
+      // Node and Bun; with Redis, several app processes share broadcasts.
+      sse: { driver: 'sse', ...(env.REDIS_URL ? { redis: env.REDIS_URL } : {}) },
       // Hosted Pusher.
       ...(env.PUSHER_KEY ? { pusher: { driver: 'pusher', appId: env.PUSHER_APP_ID ?? '', key: env.PUSHER_KEY, secret: env.PUSHER_SECRET, cluster: env.PUSHER_CLUSTER ?? 'mt1' } } : {}),
       // Cloudflare Workers: the BroadcastHub Durable Object (`caldera cloudflare:setup`).

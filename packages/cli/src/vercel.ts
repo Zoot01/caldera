@@ -112,7 +112,9 @@ export async function vercelIssues(
     else if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
       issues.push({ code: 'vercel_broadcast_local', severity: 'error', message: `On Vercel the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}. Functions can't hold WebSockets, so the realtime server runs elsewhere: hosted Pusher, or a pusher-protocol server (caldera broadcast:serve, Soketi, Reverb, a Cloudflare BroadcastHub) at BROADCAST_HOST.`, file: 'src/config/broadcast.ts' })
     }
-    else issues.push(...(await broadcastNowhere(project, c.broadcast, 'Vercel')))
+    else if (broadcast?.driver === 'sse' && !(broadcast as { redis?: string }).redis) {
+      issues.push({ code: 'vercel_broadcast_sse', severity: 'warning', message: `On Vercel the broadcast connection "${c.broadcast.default}" uses sse without Redis: each function instance has its own streams, so a broadcast reaches only browsers connected to the instance that sent it, and streams end at the function's time limit. Set REDIS_URL, or use hosted Pusher.`, file: 'src/config/broadcast.ts' })
+    } else issues.push(...(await broadcastNowhere(project, c.broadcast, 'Vercel')))
     if (!decidedBy('REDIS_URL')) skipped.push('cache')
     else if (pick(c.cache, 'stores') === 'memory') {
       issues.push({ code: 'vercel_memory_cache', severity: 'warning', message: 'On Vercel the default cache store is memory: each function instance has its own, so rate limits and locks aren’t shared. Use the database store, or Redis.', file: 'src/config/cache.ts' })

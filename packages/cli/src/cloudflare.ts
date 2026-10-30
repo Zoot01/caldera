@@ -207,6 +207,9 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
     if (broadcast?.driver === 'pusher' && broadcast.host && /^(127\.|localhost$|0\.0\.0\.0$|::1$)/.test(broadcast.host)) {
       issues.push({ code: 'workers_broadcast_local', severity: 'error', message: `On Workers the default broadcast connection "${c.broadcast.default}" publishes to ${broadcast.host}, this machine. Use the durable-object driver (cloudflare:setup adds the BroadcastHub), or hosted Pusher.`, file: 'src/config/broadcast.ts', fix: `set BROADCAST_CONNECTION=cloudflare in ${file} vars` })
     }
+    if (broadcast?.driver === 'sse') {
+      issues.push({ code: 'workers_broadcast_sse', severity: 'error', message: `On Workers the broadcast connection "${c.broadcast.default}" uses sse: each isolate holds its own streams, so a broadcast reaches only browsers connected to the isolate that sent it. Use the durable-object driver.`, file: 'src/config/broadcast.ts', fix: `set BROADCAST_CONNECTION=cloudflare in ${file} vars` })
+    }
     issues.push(...(await broadcastNowhere(project, c.broadcast, 'Workers')))
     const store = pick(c.cache, 'stores')
     if (store === 'redis') {

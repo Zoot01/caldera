@@ -20,8 +20,18 @@ export interface BroadcastMessage {
   socketId?: string
 }
 
-/** What the browser needs to connect (no secrets): pusher-js options. */
-export interface ClientConfig {
+/** What the browser needs to connect (no secrets): pusher-js options, or the sse driver's stream. */
+export type ClientConfig = PusherClientConfig | SseClientConfig
+
+/** The sse driver: the app's own event stream. */
+export interface SseClientConfig {
+  transport: 'sse'
+  url: string
+}
+
+/** pusher-js options. */
+export interface PusherClientConfig {
+  transport?: 'pusher'
   /** The pusher-js key. */
   key: string
   /** Pusher's cluster, or the host of a Pusher-compatible server (Soketi, Reverb, `caldera broadcast:serve`, the Durable Object). */

@@ -36,8 +36,9 @@ export const env = defineEnv({
   CRON_SECRET: secret(z.string().optional().transform((s) => s || undefined)),
   // Realtime (src/config/broadcast.ts). Unset: broadcasts are only logged. `server`: a pusher-protocol
   // server at BROADCAST_HOST, which `caldera dev` runs for you (`pnpm realtime` in production; Soketi and
-  // Reverb work too). `pusher`: hosted Pusher. `cloudflare`: the BroadcastHub Durable Object.
-  BROADCAST_CONNECTION: z.enum(['server', 'pusher', 'cloudflare', 'log', 'null']).default('log'),
+  // Reverb work too). `sse`: from the app itself (one-way: no presence or whispers). `pusher`: hosted
+  // Pusher. `cloudflare`: the BroadcastHub Durable Object.
+  BROADCAST_CONNECTION: z.enum(['server', 'sse', 'pusher', 'cloudflare', 'log', 'null']).default('log'),
   BROADCAST_APP_ID: z.string().default('{{ name }}'),
   BROADCAST_KEY: z.string().default('{{ name }}-key'),
   // Optional: by default the realtime server and the app derive a shared secret from APP_KEY.
