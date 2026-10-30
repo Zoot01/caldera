@@ -3,7 +3,7 @@ import type { Context, ErrorHandler, NotFoundHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { ZodError } from 'zod'
-import { back } from './redirect.js'
+import { back, INTENDED_KEY, redirect } from './redirect.js'
 import { isSessionStarted, sessionOf } from './session.js'
 
 /** The one error shape every Caldera HTTP response uses. Clients can type their failure branch with it. */
@@ -83,6 +83,11 @@ export interface ErrorHandlerOptions {
   debug?: boolean
   /** Called for unexpected (5xx) errors. Defaults to `console.error`. */
   report?: (error: unknown, c: Context) => void
+  /**
+   * Where signed-out page visits go, e.g. `'/login'`. Browsers asking for a page (and Inertia
+   * visits) are redirected, remembering the page for `intended(c)`; API requests keep the 401.
+   */
+  loginUrl?: string | ((c: Context) => string)
 }
 
 export function requestIdOf(c: Context): string {
@@ -98,6 +103,11 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
   return async (error, c) => {
     const known = toHttpError(error)
     if (known instanceof ValidationError && redirectsOnValidation(c)) return validationRedirect(c, known)
+    if (known?.status === 401 && options.loginUrl && isPageVisit(c)) {
+      const login = typeof options.loginUrl === 'function' ? options.loginUrl(c) : options.loginUrl
+      // The login page itself must never bounce to itself.
+      if (new URL(login, c.req.url).pathname !== c.req.path) return loginRedirect(c, login)
+    }
     if (!known) report(error, c)
     const status = known?.status ?? 500
     const body: ErrorBody = {
@@ -120,6 +130,20 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
     }
     return response
   }
+}
+
+/** A browser asking for a page (or an Inertia visit), as opposed to an API client. */
+function isPageVisit(c: Context): boolean {
+  return c.req.header('x-inertia') === 'true' || (c.req.header('accept') ?? '').includes('text/html')
+}
+
+function loginRedirect(c: Context, login: string): Response {
+  // Only GETs are worth returning to: replaying a form post after sign-in would be surprising.
+  if (c.req.method === 'GET' && isSessionStarted(c)) {
+    const url = new URL(c.req.url)
+    sessionOf(c).put(INTENDED_KEY, url.pathname + url.search)
+  }
+  return redirect(c, login)
 }
 
 /**

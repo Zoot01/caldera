@@ -1,5 +1,8 @@
 import type { Context } from 'hono'
-import { sessionOf } from './session.js'
+import { isSessionStarted, sessionOf } from './session.js'
+
+/** Session key for the page a signed-out visitor was headed to. */
+export const INTENDED_KEY = 'url.intended'
 
 /** A redirect that can flash to the session on its way out: `back(c).with('success', 'Saved')`. */
 export class Redirect extends Response {
@@ -57,4 +60,14 @@ export function previousUrl(c: Context): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * After sign-in: back to the page that sent the visitor to the login page, or `fallback`. Only paths
+ * on this site are followed, so a tampered value can't redirect elsewhere.
+ */
+export function intended(c: Context, fallback = '/'): Redirect {
+  const stored = isSessionStarted(c) ? sessionOf(c).pull<string>(INTENDED_KEY) : undefined
+  const safe = typeof stored === 'string' && stored.startsWith('/') && !stored.startsWith('//') && !stored.startsWith('/\\')
+  return redirect(c, safe ? stored : fallback)
 }
