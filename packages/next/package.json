@@ -1,0 +1,44 @@
+{
+  "name": "@caldera/next",
+  "version": "0.0.0",
+  "description": "Caldera in a Next.js app: the Hono app as route handlers, services in Server Components and server actions, a typed client.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "hono": "^4.13.0",
+    "next": ">=15.0.0",
+    "react": ">=19.0.0"
+  },
+  "dependencies": {
+    "@caldera/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@caldera/http": "workspace:*",
+    "@caldera/i18n": "workspace:*",
+    "@types/react": "19.3.0",
+    "hono": "4.13.14",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
+  }
+}
