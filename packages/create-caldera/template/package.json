@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "caldera dev",
     "start": "tsx src/server.ts",
     "generate": "caldera generate",
     "db:push": "caldera db:push",

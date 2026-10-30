@@ -12,6 +12,7 @@ import { generateProjectAuthSchema } from './auth-schema.js'
 import { ejectStub, make, MAKE_KINDS, type MakeKind } from './make.js'
 import { STUBS } from './stubs.js'
 import { check } from './check.js'
+import { startDev } from './dev.js'
 
 const VERSION = '0.0.0'
 
@@ -264,11 +265,35 @@ const checkCommand = defineCommand({
     }),
 })
 
+const devCommand = defineCommand({
+  meta: { name: 'dev', description: 'Run the app with tsx watch and keep generated types current as you edit' },
+  args: {
+    cwd: shared.cwd,
+    server: { type: 'boolean', description: 'Start the server (use --no-server to only regenerate types)', default: true },
+    entry: { type: 'string', description: 'Server entry file', default: 'src/server.ts' },
+  },
+  async run({ args }) {
+    const session = startDev(openProject(args.cwd).root, {
+      server: args.server,
+      serverEntry: args.entry,
+      onEvent: (event) => {
+        if (event.type === 'error') process.stderr.write(`✘ caldera generate: ${event.error}\n`)
+        else if (event.changed.length) process.stdout.write(`↻ regenerated ${event.changed.join(', ')}\n`)
+      },
+    })
+    await session.ready
+    await new Promise<void>((resolve) => {
+      for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => void session.stop().then(resolve))
+    })
+  },
+})
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
     generate: generateCommand,
     check: checkCommand,
+    dev: devCommand,
     describe: describeCommand,
     'route:list': routeListCommand,
     'model:show': modelShowCommand,

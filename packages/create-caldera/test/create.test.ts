@@ -103,7 +103,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     expect(tests.status, tests.stdout + tests.stderr).toBe(0)
 
     const { spawn } = await import('node:child_process')
-    const server = spawn('pnpm', ['start'], { cwd: dir, env: { ...process.env, PORT: '3456' } })
+    // `caldera dev`: the codegen watcher plus the server under tsx watch.
+    const server = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3456' }, detached: true })
     try {
       let body: unknown
       for (let i = 0; i < 60 && !body; i++) {
@@ -112,7 +113,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       }
       expect(body).toEqual({ users: [] }) // the database step created the table
     } finally {
-      server.kill('SIGTERM')
+      process.kill(-server.pid!, 'SIGTERM') // the whole group: pnpm, caldera dev and tsx
     }
   }, 300_000)
 })
