@@ -41,6 +41,8 @@ cd ~/Documents/testing-caldera
 node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <name> --pm pnpm --link ~/Documents/Github/caldera --no-git
 ```
 
+`--link` installs packed copies of the packages (`.caldera-local/*.tgz`) as they were at create time: a later `pnpm build` doesn't reach an existing app. Create a fresh app, or for a quick retry copy a package's `dist/` over the app's installed copy (`cp -R packages/cli/dist/. "$(readlink -f <app>/node_modules/@caldera/cli)/dist/"`).
+
 `--link` packs the local packages, so rebuild (`pnpm build`) and re-create the app after changing a package. Stop any dev servers you start there (ports 3000+ and Vite's 5173).
 
 ## Known issues
