@@ -46,7 +46,7 @@ export class CreateError extends Error {
 }
 
 const TEMPLATE = new URL('../template/', import.meta.url)
-const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events']
+const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule']
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,

@@ -33,6 +33,7 @@
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",
     "@caldera/queue": "workspace:*",
+    "@caldera/schedule": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@inertiajs/core": "3.9.1",
     "@inertiajs/react": "3.9.1",

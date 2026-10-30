@@ -94,6 +94,16 @@ export const {{ Name }} = defineJob({
   },
 })
 `,
+  schedule: `import { defineSchedule } from '@caldera/schedule'
+import { {{ Job }} } from '../jobs/{{ jobKebab }}.js'
+
+export const {{ name }} = defineSchedule('{{ kebab }}', {
+  cron: '0 2 * * *', // 02:00 UTC every day
+  job: {{ Job }},
+  // payload: { ... },
+  // withoutOverlapping: true, onOneServer: true, environments: ['production'],
+})
+`,
   event: `import { defineEvent } from '@caldera/events'
 import { z } from 'zod'
 

@@ -7,6 +7,7 @@ import { loadModels } from './models.js'
 import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
 import { loadListeners } from './listeners.js'
+import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
 
@@ -121,6 +122,20 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
         HEADER +
         listenerFilesUsed.map((file) => `import * as ${listenersAlias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
         `${listenerFilesUsed.length ? '\n' : ''}export const listeners = [${listeners.map((l) => `${listenersAlias(l.file)}.${l.exportName}`).join(', ')}] as const\n`,
+    })
+  }
+
+  // Passed to scheduleProvider({ schedules }) in app.ts: always written once the app uses schedules.
+  const schedules = await loadSchedules(project)
+  if (schedules.length > 0 || usesPackage(project, '@caldera/schedule')) {
+    const used = [...new Set(schedules.map((s) => s.file))]
+    const alias = (file: string) => `schedules${used.indexOf(file)}`
+    generated.push({
+      path: `${dir}/schedules.gen.ts`,
+      contents:
+        HEADER +
+        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+        `${used.length ? '\n' : ''}export const schedules = [${schedules.map((s) => `${alias(s.file)}.${s.exportName}`).join(', ')}] as const\n`,
     })
   }
 

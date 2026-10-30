@@ -113,6 +113,9 @@ importers:
       '@caldera/queue':
         specifier: workspace:*
         version: link:../queue
+      '@caldera/schedule':
+        specifier: workspace:*
+        version: link:../schedule
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13

@@ -10,7 +10,8 @@
     "db:push": "caldera db:push",
     "test": "vitest run",
     "typecheck": "caldera generate && tsc --noEmit",
-    "worker": "caldera queue:work"
+    "worker": "caldera queue:work",
+    "scheduler": "caldera schedule:work"
   },
   "dependencies": {
     "@caldera/cache": "^0.0.0",
@@ -20,6 +21,7 @@
     "@caldera/http": "^0.0.0",
     "@caldera/inertia": "^0.0.0",
     "@caldera/queue": "^0.0.0",
+    "@caldera/schedule": "^0.0.0",
     "@hono/node-server": "^2.1.5",
     "@inertiajs/core": "^3.9.1",
     "@inertiajs/react": "^3.9.1",

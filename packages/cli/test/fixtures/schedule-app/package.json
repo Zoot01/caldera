@@ -1,0 +1,1 @@
+{ "name": "fixture-schedule-app", "private": true, "type": "module", "dependencies": { "@caldera/schedule": "workspace:*", "@caldera/queue": "workspace:*", "@caldera/cache": "workspace:*" } }

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { loadModels } from './models.js'
 import { pageFiles } from './pages.js'
 import { loadListeners } from './listeners.js'
+import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { describeAbilities } from './policies.js'
 import { routeFiles, type Project } from './project.js'
@@ -78,6 +79,23 @@ async function generatedSection(project: Project): Promise<string> {
         [...listeners]
           .sort((a, b) => a.listener.event.name.localeCompare(b.listener.event.name))
           .map(({ listener, exportName, file }) => [`\`${listener.event.name}\``, `\`${exportName}\``, listener.queued ? `queued: job \`${listener.queued.job.name}\`` : 'in process', file]),
+      ),
+    )
+  }
+
+  const schedules = await loadSchedules(project)
+  if (schedules.length > 0) {
+    parts.push(
+      table(
+        'Schedules',
+        ['Schedule', 'Cron', 'Job', 'Options', 'Defined in'],
+        schedules.map(({ schedule: s, file }) => [
+          `\`${s.name}\``,
+          `\`${s.cron}\`${s.tz === 'UTC' ? '' : ` (${s.tz})`}`,
+          `\`${s.job.name}\``,
+          [s.onOneServer ? 'one server' : '', s.withoutOverlapping !== null ? 'no overlap' : '', s.environments ? s.environments.join('/') : ''].filter(Boolean).join(', '),
+          file,
+        ]),
       ),
     )
   }

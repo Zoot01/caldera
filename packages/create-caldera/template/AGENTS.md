@@ -22,9 +22,12 @@ Pages get their data from the route that renders them: no API layer. A page's pr
 | Queued jobs (`dispatch(Job, payload)` from `@caldera/queue`) | `src/jobs/*.ts` | `caldera make:job <Name>` |
 | Events (`emit(Event, payload)` from `@caldera/events`) | `src/events/*.ts` | `caldera make:event <Name>` |
 | Listeners (in process, or a job: `listen(Event, Job.fromEvent(map))`) | `src/listeners/*.ts` | `caldera make:listener <Name> --event <Event>` |
+| Schedules (cron, each dispatches a job) | `src/schedules/*.ts` | `caldera make:schedule <Name> --job <Job>` |
 | Factories / seeders | `src/db/factories/`, `src/db/seeders/` | `caldera make:factory`, `caldera make:seeder` |
 
 Jobs run as soon as they're dispatched while `QUEUE_CONNECTION=sync` (the default). With `REDIS_URL` and `QUEUE_CONNECTION=redis` they go to BullMQ, and `pnpm worker` (`caldera queue:work`) runs them; the cache moves to Redis too. In tests, `app.services.queue.fake()` captures dispatched jobs for assertions.
+
+Schedules run from `pnpm scheduler` (`caldera schedule:work`) on a server, or `* * * * * caldera schedule:run` in a crontab. On Cloudflare, export `scheduled: (controller, env) => handleScheduled(app, controller, env)`; on Vercel, set `CRON_SECRET`. `caldera schedule:sync --target cloudflare|vercel` writes the platform's cron config. `caldera schedule:list` shows next runs.
 
 Security headers are on by default in `src/http.ts`, including a strict CSP: only scripts with this request's nonce run (and what they load). Page and Vite tags get the nonce automatically; any inline `<script>` you add in a custom `rootView` needs `nonce="${nonce}"`. Don't loosen `script-src`; add other directives with `securityHeaders({ csp: { imgSrc: [...] } })`.
 

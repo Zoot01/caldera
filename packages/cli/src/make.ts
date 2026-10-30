@@ -6,7 +6,7 @@ import { names, render, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
-export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener'] as const
+export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page', 'job', 'event', 'listener', 'schedule'] as const
 export type MakeKind = (typeof MAKE_KINDS)[number]
 
 interface Planned {
@@ -42,6 +42,8 @@ function plan(kind: MakeKind, n: Names & { page: string }, project: Project, opt
       return [{ path: `${CONVENTIONS.eventsDir}/${n.kebab}.ts`, stub: 'event' }]
     case 'listener':
       return [{ path: `${CONVENTIONS.listenersDir}/${n.kebab}.ts`, stub: 'listener' }]
+    case 'schedule':
+      return [{ path: `${CONVENTIONS.schedulesDir}/${n.kebab}.ts`, stub: 'schedule' }]
   }
 }
 
@@ -52,6 +54,7 @@ function hints(kind: MakeKind, n: Names & { page: string }, options: { table: bo
   }
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
+  if (kind === 'schedule') return [`\`caldera schedule:list\` shows its next run; \`caldera schedule:work\` (or a platform cron, see \`caldera schedule:sync\`) runs it.`]
   if (kind === 'event') return [`Emit it with \`await emit(${n.Name}, { id })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.`]
   if (kind === 'listener') return [`It runs on every emit of its event. For slow work, listen with a job instead: \`listen(Event, Job.fromEvent((e) => ({ ... })))\`.`]
   if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera/queue'; \`caldera queue:work\` runs it.`]
@@ -84,7 +87,7 @@ export async function make(
   project: Project,
   kind: MakeKind,
   rawName: string,
-  options: { force?: boolean; table?: boolean; event?: string } = {},
+  options: { force?: boolean; table?: boolean; event?: string; job?: string } = {},
 ): Promise<MakeResult> {
   let n: Names & { page: string }
   try {
@@ -103,8 +106,16 @@ export async function make(
   if (kind === 'listener' && !options.event) {
     throw new CalderaError('missing_argument', 'Missing --event. Usage: caldera make:listener <Name> --event <EventName>', { missing: ['event'] })
   }
+  if (kind === 'schedule' && !options.job) {
+    throw new CalderaError('missing_argument', 'Missing --job. Usage: caldera make:schedule <Name> --job <JobName>', { missing: ['job'] })
+  }
   const eventNames = options.event ? names(options.event) : undefined
-  const values = { ...n, ...(eventNames ? { Event: eventNames.Name, eventKebab: eventNames.kebab } : {}) }
+  const jobNames = options.job ? names(options.job) : undefined
+  const values = {
+    ...n,
+    ...(eventNames ? { Event: eventNames.Name, eventKebab: eventNames.kebab } : {}),
+    ...(jobNames ? { Job: jobNames.Name, jobKebab: jobNames.kebab } : {}),
+  }
   for (const file of files) {
     const target = project.path(file.path)
     mkdirSync(dirname(target), { recursive: true })

@@ -14,6 +14,7 @@ import { STUBS } from './stubs.js'
 import { check } from './check.js'
 import { startDev } from './dev.js'
 import { startWorker } from './queue.js'
+import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
 
 const VERSION = '0.0.0'
 
@@ -217,6 +218,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   job: 'Create a queued job in src/jobs/',
   event: 'Create an event in src/events/',
   listener: 'Create an event listener in src/listeners/ (needs --event)',
+  schedule: 'Create a schedule in src/schedules/ (needs --job)',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -228,11 +230,12 @@ function makeCommand(kind: MakeKind) {
       force: { type: 'boolean', description: 'Overwrite existing files' },
       ...(kind === 'model' ? { table: { type: 'boolean', description: 'Also create the table (use --no-table for an existing one)', default: true } } : {}),
       ...(kind === 'listener' ? { event: { type: 'string', description: 'The event it listens to, e.g. UserRegistered' } } : {}),
+      ...(kind === 'schedule' ? { job: { type: 'string', description: 'The job it dispatches, e.g. GenerateReport' } } : {}),
     },
     run: ({ args }) =>
       run(wantsJson(args.json), async () => {
         const name = requireArg(args.name as string | undefined, 'name', `Usage: caldera make:${kind} <name>`)
-        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table, event: (args as { event?: string }).event })
+        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table, event: (args as { event?: string }).event, job: (args as { job?: string }).job })
         const text = [
           ...result.created.map((path) => `created   ${path}`),
           ...result.hints.map((hint) => `next      ${hint}`),
@@ -310,6 +313,70 @@ const queueWorkCommand = defineCommand({
   },
 })
 
+const scheduleListCommand = defineCommand({
+  meta: { name: 'schedule:list', description: 'List schedules in src/schedules with their next run' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const data = await listSchedules(openProject(args.cwd))
+      const text = data.schedules.map((s) => `${s.name.padEnd(24)} ${`${s.cron}${s.tz === 'UTC' ? '' : ` ${s.tz}`}`.padEnd(24)} → ${s.job.padEnd(20)} next ${s.next ?? 'never'}`).join('\n')
+      return { data, text: text || 'No schedules in src/schedules.' }
+    }),
+})
+
+const scheduleRunCommand = defineCommand({
+  meta: { name: 'schedule:run', description: 'Dispatch the schedules due this minute, once (for an OS crontab: * * * * *)' },
+  args: shared,
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const { scheduler, shutdown } = await bootScheduler(openProject(args.cwd))
+      try {
+        const result = await scheduler.runDue()
+        const text = result.results.map((r) => `${r.status === 'dispatched' ? '✓' : '-'} ${r.name}${r.reason ? ` (${r.reason})` : ''}`).join('\n')
+        return { data: { schemaVersion: 1, ...result }, text: text || `Nothing due at ${result.minute}.` }
+      } finally {
+        await shutdown()
+      }
+    }),
+})
+
+const scheduleWorkCommand = defineCommand({
+  meta: { name: 'schedule:work', description: 'Dispatch due schedules every minute until stopped' },
+  args: shared,
+  async run({ args }) {
+    const json = wantsJson(args.json)
+    try {
+      const worker = await startScheduleWorker(openProject(args.cwd), (tick) => {
+        if (json) return void process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), ...tick })}\n`)
+        for (const r of tick.results) process.stdout.write(`${tick.minute} ${r.status === 'dispatched' ? '✓' : '-'} ${r.name}${r.reason ? ` (${r.reason})` : ''}\n`)
+      })
+      if (!json) process.stdout.write('Running schedules every minute. Ctrl+C to stop.\n')
+      await new Promise<void>((resolve) => {
+        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => void worker.stop().then(resolve))
+      })
+    } catch (error) {
+      await run(json, async () => {
+        throw error
+      })
+    }
+  },
+})
+
+const scheduleSyncCommand = defineCommand({
+  meta: { name: 'schedule:sync', description: 'Write platform cron entries (vercel.json or wrangler.toml) from src/schedules' },
+  args: {
+    ...shared,
+    target: { type: 'enum', options: ['vercel', 'cloudflare'], description: 'Platform', required: true },
+    check: { type: 'boolean', description: 'Exit with code 1 if the file is out of date, without writing' },
+  },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = await syncSchedules(openProject(args.cwd), args.target as 'vercel' | 'cloudflare', { check: args.check })
+      const text = [`${result.status.padEnd(9)} ${result.file} (${result.crons.length} cron${result.crons.length === 1 ? '' : 's'})`, ...result.warnings.map((w) => `warning   ${w}`)].join('\n')
+      return { data: result, text, exitCode: result.status === 'stale' ? 1 : 0 }
+    }),
+})
+
 const devCommand = defineCommand({
   meta: { name: 'dev', description: 'Run the app (tsx watch) and Vite, and keep generated types current as you edit' },
   args: {
@@ -342,6 +409,10 @@ export const main = defineCommand({
     check: checkCommand,
     dev: devCommand,
     'queue:work': queueWorkCommand,
+    'schedule:list': scheduleListCommand,
+    'schedule:run': scheduleRunCommand,
+    'schedule:work': scheduleWorkCommand,
+    'schedule:sync': scheduleSyncCommand,
     describe: describeCommand,
     'route:list': routeListCommand,
     'model:show': modelShowCommand,
