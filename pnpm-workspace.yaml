@@ -6,3 +6,5 @@ allowBuilds:
   msgpackr-extract: false
   # Miniflare's runtime (queue tests only): its script checks or fetches the platform binary.
   workerd: true
+  # QStash's local dev server (queue tests only): its script downloads the server binary.
+  '@upstash/qstash-cli': true
