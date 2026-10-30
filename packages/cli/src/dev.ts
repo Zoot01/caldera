@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { CalderaError } from '@caldera/core'
 import { generate, type GenerateResult } from './codegen.js'
 import { CONVENTIONS, openProject } from './project.js'
@@ -102,7 +103,19 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     if (options.server ?? true) {
       const tsx = findBin(root, 'tsx')
       if (tsx) {
-        const start = () => spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], { cwd: root, stdio: 'inherit' })
+        const logs = devLogFiles(root)
+        const start = () => {
+          const child = spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], {
+            cwd: root,
+            stdio: ['inherit', 'pipe', 'pipe'],
+            // The preload records unexpected errors for `caldera mcp` (last_errors), with source-mapped stacks.
+            env: { ...process.env, CALDERA_ERROR_LOG: logs.errors, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${JSON.stringify(PRELOAD)}`.trim() },
+          })
+          // Shown as before, and kept in .caldera/dev.log for `caldera mcp` (logs).
+          child.stdout!.on('data', (chunk: Buffer) => (process.stdout.write(chunk), logs.append(chunk)))
+          child.stderr!.on('data', (chunk: Buffer) => (process.stderr.write(chunk), logs.append(chunk)))
+          return child
+        }
         let server = start()
         children.push(server)
         restartServer = async () => {
@@ -141,5 +154,31 @@ function findBin(root: string, name: string): string | undefined {
       return relative ? join(dir, 'node_modules', name, relative) : undefined
     }
     if (dirname(dir) === dir) return undefined
+  }
+}
+
+const PRELOAD = fileURLToPath(new URL('./dev-preload.js', import.meta.url))
+const MAX_LOG_BYTES = 2 * 1024 * 1024
+
+/** `.caldera/dev.log` (the server's output) and `.caldera/dev-errors.jsonl`, fresh for each `caldera dev`. */
+export function devLogFiles(root: string) {
+  const dir = join(root, CONVENTIONS.generatedDir)
+  const log = join(dir, 'dev.log')
+  const errors = join(dir, 'dev-errors.jsonl')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(log, '')
+  writeFileSync(errors, '')
+  return {
+    log,
+    errors,
+    append(chunk: Buffer) {
+      try {
+        appendFileSync(log, chunk)
+        // Keep the newest half once it passes the cap.
+        if (statSync(log).size > MAX_LOG_BYTES) writeFileSync(log, readFileSync(log).subarray(-MAX_LOG_BYTES / 2))
+      } catch {
+        // The log is a convenience; never let it stop the server.
+      }
+    },
   }
 }

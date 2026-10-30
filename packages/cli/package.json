@@ -27,13 +27,15 @@
     "@caldera/db": "workspace:*",
     "@caldera/i18n": "workspace:*",
     "citty": "0.2.2",
-    "tsx": "4.23.15"
+    "tsx": "4.23.15",
+    "zod": "^4.6.0"
   },
   "devDependencies": {
     "@caldera/cache": "workspace:*",
     "@caldera/events": "workspace:*",
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",
+    "@caldera/mail": "workspace:*",
     "@caldera/notifications": "workspace:*",
     "@caldera/queue": "workspace:*",
     "@caldera/schedule": "workspace:*",
@@ -41,6 +43,9 @@
     "@inertiajs/core": "3.9.1",
     "@inertiajs/react": "3.9.1",
     "@libsql/client": "0.18.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@react-email/components": "1.0.12",
+    "@types/pg": "^8.15.0",
     "@types/react": "19.3.0",
     "better-auth": "1.7.14",
     "bullmq": "6.5.1",
@@ -48,7 +53,9 @@
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "4.13.14",
     "ioredis": "6.0.0",
+    "pg": "8.23.1",
     "react": "19.3.1",
+    "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "4.6.7"
   }

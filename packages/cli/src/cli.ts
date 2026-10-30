@@ -16,6 +16,8 @@ import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
 import { notificationsTable } from './notifications.js'
 import { i18nReport } from './i18n.js'
+import { createMcpServer, serveStdio } from './mcp/protocol.js'
+import { calderaTools, INSTRUCTIONS } from './mcp/tools.js'
 import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
 
 const VERSION = '0.0.0'
@@ -362,6 +364,23 @@ const i18nMissingCommand = defineCommand({
     }),
 })
 
+const mcpCommand = defineCommand({
+  meta: { name: 'mcp', description: 'Serve the app to coding agents over MCP (stdio): introspection, logs, errors, read-only SQL, in-process requests' },
+  args: {
+    cwd: shared.cwd,
+    'allow-writes': { type: 'boolean', description: 'Also allow tools that change things: non-GET requests, make, db_seed' },
+  },
+  run: async ({ args }) => {
+    const probe = openProject(args.cwd)
+    const root = probe.root
+    await probe.dispose()
+    // The app resolves relative paths (file:local.db, storage/app, its tsconfig) from where it runs.
+    process.chdir(root)
+    const server = createMcpServer({ name: 'caldera', version: VERSION, instructions: INSTRUCTIONS, tools: calderaTools({ root, allowWrites: Boolean(args['allow-writes']) }) })
+    await serveStdio(server)
+  },
+})
+
 const queueFailedCommand = defineCommand({
   meta: { name: 'queue:failed', description: 'List failed jobs (database queue driver)' },
   args: { ...shared, connection: { type: 'string', description: 'Queue connection (default: the default one)' } },
@@ -504,6 +523,7 @@ export const main = defineCommand({
     'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
     'notifications:table': notificationsTableCommand,
     'i18n:missing': i18nMissingCommand,
+    mcp: mcpCommand,
     'schedule:list': scheduleListCommand,
     'schedule:run': scheduleRunCommand,
     'schedule:work': scheduleWorkCommand,

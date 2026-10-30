@@ -89,13 +89,15 @@ export interface MakeResult {
   hints: string[]
   /** Result of the follow-up `caldera generate`; failures here never undo the created files. */
   generate: 'ok' | 'skipped' | { error: string }
+  /** With `dryRun`: what would be written, and nothing is. */
+  planned?: { path: string; contents: string; exists: boolean }[]
 }
 
 export async function make(
   project: Project,
   kind: MakeKind,
   rawName: string,
-  options: { force?: boolean; table?: boolean; event?: string; job?: string } = {},
+  options: { force?: boolean; table?: boolean; event?: string; job?: string; dryRun?: boolean } = {},
 ): Promise<MakeResult> {
   let n: Names & { page: string }
   try {
@@ -123,6 +125,10 @@ export async function make(
     ...n,
     ...(eventNames ? { Event: eventNames.Name, eventKebab: eventNames.kebab } : {}),
     ...(jobNames ? { Job: jobNames.Name, jobKebab: jobNames.kebab } : {}),
+  }
+  if (options.dryRun) {
+    const planned = files.map((file) => ({ path: file.path, contents: render(resolveStub(project, file.stub).template, values), exists: existsSync(project.path(file.path)) }))
+    return { schemaVersion: 1, kind, created: [], hints: hints(kind, n, { table }), generate: 'skipped', planned }
   }
   for (const file of files) {
     const target = project.path(file.path)
