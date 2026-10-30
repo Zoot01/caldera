@@ -54,7 +54,11 @@ export function defineSchedule<J extends AnyJob>(name: string, options: Schedule
   } catch (error) {
     throw new CalderaError('schedule_cron_invalid', `Schedule "${name}": can't read "${options.cron}" in ${tz} (${(error as Error).message}).`)
   }
-  options.job.payload.parse(options.payload ?? {})
+  const parsed = options.job.payload.safeParse(options.payload ?? {})
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.') || '(payload)'}: ${i.message}`).join('; ')
+    throw new CalderaError('schedule_payload_invalid', `Schedule "${name}": its payload doesn't fit job "${options.job.name}" (${issues}). Set \`payload\`.`, { issues: parsed.error.issues })
+  }
   const overlap = options.withoutOverlapping
   return {
     kind: 'caldera.schedule',
