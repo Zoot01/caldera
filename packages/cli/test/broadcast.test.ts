@@ -49,12 +49,15 @@ it('generate lists channels for the server, their types for the browser, and typ
   const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
   expect(register).toContain("declare module '@caldera/broadcast' {")
   expect(register).toContain('"posts.{post}": typeof broadcast0.PostChannel')
-  expect(register).toContain('"post.updated": typeof broadcast1.PostUpdated')
+  expect(register).toMatch(/"post.updated": typeof broadcast\d\.PostUpdated/)
+  // Model broadcasting: the model's events, typed from its `with`.
+  expect(register).toMatch(/"post.updated": import\('@caldera\/broadcast'\)\.ModelBroadcastEvent<typeof broadcast\d\.Post>/)
   const agents = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
   expect(agents).toContain('| `posts.{post}` | private | post |  | src/channels/posts.ts:')
   expect(agents).toContain('| `rooms.{room}` | presence |  | typing | src/channels/posts.ts:')
   expect(agents).toContain('| `post.updated` | `PostUpdated` | `with` | src/events/post-updated.ts |')
 
+  expect((await listBroadcasts(openProject(dir))).events.map((e) => [e.as, e.export])).toEqual([['post.updated', 'PostUpdated'], ['post.updated', 'Post (model)']])
   expect((await listBroadcasts(openProject(dir))).channels[0]).toMatchObject({ pattern: 'posts.{post}', type: 'private', params: ['post'], bindings: { post: 'post' }, clientEvents: [] })
 })
 

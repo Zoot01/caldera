@@ -10,7 +10,7 @@ import { loadListeners } from './listeners.js'
 import { compileMailStyles, loadMails } from './mails.js'
 import { i18nGen, i18nRegister, loadLang } from './i18n.js'
 import { loadNotifications } from './notifications.js'
-import { loadBroadcastEvents, loadChannels } from './broadcast.js'
+import { loadBroadcastEvents, loadBroadcastModels, loadChannels } from './broadcast.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
@@ -248,7 +248,8 @@ async function broadcastRegister(project: Project): Promise<string> {
   if (!usesPackage(project, '@caldera/broadcast')) return ''
   const channels = await loadChannels(project)
   const events = await loadBroadcastEvents(project)
-  const files = [...new Set([...channels.map((c) => c.file), ...events.map((e) => e.file)])]
+  const models = await loadBroadcastModels(project)
+  const files = [...new Set([...channels.map((c) => c.file), ...events.map((e) => e.file), ...models.map((m) => m.file)])]
   const alias = (file: string) => `broadcast${files.indexOf(file)}`
   return (
     '\n' +
@@ -260,6 +261,7 @@ async function broadcastRegister(project: Project): Promise<string> {
     `    }\n` +
     `    events: {\n` +
     events.map((e) => `      ${JSON.stringify(e.event.broadcast!.as ?? e.event.name)}: typeof ${alias(e.file)}.${e.exportName}\n`).join('') +
+    models.flatMap((m) => m.events.map((name) => `      ${JSON.stringify(name)}: import('@caldera/broadcast').ModelBroadcastEvent<typeof ${alias(m.file)}.${m.exportName}>\n`)).join('') +
     `    }\n` +
     `  }\n` +
     `}\n`

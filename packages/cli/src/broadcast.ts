@@ -59,6 +59,15 @@ export async function broadcastNowhere(project: Project, broadcast: { default?: 
   ]
 }
 
+/** Models in src/models that broadcast their writes (`defineModel(…, { broadcast })`). */
+export async function loadBroadcastModels(project: Project): Promise<{ file: string; exportName: string; events: string[] }[]> {
+  const { models } = await loadModels(project)
+  return models.flatMap((m) => {
+    const events = (m.model as unknown as { describe(): { broadcast: string[] | null } }).describe().broadcast
+    return events ? [{ file: m.file, exportName: m.exportName, events }] : []
+  })
+}
+
 /** `caldera broadcast:list`: channels (who may join, and where), broadcast events, and the connection. */
 export async function listBroadcasts(project: Project) {
   const channels = (await loadChannels(project)).map(({ channel, exportName, file }) => ({
@@ -81,6 +90,10 @@ export async function listBroadcasts(project: Project) {
     with: Boolean(event.broadcast!.with),
     file,
   }))
+  // Model broadcasting: each event, sent after a write commits, always with `with` (it's required).
+  for (const { exportName, file, events: names } of await loadBroadcastModels(project)) {
+    for (const name of names) events.push({ name, as: name, export: `${exportName} (model)`, queued: false, with: true, file })
+  }
   return { schemaVersion: 1 as const, channels, events }
 }
 

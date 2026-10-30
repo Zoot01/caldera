@@ -65,7 +65,28 @@ export interface Hooks<K extends TableKey, H, G> {
 
 type RowRef = string | number | Record<string, unknown>
 
-export type Model<K extends TableKey, Name extends string, H extends string, G extends string, A, Sc, SD extends string = never> = QueryApi<K> & {
+/** A channel to broadcast on: `PostChannel.with({ post: row.id })` from `@caldera/broadcast`. */
+export interface BroadcastChannelRef {
+  readonly kind: 'caldera.channel-ref'
+  readonly name: string
+}
+export type ModelBroadcastEvent = 'created' | 'updated' | 'deleted'
+
+/**
+ * Model broadcasting: after a write commits, browsers on `on(row)` get `<model>.created`, `.updated`
+ * (restores too) or `.deleted` with `with(row)`. `with` is required, so a whole row (and whatever
+ * columns are added to it later) never reaches the browser by default.
+ */
+export interface ModelBroadcast<R, W> {
+  on: (row: R) => BroadcastChannelRef | readonly BroadcastChannelRef[]
+  with: (row: R) => W
+  /** Default: all three. */
+  events?: readonly ModelBroadcastEvent[]
+  /** Skip the browser that made the request (its X-Socket-ID). */
+  toOthers?: boolean
+}
+
+export type Model<K extends TableKey, Name extends string, H extends string, G extends string, A, Sc, SD extends string = never, W = never> = QueryApi<K> & {
   readonly kind: 'caldera.model'
   readonly name: Name
   readonly table: S[K]['table']
@@ -74,6 +95,8 @@ export type Model<K extends TableKey, Name extends string, H extends string, G e
   readonly '~guarded': G
   readonly '~appends': A
   readonly '~softDeletes': SD
+  /** What browsers get from model broadcasting (`broadcast.with`), for typed hooks. */
+  readonly '~broadcast': W
   /** Includes soft-deleted rows. */
   withTrashed(): QueryApi<K>
   /** Only soft-deleted rows. */
@@ -95,7 +118,7 @@ export type Model<K extends TableKey, Name extends string, H extends string, G e
   /** The model's definition as JSON, for `caldera model:show` and agents. */
   describe(): ModelDescription
   /** The same model bound to a specific database instead of the default one. */
-  using(database: Database<any>): Model<K, Name, H, G, A, Sc, SD>
+  using(database: Database<any>): Model<K, Name, H, G, A, Sc, SD, W>
 } & { [N in keyof Sc]: Sc[N] extends (...args: infer P) => any ? (...args: P) => QueryApi<K> : never }
 
 export interface ModelDescription {
@@ -108,6 +131,8 @@ export interface ModelDescription {
   scopes: string[]
   appends: string[]
   hooks: string[]
+  /** The events it broadcasts, by the name browsers get, or null. */
+  broadcast: string[] | null
 }
 
 export type AnyModel = {
@@ -127,7 +152,7 @@ export type Serialized<M extends AnyModel> = Simplify<Row<M> & M['~appends']>
 type SelOf<T> = T extends { $inferSelect: infer X } ? X : never
 type InsOf<T> = T extends { $inferInsert: infer X } ? X : never
 
-export interface ModelConfig<T extends Table, Name extends string, H, G, A, Sc, SD, K extends TableKey> {
+export interface ModelConfig<T extends Table, Name extends string, H, G, A, Sc, SD, K extends TableKey, W = never> {
   name: Name
   hidden?: readonly H[]
   guarded?: readonly G[]
@@ -137,6 +162,8 @@ export interface ModelConfig<T extends Table, Name extends string, H, G, A, Sc, 
   scopes?: Sc & Record<keyof Sc, (...args: any[]) => Filter<K>>
   appends?: { [P in keyof A]: (row: OmitKeys<SelOf<T>, H>) => A[P] }
   hooks?: Hooks<K, H, G>
+  /** Sends created/updated/deleted to browsers after commit (needs broadcastProvider from @caldera/broadcast). */
+  broadcast?: ModelBroadcast<OmitKeys<SelOf<T>, H>, W>
 }
 
 export class ModelNotFoundError extends CalderaError {
@@ -191,7 +218,8 @@ export function defineModel<
   const SD extends keyof SelOf<T> & string = never,
   // Resolved once as a defaulted type parameter: writing KeyOfTable<T> inline cost ~3x instantiations.
   K extends TableKey = KeyOfTable<T>,
->(table: T, config: ModelConfig<T, Name, H, G, A, Sc, SD, K>): Model<K, Name, H, G, A, Sc, SD> {
+  W = never,
+>(table: T, config: ModelConfig<T, Name, H, G, A, Sc, SD, K, W>): Model<K, Name, H, G, A, Sc, SD, W> {
   const columns = getColumns(table) as Record<string, { primary: boolean }>
   const foundKey = Object.keys(columns).find((key) => columns[key]!.primary)
   if (!foundKey) throw new CalderaError('model_definition', `Model "${config.name}" needs a table with a single-column primary key.`)
@@ -208,6 +236,21 @@ export function defineModel<
   }
   modelsByTable.set(table, runtime)
   const hooks = (config.hooks ?? {}) as LooseHooks
+  const broadcast = config.broadcast as ModelBroadcast<AnyRecord, unknown> | undefined
+  const broadcastEvents: readonly ModelBroadcastEvent[] = broadcast ? (broadcast.events ?? ['created', 'updated', 'deleted']) : []
+  // The app's broadcaster, as @caldera/broadcast registers it, read without depending on it.
+  const broadcaster = () => {
+    const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.broadcast.default')] as
+      | { prepare(on: unknown, event: string, data: unknown, options: { toOthers: boolean }): () => void }
+      | undefined
+    if (!found) throw new CalderaError('no_broadcast', `Model "${config.name}" broadcasts, which needs broadcastProvider() from @caldera/broadcast in the app.`)
+    return found
+  }
+  // Prepared inside the write (a bad channel or an oversized payload fails it); sent after commit.
+  const prepareBroadcast = (event: ModelBroadcastEvent, row: AnyRecord): (() => void) | undefined => {
+    if (!broadcast || !broadcastEvents.includes(event)) return undefined
+    return broadcaster().prepare(broadcast.on(row), `${config.name}.${event}`, broadcast.with(row), { toOthers: Boolean(broadcast.toOthers) })
+  }
   const sdColumn = runtime.softDeletes ? (table as any)[runtime.softDeletes] : undefined
 
   function build(state: QueryState): any {
@@ -280,19 +323,26 @@ export function defineModel<
       const prepared = hooks.creating ? await hooks.creating(values) : values
       const [row] = await client().insert(table).values(prepared).returning()
       const result = visible(row)
+      const send = prepareBroadcast('created', result)
+      if (send) await afterCommit(send)
       if (hooks.created) await afterCommit(() => hooks.created!(result))
       return result
     }
 
+    // A broadcasting model's write runs in a transaction (a savepoint inside one), so a broadcast that
+    // can't be sent (oversized, a bad channel) fails the write instead of following a committed one.
+    // D1 and other drivers without interactive transactions can't: there it fails right after.
+    const atomic = <F extends (...args: any[]) => Promise<any>>(fn: F): F =>
+      (broadcast ? (...args: Parameters<F>) => (database().capabilities.interactiveTransactions ? database().transaction(() => fn(...args)) : fn(...args)) : fn) as F
     const write = {
-      create: (input: Record<string, unknown>) => insert(omit(input, runtime.guarded)),
-      forceCreate: (input: Record<string, unknown>) => insert(input),
-      async createMany(inputs: Record<string, unknown>[]) {
+      create: atomic((input: Record<string, unknown>) => insert(omit(input, runtime.guarded))),
+      forceCreate: atomic((input: Record<string, unknown>) => insert(input)),
+      createMany: atomic(async (inputs: Record<string, unknown>[]) => {
         const rows = []
         for (const input of inputs) rows.push(await insert(omit(input, runtime.guarded)))
         return rows
-      },
-      async update(ref: RowRef, patch: Record<string, unknown>) {
+      }),
+      update: atomic(async (ref: RowRef, patch: Record<string, unknown>) => {
         requireReturning()
         const before = await resolve(ref)
         const id = before[primaryKey]
@@ -305,24 +355,30 @@ export function defineModel<
           .returning()
         if (!row) throw new ModelNotFoundError(config.name, id)
         const after = visible(row)
+        const send = prepareBroadcast('updated', after)
+        if (send) await afterCommit(send)
         if (hooks.updated) await afterCommit(() => hooks.updated!({ before, patch: prepared, after }))
         return after
-      },
-      async delete(ref: RowRef) {
+      }),
+      delete: atomic(async (ref: RowRef) => {
         const row = await resolve(ref)
         if (hooks.deleting) await hooks.deleting(row)
         const id = row[primaryKey]
         if (sdColumn) await client().update(table).set({ [runtime.softDeletes!]: new Date() }).where(eq((table as any)[primaryKey], id))
         else await client().delete(table).where(eq((table as any)[primaryKey], id))
+        const send = prepareBroadcast('deleted', row)
+        if (send) await afterCommit(send)
         if (hooks.deleted) await afterCommit(() => hooks.deleted!(row, { soft: Boolean(sdColumn) }))
-      },
-      async forceDelete(ref: RowRef) {
+      }),
+      forceDelete: atomic(async (ref: RowRef) => {
         const row = await resolve(ref, 'include')
         if (hooks.deleting) await hooks.deleting(row)
         await client().delete(table).where(eq((table as any)[primaryKey], row[primaryKey]))
+        const send = prepareBroadcast('deleted', row)
+        if (send) await afterCommit(send)
         if (hooks.deleted) await afterCommit(() => hooks.deleted!(row, { soft: false }))
-      },
-      async restore(ref: RowRef) {
+      }),
+      restore: atomic(async (ref: RowRef) => {
         if (!sdColumn) throw new CalderaError('model_definition', `Model "${config.name}" doesn't use softDeletes.`)
         requireReturning()
         const row = await resolve(ref, 'only')
@@ -331,8 +387,11 @@ export function defineModel<
           .set({ [runtime.softDeletes!]: null })
           .where(eq((table as any)[primaryKey], row[primaryKey]))
           .returning()
-        return visible(restored)
-      },
+        const result = visible(restored)
+        const send = prepareBroadcast('updated', result)
+        if (send) await afterCommit(send)
+        return result
+      }),
     }
 
     const model: Record<string, unknown> = {
@@ -356,6 +415,7 @@ export function defineModel<
         scopes: Object.keys(config.scopes ?? {}),
         appends: Object.keys(runtime.appends),
         hooks: Object.keys(hooks).filter((name) => typeof (hooks as Record<string, unknown>)[name] === 'function'),
+        broadcast: broadcast ? broadcastEvents.map((event) => `${config.name}.${event}`) : null,
       }),
     }
     for (const [scopeName, scope] of Object.entries(config.scopes ?? {})) {

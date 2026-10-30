@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import { broadcastProvider, broadcastRoutes, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster } from '../src/index.js'
+import { broadcastProvider, broadcastRoutes, channel, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster, type ModelBroadcastEvent } from '../src/index.js'
 import { createHub, type HubConnection } from '../src/hub.js'
 import { md5 } from '../src/md5.js'
 import { startBroadcastServer } from '../src/server.js'
@@ -477,4 +477,82 @@ describe('the shared secret', () => {
     expect(() => createBroadcaster({ default: 'p', connections: { p: { driver: 'pusher', appId: 'a', key: 'k', cluster: 'eu', appKey: 'x'.repeat(40) } } }).manager.use()).toThrow(/PUSHER_SECRET/)
     expect(() => createBroadcaster({ default: 's', connections: { s: { driver: 'pusher', appId: 'a', key: 'k', host: 'h' } } }).manager.use()).toThrow(/needs `secret`, or `appKey`/)
   })
+})
+
+describe('model broadcasting', () => {
+  it('sends created, updated, deleted and restored after commit, with only `with`, and nothing on rollback', async () => {
+    const { pgTable, serial, text, timestamp } = await import('drizzle-orm/pg-core')
+    const { defineRelations } = await import('drizzle-orm')
+    const { defineModel } = await import('@caldera/db')
+    const notes = pgTable('notes', { id: serial().primaryKey(), title: text().notNull(), secret: text().notNull().default(''), deletedAt: timestamp('deleted_at') })
+    const NoteChannel = defineChannel('notes.{note}', { authorize: () => true })
+    const Typed = defineModel(notes, {
+      name: 'note',
+      softDeletes: 'deletedAt',
+      broadcast: { on: (note) => NoteChannel.with({ note: note.id }), with: (note) => ({ id: note.id, title: note.title }) },
+    })
+    expectTypeOf<BroadcastPayload<ModelBroadcastEvent<typeof Typed>>>().toEqualTypeOf<{ id: number; title: string }>()
+    // This package registers no schema, so model inputs aren't typed here (an app's are).
+    const Note = Typed as any
+    expect(Note.describe().broadcast).toEqual(['note.created', 'note.updated', 'note.deleted'])
+
+    const client = new PGlite()
+    await client.exec('create table notes (id serial primary key, title text not null, secret text not null default \'\', deleted_at timestamp)')
+    const db = createDatabase(drizzle({ client, relations: defineRelations({ notes }, () => ({})) }), { driver: 'postgres' })
+    setDefaultDatabase(() => db)
+    const broadcaster = createBroadcaster({ default: 'n', connections: { n: { driver: 'null' } } }, { channels: [NoteChannel] })
+    setDefaultBroadcaster(broadcaster)
+    const fake = broadcaster.fake()
+    try {
+      let id = 0
+      await db.transaction(async () => {
+        id = (await Note.create({ title: 'One', secret: 'hush' })).id
+        fake.assertNothingBroadcast()
+      })
+      await Note.update(id, { title: 'Two' })
+      await Note.delete(id)
+      await Note.restore(id)
+      await db.transaction(async () => {
+        await Note.create({ title: 'Rolled back' })
+        throw new Error('rollback')
+      }).catch(() => {})
+      expect(fake.sent().map((s) => [s.event, s.channels[0], s.data])).toEqual([
+        ['note.created', `private-notes.${id}`, { id, title: 'One' }],
+        ['note.updated', `private-notes.${id}`, { id, title: 'Two' }],
+        ['note.deleted', `private-notes.${id}`, { id, title: 'Two' }],
+        ['note.updated', `private-notes.${id}`, { id, title: 'Two' }],
+      ])
+      // Checked inside the write: an oversized payload fails it (and its transaction).
+      const Big = defineModel(notes, { name: 'big', broadcast: { on: (n) => NoteChannel.with({ note: n.id }), with: (n) => ({ blob: n.title.repeat(2000) }) } }) as any
+      fake.restore()
+      const strict = createBroadcaster({ default: 'p', connections: { p: { driver: 'pusher', cluster: 'eu', appId: 'a', key: 'k', secret: 's' } } })
+      setDefaultBroadcaster(strict)
+      await expect(Big.create({ title: 'xxxxxxxx' })).rejects.toThrow(/at most 10240/)
+      expect(await Note.findMany({ where: { title: 'xxxxxxxx' } })).toEqual([])
+      // Without broadcastProvider, a broadcasting model says what's missing.
+      setDefaultBroadcaster(undefined)
+      await expect(Note.create({ title: 'x' })).rejects.toThrow(/broadcastProvider/)
+    } finally {
+      fake.restore()
+      setDefaultBroadcaster(undefined)
+      setDefaultDatabase(undefined)
+      await client.close()
+    }
+  })
+})
+
+it('channel() names a registered channel by pattern, resolved when sent', async () => {
+  const broadcaster = createBroadcaster({ default: 'n', connections: { n: { driver: 'null' } } }, { channels: [PostChannel] })
+  setDefaultBroadcaster(broadcaster)
+  const fake = broadcaster.fake()
+  try {
+    const ref = channel('posts.{post}' as never, { post: 7 } as never)
+    expect(ref.pattern).toBe('posts.{post}')
+    await broadcaster.send(ref, 'post.updated', {})
+    expect(fake.sent()[0]!.channels).toEqual(['private-posts.7'])
+    await expect(broadcaster.send(channel('nope' as never, {} as never), 'x', {})).rejects.toThrow(/No channel "nope"/)
+  } finally {
+    fake.restore()
+    setDefaultBroadcaster(undefined)
+  }
 })

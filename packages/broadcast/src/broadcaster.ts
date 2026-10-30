@@ -1,8 +1,8 @@
 import { BootError, CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext, type RegisteredServices } from '@caldera/core'
-import type { AnyEvent, BroadcastPayload, EventPayload } from '@caldera/events'
+import type { AnyEvent, BroadcastPayload, EventDefinition, EventPayload } from '@caldera/events'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { isChannel, type AnyChannel, type ChannelRef } from './channel.js'
+import { isChannel, type AnyChannel, type ChannelParams, type ChannelRef } from './channel.js'
 import { logDriver, nullDriver, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage, type ClientConfig } from './driver.js'
 import { pusherDriver } from './pusher.js'
 
@@ -17,6 +17,9 @@ export interface BroadcastConfig<N extends string = string> {
   default: NoInfer<N>
   connections: { [K in N]?: ({ driver: string } & Record<string, unknown>) | undefined }
 }
+
+/** A model's broadcast events (`defineModel(…, { broadcast })`) as events, for BroadcastRegister. */
+export type ModelBroadcastEvent<M> = M extends { readonly '~broadcast': infer W } ? EventDefinition<z.ZodType, W> : never
 
 /** One broadcast, as `fake()` records it. */
 export interface SentBroadcast {
@@ -62,6 +65,11 @@ export interface Broadcaster<N extends string = string> {
    * holding up the response (`waitUntil` on edge), or as a queued job with `queue: true`.
    */
   broadcast<E extends AnyEvent>(event: E, payload: EventPayload<E>, options?: { toOthers?: boolean }): Promise<void>
+  /**
+   * Checks a broadcast now (channels, payload size) and returns the function that sends it, for code
+   * that sends after a commit: model broadcasting prepares inside the write and sends once it commits.
+   */
+  prepare(on: ChannelRef | string | readonly (ChannelRef | string)[], event: string, data: unknown, options?: { toOthers?: boolean }): () => void
   /** Runs a channel's authorization: who may subscribe, and a presence member's info. */
   authorize(request: AuthorizeRequest): Promise<AuthorizeResult>
   /** Signs an allowed subscription for the pusher protocol. */
@@ -216,6 +224,13 @@ export function createBroadcaster<const N extends string>(
       // After the transaction commits, so browsers that refetch see the change (and nothing on rollback).
       await afterCommit(() => (fake ? deliver(sent) : queue ? queue.dispatch(job, sent) : background(deliver(sent), sent.event)))
     },
+    prepare(on, event, data, prepareOptions = {}) {
+      const sent = message(on, event, data, prepareOptions.toOthers ? currentSocket() : undefined)
+      return () => {
+        if (fake) void deliver(sent)
+        else background(deliver(sent), sent.event)
+      }
+    },
     async authorize(request) {
       const found = broadcaster.find(request.channel)
       if (!found) {
@@ -311,6 +326,25 @@ export function defaultBroadcaster(): Broadcaster {
   const found = registry[DEFAULT]
   if (!found) throw new CalderaError('no_broadcast', 'Broadcasting isn’t set up: add broadcastProvider() from @caldera/broadcast to the app.')
   return found
+}
+
+type RegisteredPattern = BroadcastRegister extends { channels: infer C } ? keyof C & string : string
+
+/**
+ * A channel by its pattern, resolved when the broadcast is sent: `channel('posts.{post}', { post: id })`.
+ * For models, whose channels bind the model (`bind: { post: Post }`): importing the channel into the
+ * model file would be an import cycle. Patterns and parameters are typed from src/channels.
+ */
+export function channel<P extends RegisteredPattern>(pattern: P, params: ChannelParams<P>): ChannelRef<P> {
+  return {
+    kind: 'caldera.channel-ref',
+    pattern,
+    get name() {
+      const found = defaultBroadcaster().channels.find((c) => c.pattern === pattern)
+      if (!found) throw new CalderaError('channel_missing', `No channel "${pattern}" in src/channels.`)
+      return found.name(params as never)
+    },
+  }
 }
 
 /** `await broadcast(PostChannel.with({ postId }), 'post.updated', { title })`: an event that isn't a defined one. */
