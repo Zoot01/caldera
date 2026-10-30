@@ -8,6 +8,7 @@ import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
 import { loadListeners } from './listeners.js'
 import { loadMails } from './mails.js'
+import { i18nGen, i18nRegister, loadLang } from './i18n.js'
 import { loadNotifications } from './notifications.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
@@ -64,6 +65,9 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     files.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
     `\nexport const config = [${configs.map((c) => `${alias(c.file)}.${c.exportName}`).join(', ')}] as const\n`
 
+  // lang/<locale>/*.json, once the app uses @caldera/i18n: messages for i18n.gen.ts, keys for register.d.ts.
+  const lang = usesPackage(project, '@caldera/i18n') ? loadLang(project) : undefined
+
   // Detected from source, not by importing: src/app.ts imports config.gen.ts, which may not exist yet.
   const hasApp = existsSync(project.path(CONVENTIONS.app)) && /export\s+const\s+app\b/.test(readFileSync(project.path(CONVENTIONS.app), 'utf8'))
   const registerGen =
@@ -79,7 +83,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     `  }\n` +
     `}\n` +
     (await databaseRegister(project)) +
-    (await inertiaRegister(project, (name) => usesPackage(project, name)))
+    (await inertiaRegister(project, (name) => usesPackage(project, name))) +
+    (lang ? i18nRegister(lang) : '')
 
   const dir = CONVENTIONS.generatedDir
   const generated: GeneratedFile[] = []
@@ -168,6 +173,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
         `${used.length ? '\n' : ''}export const notifications = [${notifications.map((n) => `${alias(n.file)}.${n.exportName}`).join(', ')}] as const\n`,
     })
   }
+
+  if (lang) generated.push({ path: `${dir}/i18n.gen.ts`, contents: i18nGen(lang, HEADER) })
 
   const agents = await agentsFile(project)
   return [

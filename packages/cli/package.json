@@ -25,6 +25,7 @@
     "@caldera/auth": "workspace:*",
     "@caldera/core": "workspace:*",
     "@caldera/db": "workspace:*",
+    "@caldera/i18n": "workspace:*",
     "citty": "0.2.2",
     "tsx": "4.23.15"
   },

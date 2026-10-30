@@ -22,6 +22,7 @@ export const CONVENTIONS = {
   schedulesDir: 'src/schedules',
   mailDir: 'src/mail',
   notificationsDir: 'src/notifications',
+  langDir: 'lang',
   app: 'src/app.ts',
   inertia: 'src/inertia.ts',
   pagesDir: 'resources/pages',

@@ -15,6 +15,7 @@ import { check } from './check.js'
 import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
 import { notificationsTable } from './notifications.js'
+import { i18nReport } from './i18n.js'
 import { bootScheduler, listSchedules, startScheduleWorker, syncSchedules } from './schedule.js'
 
 const VERSION = '0.0.0'
@@ -342,6 +343,25 @@ const notificationsTableCommand = defineCommand({
     }),
 })
 
+const i18nMissingCommand = defineCommand({
+  meta: { name: 'i18n:missing', description: 'Report missing, extra and mismatched translations per locale, and unused keys' },
+  args: { ...shared },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const report = i18nReport(openProject(args.cwd))
+      const lines = [`canonical ${report.canonical} (${report.total} messages)`]
+      for (const l of report.locales) {
+        lines.push(`${l.locale.padEnd(9)} ${l.missing.length} missing, ${l.extra.length} extra, ${l.mismatched.length} mismatched`)
+        for (const key of l.missing) lines.push(`  missing    ${key}`)
+        for (const key of l.extra) lines.push(`  extra      ${key}`)
+        for (const m of l.mismatched) lines.push(`  mismatch   ${m.key} (${m.file}): ${m.problems.join('; ')}`)
+      }
+      for (const key of report.unused) lines.push(`unused     ${key}`)
+      for (const p of report.unknownPagePatterns) lines.push(`unknown    ${p.page} declares "${p.pattern}"`)
+      return { data: report, text: lines.join('\n') }
+    }),
+})
+
 const queueFailedCommand = defineCommand({
   meta: { name: 'queue:failed', description: 'List failed jobs (database queue driver)' },
   args: { ...shared, connection: { type: 'string', description: 'Queue connection (default: the default one)' } },
@@ -483,6 +503,7 @@ export const main = defineCommand({
     'queue:retry': failedJobsAction('retry', 'Put failed jobs back on their queue (database queue driver)'),
     'queue:forget': failedJobsAction('forget', 'Delete failed jobs (database queue driver)'),
     'notifications:table': notificationsTableCommand,
+    'i18n:missing': i18nMissingCommand,
     'schedule:list': scheduleListCommand,
     'schedule:run': scheduleRunCommand,
     'schedule:work': scheduleWorkCommand,

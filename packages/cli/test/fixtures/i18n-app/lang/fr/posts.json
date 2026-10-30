@@ -1,0 +1,6 @@
+{
+  "count": "{total} articles",
+  "greeting": "Bonjour, {name} !",
+  "title": { "index": "Tous les articles" },
+  "leftover": "Plus utilisé"
+}

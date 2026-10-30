@@ -4,6 +4,7 @@ import { pageFiles } from './pages.js'
 import { loadListeners } from './listeners.js'
 import { loadMails } from './mails.js'
 import { loadNotifications } from './notifications.js'
+import { i18nReport } from './i18n.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { describeAbilities } from './policies.js'
@@ -120,6 +121,20 @@ async function generatedSection(project: Project): Promise<string> {
           n.queue ? 'yes' : 'no',
           file,
         ]),
+      ),
+    )
+  }
+
+  if (existsSync(project.path('lang'))) {
+    const report = i18nReport(project)
+    parts.push(
+      table(
+        'Locales',
+        ['Locale', 'Messages', 'Missing', 'Mismatched params'],
+        [
+          [`\`${report.canonical}\` (canonical)`, String(report.total), '', ''],
+          ...report.locales.map((l) => [`\`${l.locale}\``, String(l.total), String(l.missing.length), String(l.mismatched.length)]),
+        ],
       ),
     )
   }

@@ -1,0 +1,7 @@
+{
+  "count": "{count, plural, one {# post} other {# posts}}",
+  "greeting": "Hello, {name}!",
+  "by": "{gender, select, female {by her} other {by them}}",
+  "title": { "index": "All posts" },
+  "orphan": "Nobody uses me"
+}
