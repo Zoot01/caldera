@@ -1,0 +1,43 @@
+{
+  "name": "@caldera/db",
+  "version": "0.0.0",
+  "description": "Caldera database layer over Drizzle ORM 1.0: transactions with after-commit hooks, column helpers and models.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./pg": {
+      "types": "./dist/pg.d.ts",
+      "default": "./dist/pg.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "default": "./dist/sqlite.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "1.0.0-rc.5",
+    "zod": "^4.6.0"
+  },
+  "dependencies": {
+    "@caldera/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
+    "drizzle-orm": "1.0.0-rc.5",
+    "hono": "4.13.14",
+    "typescript": "5.9.3",
+    "zod": "^4.6.7"
+  }
+}

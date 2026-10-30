@@ -46,3 +46,13 @@ export class NotBootedError extends CalderaError {
     super('not_booted', `Cannot read ${what} before the app has booted. Call \`await app.boot()\` first, or use \`app.middleware()\`.`)
   }
 }
+
+/**
+ * Thrown when the configured driver can't do what was asked, e.g. interactive transactions
+ * on D1. Fails loudly and early instead of degrading silently.
+ */
+export class CapabilityError extends CalderaError {
+  constructor(driver: string, capability: string, hint?: string) {
+    super('capability_missing', `The "${driver}" driver doesn't support ${capability}.${hint ? ` ${hint}` : ''}`, { driver, capability })
+  }
+}
