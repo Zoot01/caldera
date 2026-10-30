@@ -415,7 +415,15 @@ describe('the browser client', () => {
       client.registerChannels({ 'posts.{post}': 'private', 'rooms.{roomId}': 'presence', news: 'public' })
       expect(client.channelName('posts.{post}', { post: 1 })).toBe('private-posts.1')
       expect(() => client.channelName('nope')).toThrow(/No channel "nope"/)
+      // Inertia's first `navigate` comes after the first render: hooks mounted before the config learn of it.
+      const told: number[] = []
+      const stop = client.onConfigured(() => told.push(client.configVersion()))
+      expect(client.subscribe('news')).toBeUndefined()
+      const before = client.configVersion()
       client.configureBroadcast({ ...setup.broadcaster().client()!, authEndpoint: `${siteUrl}/_caldera/broadcast/auth` })
+      client.configureBroadcast({ ...setup.broadcaster().client()!, authEndpoint: `${siteUrl}/_caldera/broadcast/auth` }) // the same: no change
+      expect(told).toEqual([before + 1])
+      stop()
 
       const first = client.subscribe('posts.{post}', { post: 1 })!
       const second = client.subscribe('posts.{post}', { post: 1 })!

@@ -1,9 +1,9 @@
 import type { BroadcastPayload } from '@caldera/events'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { z } from 'zod'
 import type { BroadcastRegister } from './broadcaster.js'
 import type { ChannelDefinition, ChannelParams } from './channel.js'
-import { membersOf, subscribe, type Member, type Subscription } from './client.js'
+import { configVersion, membersOf, onConfigured, subscribe, type Member, type Subscription } from './client.js'
 
 type Channels = BroadcastRegister extends { channels: infer C } ? C : Record<string, ChannelDefinition<string, 'public' | 'private' | 'presence', any, any, any>>
 type Events = BroadcastRegister extends { events: infer E } ? E : Record<string, never>
@@ -59,6 +59,8 @@ function useSubscription<P extends ChannelPattern>(pattern: P, params: ChannelPa
   latest.current = handlers
   const subscription = useRef<Subscription | undefined>(undefined)
   const key = JSON.stringify(params)
+  // Joins again when the connection is (re)configured, e.g. after the first Inertia navigate.
+  const version = useSyncExternalStore(onConfigured, configVersion, () => 0)
 
   useEffect(() => {
     const joined = subscribe(pattern, params as Record<string, string | number>)
@@ -90,7 +92,7 @@ function useSubscription<P extends ChannelPattern>(pattern: P, params: ChannelPa
       setSubscribed(false)
     }
     // Resubscribes when the channel or its parameters change; handler changes are read through `latest`.
-  }, [pattern, key, presence])
+  }, [pattern, key, presence, version])
 
   return {
     state: {

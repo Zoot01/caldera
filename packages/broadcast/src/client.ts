@@ -22,9 +22,12 @@ interface ClientState {
   config: BroadcastClientConfig | null | undefined
   pusher?: PusherClient
   subscriptions: Map<string, { channel: Channel; count: number }>
+  /** Bumped by each configureBroadcast(), so subscribers made before it join again. */
+  version: number
+  listeners: Set<() => void>
 }
 // On globalThis: the generated module and the app may load separate copies of this file (Vite pre-bundling).
-const state = (): ClientState => ((globalThis as { [STATE]?: ClientState })[STATE] ??= { types: {}, config: undefined, subscriptions: new Map() })
+const state = (): ClientState => ((globalThis as { [STATE]?: ClientState })[STATE] ??= { types: {}, config: undefined, subscriptions: new Map(), version: 0, listeners: new Set() })
 
 /** Called by `.caldera/broadcast.client.gen.ts`: every channel pattern and its type. */
 export function registerChannels(types: ChannelTypes) {
@@ -42,6 +45,22 @@ export function configureBroadcast(config: BroadcastClientConfig | null | undefi
   current.pusher = undefined
   current.subscriptions.clear()
   current.config = config
+  current.version++
+  for (const listener of current.listeners) listener()
+}
+
+/**
+ * Calls `listener` whenever the connection options change (the first configureBroadcast() often
+ * comes after components mounted: Inertia's first `navigate` follows the first render). Returns a stop function.
+ */
+export function onConfigured(listener: () => void): () => void {
+  state().listeners.add(listener)
+  return () => void state().listeners.delete(listener)
+}
+
+/** Changes on every configureBroadcast(), for useSyncExternalStore. */
+export function configVersion(): number {
+  return state().version
 }
 
 /** The shared pusher-js connection, opened on first use; undefined without a realtime server. */
