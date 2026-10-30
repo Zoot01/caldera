@@ -276,5 +276,8 @@ function applyNext(directory: string) {
     .join('\n')
     .replace('| Providers |', '| Pages, layouts, server actions (Next.js) | `app/**` | |\n| Providers |')
     .replace(/A page lists what it needs with `export const messages[^.]*\.[^.]*\./, 'In Server Components and actions, translate with `requestContext(app)`’s `i18n`.')
+    // Realtime: client components, connected by app/realtime.tsx (in the root layout).
+    .replace('In pages: `useChannel(', 'In client components (app/realtime.tsx, in the root layout, connects them): `useChannel(')
+    .replace("'post.updated': () => router.reload()", "'post.updated': () => router.refresh()")
   writeFileSync(agentsPath, agents)
 }
