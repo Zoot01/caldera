@@ -5,7 +5,7 @@ import { createApp, defineEnv } from '@caldera/core'
 import { back, errorHandler, redirect, sessionOf, sessionProvider, startSession, ValidationError } from '@caldera/http'
 import { Hono } from 'hono'
 import { secureHeaders, NONCE } from 'hono/secure-headers'
-import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { always, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps } from '../src/index.js'
 
 // What `caldera generate` writes from resources/pages and src/inertia.ts.
@@ -269,4 +269,63 @@ it('types c.render from the page registry, minus shared props and errors', () =>
     return c.render('Posts/Index', { posts: [], stats: defer(async () => ({ total: 0 })) })
   })
   void sessionOf
+})
+
+describe('server-side rendering', () => {
+  const ssrBody = (page: { component: string }) => `<script data-page="app" type="application/json">{}</script><div data-server-rendered="true" id="app"><h1>${page.component} on the server</h1></div>`
+
+  it('renders first loads on the server: head tags, then the body in place of the empty app div', async () => {
+    const seen: string[] = []
+    const http = makeHttp({
+      ssr: { render: async (page) => (seen.push(page.component), { head: ['<title inertia>Home · App</title>', '<script>window.x = 1</script>'], body: ssrBody(page) }) },
+    })
+    const html = await (await http.request('/home')).text()
+    expect(html).toContain('<div data-server-rendered="true" id="app"><h1>Home on the server</h1></div>')
+    expect(html).not.toContain('<div id="app"></div>')
+    // The page's own <title> replaces the default one.
+    expect(html.match(/<title/g)).toHaveLength(1)
+    expect(html).toContain('<title inertia>Home · App</title>')
+    expect(seen).toEqual(['Home'])
+    // Inertia visits are JSON: never rendered on the server.
+    await http.request('/home', { headers: { 'x-inertia': 'true', 'x-inertia-version': 'v1' } })
+    expect(seen).toEqual(['Home'])
+  })
+
+  it('gives scripts in the head the request’s CSP nonce', async () => {
+    const http = new Hono()
+      .use(secureHeaders({ contentSecurityPolicy: { scriptSrc: [NONCE] } }))
+      .route('/', makeHttp({ ssr: { render: async (page) => ({ head: ['<script>window.x = 1</script>'], body: ssrBody(page) }) } }))
+    const res = await http.request('/home')
+    const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy') ?? '')?.[1]
+    expect(await res.text()).toContain(`<script nonce="${nonce}">window.x = 1</script>`)
+  })
+
+  it('falls back to client rendering when SSR fails or is too slow', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const failing = makeHttp({ ssr: { render: async () => Promise.reject(new Error('window is not defined')) } })
+    const html = await (await failing.request('/home')).text()
+    expect(html).toContain('<div id="app"></div>')
+    expect(html).toContain('<script data-page="app" type="application/json">')
+    const slow = makeHttp({ ssr: { timeout: 50, render: () => new Promise((resolve) => setTimeout(() => resolve({ head: [], body: 'late' }), 500)) } })
+    expect(await (await slow.request('/home')).text()).toContain('<div id="app"></div>')
+    expect(error.mock.calls.map((c) => String(c[0]))).toEqual([
+      '[caldera] SSR failed for Home (/home), rendering on the client: window is not defined',
+      '[caldera] SSR failed for Home (/home), rendering on the client: took longer than 50ms',
+    ])
+    error.mockRestore()
+  })
+})
+
+describe('server-side rendering, cold start', () => {
+  it('loads the renderer outside the timeout, so a slow first load still renders on the server', async () => {
+    let ready = false
+    const http = makeHttp({
+      ssr: {
+        timeout: 50,
+        prepare: () => new Promise((resolve) => setTimeout(() => ((ready = true), resolve(undefined)), 200)),
+        render: async (page) => ({ head: [], body: `<div data-server-rendered="true" id="app">${ready ? page.component : 'cold'}</div>` }),
+      },
+    })
+    expect(await (await http.request('/home')).text()).toContain('<div data-server-rendered="true" id="app">Home</div>')
+  })
 })

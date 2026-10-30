@@ -9,6 +9,10 @@ export interface CalderaViteOptions {
   buildDirectory?: string
   /** Where the dev server's URL is written for the app to find. Default `.caldera/vite.hot`. */
   hotFile?: string
+  /** The SSR entry (e.g. `resources/ssr.tsx`): `vite build --ssr` builds it to `ssrDirectory`. */
+  ssr?: string
+  /** Where `vite build --ssr` writes; `viteSsr()` imports `ssr.js` from here. Default `build/ssr`. */
+  ssrDirectory?: string
 }
 
 /**
@@ -22,7 +26,22 @@ export default function caldera(options: CalderaViteOptions): Plugin {
 
   return {
     name: 'caldera',
-    config(user, { command }) {
+    config(user, { command, isSsrBuild }) {
+      // A build is for production, whatever NODE_ENV the shell or CI has (test, development): otherwise
+      // React's development JSX runtime is compiled in, and the server bundle fails under production.
+      if (command === 'build' && process.env.NODE_ENV !== 'production') process.env.NODE_ENV = 'production'
+      if (isSsrBuild) {
+        // The server bundle: imported by the app (viteSsr()), never served.
+        return {
+          publicDir: false,
+          build: {
+            outDir: options.ssrDirectory ?? 'build/ssr',
+            emptyOutDir: true,
+            manifest: false,
+            ...(options.ssr ? { rolldownOptions: { input: options.ssr } } : {}),
+          },
+        }
+      }
       // A fixed port gives a fixed origin, so asset URLs Vite writes (CSS url(), imported images)
       // point at the dev server instead of the app.
       const port = user.server?.port ?? 5173

@@ -119,13 +119,13 @@ function collect(chunks: ViteManifest, key: string, css: Set<string>, preloads: 
   for (const imported of chunk.imports ?? []) collect(chunks, imported, css, preloads, seen)
 }
 
-async function devServerUrl(hotFile = '.caldera/vite.hot'): Promise<string | undefined> {
+export async function devServerUrl(hotFile = '.caldera/vite.hot'): Promise<string | undefined> {
   const text = await readText(hotFile)
   return text?.trim().replace(/\/$/, '') || undefined
 }
 
 /** Reads a project file where there's a filesystem; undefined on edge runtimes or when missing. */
-async function readText(path: string): Promise<string | undefined> {
+export async function readText(path: string): Promise<string | undefined> {
   try {
     const fs = await import('node:fs/promises')
     return await fs.readFile(path, 'utf8')
@@ -134,7 +134,7 @@ async function readText(path: string): Promise<string | undefined> {
   }
 }
 
-function isTestRun(): boolean {
+export function isTestRun(): boolean {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
   return env?.NODE_ENV === 'test' || env?.VITEST !== undefined
 }

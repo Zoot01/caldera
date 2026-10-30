@@ -1,6 +1,7 @@
 import { appendHeader, isSessionStarted, previousUrl, sessionOf } from '@caldera/http'
 import type { Context, MiddlewareHandler } from 'hono'
 import { always, isProp, propKind, type Prop, type PropsInput } from './props.js'
+import { renderOnServer, type SsrRenderer, type SsrResult } from './ssr.js'
 import { escapeAttribute, type ViteAssets } from './vite.js'
 
 /**
@@ -46,6 +47,8 @@ export interface RootViewContext {
   /** The CSP nonce for any inline script you add. */
   nonce: string | undefined
   c: Context
+  /** The server-rendered page (with `ssr` on): `head` tags, and `body` to use instead of the page script and empty app div. */
+  ssr: SsrResult | null
 }
 
 export interface InertiaOptions<S extends Record<string, unknown> = Record<string, unknown>> {
@@ -59,6 +62,11 @@ export interface InertiaOptions<S extends Record<string, unknown> = Record<strin
   rootView?: (context: RootViewContext) => string
   /** Document `<title>` for the default root view. */
   title?: string
+  /**
+   * Server-side rendering for first loads (Inertia visits stay JSON): `viteSsr()`. If it fails or
+   * times out, the page renders on the client, as without it.
+   */
+  ssr?: SsrRenderer | false
 }
 
 /** What `defineInertia()` returns; also how codegen finds the shared props type. */
@@ -170,8 +178,8 @@ async function render(c: Context, options: InertiaOptions, version: string | nul
     return c.json(page, 200, { 'x-inertia': 'true' })
   }
   const nonce = (c.var as { secureHeadersNonce?: string }).secureHeadersNonce
-  const assets = options.assets ? await options.assets.tags(nonce) : ''
-  const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c })
+  const [assets, ssr] = await Promise.all([options.assets ? options.assets.tags(nonce) : '', options.ssr ? renderOnServer(options.ssr, page) : null])
+  const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c, ssr })
   return c.html(html)
 }
 
@@ -264,18 +272,21 @@ export function htmlLang(c: Context): string {
 }
 
 function defaultRootView(title = 'Caldera') {
-  return ({ page, assets, c }: RootViewContext) => `<!doctype html>
+  return ({ page, assets, c, nonce, ssr }: RootViewContext) => {
+    // Scripts a page put in its <Head> run under the strict CSP only with this request's nonce.
+    const head = (ssr?.head ?? []).map((tag) => (nonce && tag.startsWith('<script') && !tag.includes(' nonce=') ? tag.replace('<script', `<script nonce="${escapeAttribute(nonce)}"`) : tag))
+    const hasTitle = head.some((tag) => tag.startsWith('<title'))
+    return `<!doctype html>
 <html ${htmlLang(c)}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${escapeAttribute(title)}</title>
-    ${assets.split('\n').join('\n    ')}
+    ${hasTitle ? '' : `<title>${escapeAttribute(title)}</title>\n    `}${[...head, ...assets.split('\n')].filter(Boolean).join('\n    ')}
   </head>
   <body>
-    <script data-page="app" type="application/json">${serializePage(page)}</script>
-    <div id="app"></div>
+    ${ssr ? ssr.body : `<script data-page="app" type="application/json">${serializePage(page)}</script>\n    <div id="app"></div>`}
   </body>
 </html>
 `
+  }
 }
