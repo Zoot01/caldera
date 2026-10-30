@@ -3,6 +3,8 @@ import type { Context, ErrorHandler, NotFoundHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { ZodError } from 'zod'
+import { back } from './redirect.js'
+import { isSessionStarted, sessionOf } from './session.js'
 
 /** The one error shape every Caldera HTTP response uses. Clients can type their failure branch with it. */
 export interface ErrorBody {
@@ -93,8 +95,9 @@ export function requestIdOf(c: Context): string {
 export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
   const report = options.report ?? ((error: unknown) => console.error(error))
 
-  return (error, c) => {
+  return async (error, c) => {
     const known = toHttpError(error)
+    if (known instanceof ValidationError && redirectsOnValidation(c)) return validationRedirect(c, known)
     if (!known) report(error, c)
     const status = known?.status ?? 500
     const body: ErrorBody = {
@@ -117,6 +120,28 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
     }
     return response
   }
+}
+
+/**
+ * Browsers get their errors on the page they came from: Inertia visits always, and plain HTML form
+ * posts when there's a session to carry them. API clients (JSON in or out) get the envelope.
+ */
+function redirectsOnValidation(c: Context): boolean {
+  if (!isSessionStarted(c)) return false
+  if (c.req.header('x-inertia')) return true
+  const type = c.req.header('content-type') ?? ''
+  const isForm = type.startsWith('application/x-www-form-urlencoded') || type.startsWith('multipart/form-data')
+  return isForm && !(c.req.header('accept') ?? '').includes('application/json')
+}
+
+async function validationRedirect(c: Context, error: ValidationError): Promise<Response> {
+  const response = back(c).withErrors(error.fields, c.req.header('x-inertia-error-bag') || undefined)
+  // Inertia keeps form state in the browser; plain forms need their input back (minus passwords).
+  if (!c.req.header('x-inertia')) {
+    const input = await c.req.parseBody({ all: true }).catch(() => ({}))
+    sessionOf(c).flashInput(input as Record<string, unknown>)
+  }
+  return response
 }
 
 /** Use as `app.notFound(notFoundHandler())` so unmatched routes use the envelope too. */
