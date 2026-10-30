@@ -98,6 +98,13 @@ export function requestI18n(i18n: I18n, c: Context, options: Omit<I18nOptions, '
   }
 }
 
+/** `c.var.i18n`, typed, for code that gets a plain Hono `Context` (Inertia's `share`, middleware). */
+export function i18nOf(c: Context): RequestI18n {
+  const i18n = (c.var as { i18n?: RequestI18n }).i18n
+  if (!i18n) throw new CalderaError('i18n_not_configured', 'c.var.i18n is missing: add i18nProvider() to the app (and app.middleware() before this).')
+  return i18n
+}
+
 const DEFAULT = Symbol.for('caldera.i18n.default')
 const registry = globalThis as { [DEFAULT]?: I18n }
 

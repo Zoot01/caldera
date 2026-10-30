@@ -17,7 +17,8 @@
     "./icu": {
       "types": "./dist/icu.d.ts",
       "default": "./dist/icu.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -54,6 +55,7 @@
     "@caldera/inertia": "workspace:*",
     "@inertiajs/react": "3.9.1",
     "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "esbuild": "0.28.2",
     "hono": "4.13.14",
     "miniflare": "4.20260730.0",

@@ -219,3 +219,13 @@ describe('in an app', () => {
     expect((client.t as (k: string) => string)('posts.published')).toBe('⟦posts.published⟧')
   })
 })
+
+describe('rich text on the client', () => {
+  it('renders tags as React nodes, keeping the translator’s word order', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server')
+    const { createElement } = await import('react')
+    const client = createClientTranslator({ locale: 'fr', messages: { link: 'Lire <b>le guide</b> maintenant' } })
+    const node = (client.rich as (k: string, p: unknown) => unknown)('link', { b: (chunks: unknown[]) => createElement('strong', null, ...(chunks as string[])) })
+    expect(renderToStaticMarkup(node as never)).toBe('Lire <strong>le guide</strong> maintenant')
+  })
+})

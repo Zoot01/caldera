@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react'
 import { IntlMessageFormat } from 'intl-messageformat'
-import { useMemo } from 'react'
-import type { MessageKey, TArgs } from './i18n.js'
+import { createElement, Fragment, useMemo, type ReactNode } from 'react'
+import type { MessageKey, MessageParams, TArgs } from './i18n.js'
 
 /** What `c.var.i18n.page(component)` sends: put it in `share` as `i18n`. */
 export interface PageI18n {
@@ -9,9 +9,14 @@ export interface PageI18n {
   messages: Record<string, string>
 }
 
+/** A message's parameters with its tags (`<b>…</b>`) rendering React nodes instead of strings. */
+export type RichParams<P> = { [K in keyof P]: P[K] extends (chunks: string[]) => string ? (chunks: ReactNode[]) => ReactNode : P[K] }
+
 export interface ClientTranslator {
   readonly locale: string
   t<K extends MessageKey>(key: K, ...args: TArgs<K>): string
+  /** For messages with tags: `rich('home.edit', { code: (c) => <code>{c}</code> })`. Translators keep the markup's place in the sentence. */
+  rich<K extends MessageKey>(key: K, ...args: {} extends MessageParams<K> ? [params?: RichParams<MessageParams<K>>] : [params: RichParams<MessageParams<K>>]): ReactNode
   has(key: string): boolean
   number(value: number | bigint, options?: Intl.NumberFormatOptions): string
   currency(value: number | bigint, currency: string, options?: Intl.NumberFormatOptions): string
@@ -27,7 +32,7 @@ const warned = new Set<string>()
 /** A translator over the messages a page was sent. No catalogue ships in the bundle. */
 export function createClientTranslator(i18n: PageI18n): ClientTranslator {
   const { locale, messages } = i18n
-  const t = (key: string, params?: Record<string, unknown>) => {
+  const format = (key: string, params?: Record<string, unknown>): unknown => {
     const message = messages[key]
     if (message === undefined) {
       // Not declared by this page: add it to the page's `export const messages = [...]` (or `shared`).
@@ -40,12 +45,21 @@ export function createClientTranslator(i18n: PageI18n): ClientTranslator {
     const id = `${locale}\0${key}\0${message}`
     let formatter = formats.get(id)
     if (!formatter) formats.set(id, (formatter = new IntlMessageFormat(message, locale)))
-    const out = formatter.format(params as never)
+    return formatter.format(params as never)
+  }
+  const t = (key: string, params?: Record<string, unknown>) => {
+    const out = format(key, params)
     return Array.isArray(out) ? out.join('') : String(out)
+  }
+  const rich = (key: string, params?: Record<string, unknown>): ReactNode => {
+    const out = format(key, params)
+    // Children as arguments, not an array, so React doesn't ask for keys.
+    return Array.isArray(out) ? createElement(Fragment, null, ...(out as ReactNode[])) : (out as ReactNode)
   }
   return {
     locale,
     t: t as ClientTranslator['t'],
+    rich: rich as ClientTranslator['rich'],
     has: (key) => key in messages,
     number: (value, options) => new Intl.NumberFormat(locale, options).format(value),
     currency: (value, currency, options) => new Intl.NumberFormat(locale, { style: 'currency', currency, ...options }).format(value),
