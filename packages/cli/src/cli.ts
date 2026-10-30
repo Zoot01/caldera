@@ -212,6 +212,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   routes: 'Create a route group in src/routes/',
   config: 'Create a config file in src/config/',
   provider: 'Create a provider in src/providers/',
+  page: 'Create an Inertia page in resources/pages/ (e.g. Posts/Index)',
 }
 
 function makeCommand(kind: MakeKind) {
@@ -266,15 +267,17 @@ const checkCommand = defineCommand({
 })
 
 const devCommand = defineCommand({
-  meta: { name: 'dev', description: 'Run the app with tsx watch and keep generated types current as you edit' },
+  meta: { name: 'dev', description: 'Run the app (tsx watch) and Vite, and keep generated types current as you edit' },
   args: {
     cwd: shared.cwd,
     server: { type: 'boolean', description: 'Start the server (use --no-server to only regenerate types)', default: true },
+    vite: { type: 'boolean', description: 'Start the Vite dev server when there is a vite.config (use --no-vite to skip)', default: true },
     entry: { type: 'string', description: 'Server entry file', default: 'src/server.ts' },
   },
   async run({ args }) {
     const session = startDev(openProject(args.cwd).root, {
       server: args.server,
+      vite: args.vite,
       serverEntry: args.entry,
       onEvent: (event) => {
         if (event.type === 'error') process.stderr.write(`✘ caldera generate: ${event.error}\n`)

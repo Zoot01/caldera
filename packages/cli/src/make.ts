@@ -6,7 +6,7 @@ import { names, render, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
-export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider'] as const
+export const MAKE_KINDS = ['model', 'policy', 'factory', 'seeder', 'routes', 'config', 'provider', 'page'] as const
 export type MakeKind = (typeof MAKE_KINDS)[number]
 
 interface Planned {
@@ -15,7 +15,7 @@ interface Planned {
 }
 
 /** Where each kind of file goes. These paths are the conventions codegen and agents rely on. */
-function plan(kind: MakeKind, n: Names, project: Project, options: { table: boolean }): Planned[] {
+function plan(kind: MakeKind, n: Names & { page: string }, project: Project, options: { table: boolean }): Planned[] {
   switch (kind) {
     case 'model':
       return [
@@ -34,16 +34,19 @@ function plan(kind: MakeKind, n: Names, project: Project, options: { table: bool
       return [{ path: `${CONVENTIONS.configDir}/${n.kebab}.ts`, stub: 'config' }]
     case 'provider':
       return [{ path: `src/providers/${n.kebab}.ts`, stub: 'provider' }]
+    case 'page':
+      return [{ path: `${CONVENTIONS.pagesDir}/${n.page}.tsx`, stub: 'page' }]
   }
 }
 
 /** Next steps generators print instead of editing files you own. */
-function hints(kind: MakeKind, n: Names, options: { table: boolean }): string[] {
+function hints(kind: MakeKind, n: Names & { page: string }, options: { table: boolean }): string[] {
   if (kind === 'model' && options.table) {
     return [`Add \`${n.plural}\` (from src/db/tables/${n.kebab}.ts) to defineRelations in ${CONVENTIONS.relations}, then run \`caldera db:generate\`.`]
   }
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
+  if (kind === 'page') return [`Render it from a route: \`c.render('${n.page}', { title: '${n.Name}' })\`.`]
   return []
 }
 
@@ -74,9 +77,11 @@ export async function make(
   rawName: string,
   options: { force?: boolean; table?: boolean } = {},
 ): Promise<MakeResult> {
-  let n: Names
+  let n: Names & { page: string }
   try {
-    n = names(rawName)
+    // Pages are paths (`Posts/Index`): each segment is a PascalCase folder or file name.
+    const segments = kind === 'page' ? rawName.split('/').filter(Boolean).map((segment) => names(segment).Name) : []
+    n = { ...names(kind === 'page' ? (segments.at(-1) ?? '') : rawName), page: segments.join('/') }
   } catch (error) {
     throw new CalderaError('invalid_name', (error as Error).message)
   }

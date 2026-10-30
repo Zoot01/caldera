@@ -81,6 +81,17 @@ export const {{ name }}Provider = defineProvider({
   }),
 })
 `,
+  page: `import { Head } from '@inertiajs/react'
+
+export default function {{ Name }}({ title }: { title: string }) {
+  return (
+    <>
+      <Head title={title} />
+      <h1>{title}</h1>
+    </>
+  )
+}
+`,
 } as const
 
 export type StubName = keyof typeof STUBS

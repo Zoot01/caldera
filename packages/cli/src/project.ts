@@ -17,6 +17,8 @@ export const CONVENTIONS = {
   seedersDir: 'src/db/seeders',
   policiesDir: 'src/policies',
   app: 'src/app.ts',
+  inertia: 'src/inertia.ts',
+  pagesDir: 'resources/pages',
   generatedDir: '.caldera',
 } as const
 

@@ -15,6 +15,8 @@ export interface DevEvent {
 export interface DevOptions {
   /** Start the app server with the project's `tsx watch` (default true). */
   server?: boolean
+  /** Start the project's Vite dev server when it has a vite.config (default true). */
+  vite?: boolean
   serverEntry?: string
   onEvent?: (event: DevEvent) => void
   /** Milliseconds to wait for more changes before regenerating. */
@@ -53,19 +55,30 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
   }
 
   const ready = (queued = run())
-  let watcher: FSWatcher | undefined
-  let server: ChildProcess | undefined
+  const watchers: FSWatcher[] = []
+  const children: ChildProcess[] = []
   void ready.then(() => {
-    watcher = watch(join(root, 'src'), { recursive: true }, (_event, file) => {
-      if (file && !String(file).includes(CONVENTIONS.generatedDir)) schedule()
-    })
+    // Pages live outside src/, and adding one changes the generated page types.
+    for (const dir of ['src', CONVENTIONS.pagesDir].filter((d) => existsSync(join(root, d)))) {
+      watchers.push(
+        watch(join(root, dir), { recursive: true }, (_event, file) => {
+          if (file && !String(file).includes(CONVENTIONS.generatedDir)) schedule()
+        }),
+      )
+    }
+    const viteConfig = ['vite.config.ts', 'vite.config.mts', 'vite.config.js'].find((f) => existsSync(join(root, f)))
+    if ((options.vite ?? true) && (options.server ?? true) && viteConfig) {
+      const vite = findBin(root, 'vite')
+      if (vite) children.push(spawn(process.execPath, [vite], { cwd: root, stdio: 'inherit' }))
+      else emit({ type: 'error', changed: [], error: `${viteConfig} exists but vite isn't installed; install it or use --no-vite.` })
+    }
     if (options.server ?? true) {
       const tsx = findBin(root, 'tsx')
       if (!tsx) {
         emit({ type: 'error', changed: [], error: new CalderaError('missing_dependency', 'tsx is not installed; install it or use --no-server.').message })
         return
       }
-      server = spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], { cwd: root, stdio: 'inherit' })
+      children.push(spawn(process.execPath, [tsx, 'watch', options.serverEntry ?? 'src/server.ts'], { cwd: root, stdio: 'inherit' }))
     }
   })
 
@@ -73,8 +86,8 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     ready,
     async stop() {
       clearTimeout(timer)
-      watcher?.close()
-      server?.kill('SIGTERM')
+      for (const watcher of watchers) watcher.close()
+      for (const child of children) child.kill('SIGTERM')
       await queued
     },
   }

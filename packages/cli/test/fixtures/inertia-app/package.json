@@ -1,0 +1,1 @@
+{ "name": "fixture-inertia-app", "private": true, "type": "module", "dependencies": { "@caldera/inertia": "workspace:*", "@inertiajs/core": "3.9.1", "@inertiajs/react": "3.9.1" } }

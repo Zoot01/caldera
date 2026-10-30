@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { loadModels } from './models.js'
+import { pageFiles } from './pages.js'
 import { describeAbilities } from './policies.js'
 import { routeFiles, type Project } from './project.js'
 import { listRoutes } from './routes.js'
@@ -57,6 +58,9 @@ async function generatedSection(project: Project): Promise<string> {
       ),
     )
   }
+
+  const pages = pageFiles(project)
+  if (pages.length > 0) parts.push(table('Pages', ['Page (c.render name)', 'File'], pages.map((p) => [`\`${p.name}\``, p.file])))
 
   const abilities = await describeAbilities(project)
   const rows = [
