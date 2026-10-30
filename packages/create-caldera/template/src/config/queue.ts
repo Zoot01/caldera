@@ -10,5 +10,7 @@ export const queue = defineConfig('queue', (env) => ({
     deferred: { driver: 'deferred' },
     database: { driver: 'database' },
     ...(env.REDIS_URL ? { redis: { driver: 'bullmq', url: env.REDIS_URL } } : {}),
+    // Cloudflare Queues on Workers (the QUEUE binding); src/worker.ts consumes them.
+    ...(env.QUEUE ? { cloudflare: { driver: 'cloudflare', queues: { default: env.QUEUE } } } : {}),
   },
 }))

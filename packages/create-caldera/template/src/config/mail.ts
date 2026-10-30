@@ -4,6 +4,8 @@ export const mail = defineConfig('mail', (env) => ({
   default: env.MAIL_MAILER,
   mailers: {
     log: { driver: 'log' },
+    // Cloudflare Email Service on Workers (the EMAIL binding).
+    ...(env.EMAIL ? { cloudflare: { driver: 'cloudflare', binding: env.EMAIL } } : {}),
     ...(env.RESEND_API_KEY ? { resend: { driver: 'resend', apiKey: env.RESEND_API_KEY } } : {}),
     ...(env.POSTMARK_SERVER_TOKEN ? { postmark: { driver: 'postmark', serverToken: env.POSTMARK_SERVER_TOKEN } } : {}),
     ...(env.SMTP_URL ? { smtp: { driver: 'smtp', url: env.SMTP_URL } } : {}),

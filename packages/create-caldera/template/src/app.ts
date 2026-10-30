@@ -1,4 +1,5 @@
 import { cacheProvider } from '@caldera/cache'
+import { databaseCacheDriver } from '@caldera/cache/database'
 import { redisDriver } from '@caldera/cache/redis'
 import { createApp } from '@caldera/core'
 import { databaseProvider } from '@caldera/db'
@@ -17,6 +18,7 @@ import { scheduleProvider } from '@caldera/schedule'
 import { storageProvider } from '@caldera/storage'
 import { localStorageDriver } from '@caldera/storage/local'
 import { s3StorageDriver } from '@caldera/storage/s3'
+import { drizzle as d1 } from 'drizzle-orm/d1'
 import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
 import { messages, pages } from '../.caldera/i18n.gen.js'
@@ -32,14 +34,15 @@ export const app = createApp({
   env,
   config,
   providers: [
+    // libSQL (DATABASE_URL), or D1 on Cloudflare Workers (the DB binding).
     databaseProvider({
-      driver: 'sqlite',
-      connect: (app) => drizzle({ connection: { url: app.config.database.url }, relations }),
+      driver: (app) => (app.env.DB ? 'd1' : 'sqlite'),
+      connect: (app) => (app.env.DB ? d1(app.env.DB as never, { relations }) : drizzle({ connection: { url: app.config.database.url }, relations })),
     }),
     sessionProvider((app) => app.config.session),
     // Messages from lang/; c.var.i18n is this request's translator (user, cookie, Accept-Language).
     i18nProvider((app) => app.config.i18n, { messages, pages }),
-    cacheProvider((app) => app.config.cache, { drivers: [redisDriver] }),
+    cacheProvider((app) => app.config.cache, { drivers: [databaseCacheDriver, redisDriver] }),
     // Unique jobs and batches keep their state in the cache above.
     queueProvider((app) => app.config.queue, { drivers: [databaseDriver, bullmqDriver] }),
     // Every listener in src/listeners, registered by `caldera generate`.

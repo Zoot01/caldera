@@ -217,4 +217,48 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-start.pid!, 'SIGTERM')
     }
   }, 600_000)
+  it('runs on Cloudflare Workers after cloudflare:setup: D1, the database cache, R2 and assets under wrangler dev', async () => {
+    const result = createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('pnpm', 'exec', 'caldera', 'cloudflare:setup'))
+    ok(run('pnpm', 'add', '-D', 'wrangler@4.151.0'))
+    // A route using each Workers service, as an app would.
+    writeFileSync(
+      join(dir, 'src/routes/edge.ts'),
+      `import { defineRoutes } from '@caldera/http'\nimport { User } from '../models/user.js'\n\nexport const edge = defineRoutes('edge', { prefix: '/edge' })\n  .get('users', '/users', async (c) => c.json({ users: await User.findMany(), cache: c.var.cache.name, hits: await c.var.cache.increment('hits') }))\n  .get('file', '/file', async (c) => {\n    const disk = c.var.storage.disk(c.var.storage.name as 'r2')\n    await disk.put('hi.txt', 'hi from r2')\n    return c.json({ disk: disk.name, text: await disk.getText('hi.txt') })\n  })\n`,
+    )
+    ok(run('pnpm', 'exec', 'caldera', 'generate'))
+    ok(run('pnpm', 'typecheck'))
+    ok(run('pnpm', 'exec', 'caldera', 'db:generate'))
+    ok(run('pnpm', 'exec', 'caldera', 'd1:migrations'))
+    ok(run('pnpm', 'exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'))
+    ok(run('pnpm', 'build'))
+    writeFileSync(join(dir, '.dev.vars'), `APP_KEY=${'k'.repeat(43)}\n`)
+    const check = run('pnpm', 'exec', 'caldera', 'check', '--json')
+    expect(JSON.parse(check.stdout).issues.filter((i: { code: string }) => i.code.startsWith('workers_'))).toEqual([])
+
+    const { spawn } = await import('node:child_process')
+    const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
+      for (let i = 0; i < 120; i++) {
+        const value = await read().catch(() => undefined)
+        if (value !== undefined) return value
+        await new Promise((r) => setTimeout(r, 500))
+      }
+      return undefined
+    }
+    const dev = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', '3462', '--ip', '127.0.0.1'], { cwd: dir, detached: true })
+    try {
+      expect(await poll(() => fetch('http://127.0.0.1:3462/edge/users').then((r) => r.json()))).toEqual({ users: [], cache: 'database', hits: 1 })
+      expect(await fetch('http://127.0.0.1:3462/edge/file').then((r) => r.json())).toEqual({ disk: 'r2', text: 'hi from r2' })
+      const html = await fetch('http://127.0.0.1:3462/').then((r) => r.text())
+      const script = /<script type="module" src="(\/build\/assets\/[^"]+\.js)"/.exec(html)?.[1]
+      expect(script, html.slice(0, 500)).toBeDefined()
+      expect((await fetch(`http://127.0.0.1:3462${script}`)).status).toBe(200)
+    } finally {
+      process.kill(-dev.pid!, 'SIGTERM')
+    }
+  }, 600_000)
 })

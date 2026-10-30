@@ -101,7 +101,8 @@ export function createProject(options: CreateOptions): CreateResult {
     // pnpm 11 fails installs whose dependencies' build scripts aren't approved. esbuild (used by
     // tsx and vitest) has one; approve it up front so a fresh install can't fail on it.
     // msgpackr-extract (from bullmq) only compiles when no prebuilt binary exists, so it's declined.
-    const workspace = ['allowBuilds:', '  esbuild: true', '  msgpackr-extract: false', ...(overrides.length ? ['overrides:', ...overrides] : [])]
+    // workerd (Cloudflare's runtime, with Wrangler after `caldera cloudflare:setup`) is approved.
+    const workspace = ['allowBuilds:', '  esbuild: true', '  msgpackr-extract: false', '  workerd: true', ...(overrides.length ? ['overrides:', ...overrides] : [])]
     writeFileSync(join(directory, 'pnpm-workspace.yaml'), `${workspace.join('\n')}\n`)
   }
   writeFileSync(log, `create-caldera ${new Date().toISOString()}\n`)
