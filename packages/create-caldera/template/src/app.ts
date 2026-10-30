@@ -3,6 +3,9 @@ import { redisDriver } from '@caldera/cache/redis'
 import { createApp } from '@caldera/core'
 import { databaseProvider } from '@caldera/db'
 import { eventsProvider } from '@caldera/events'
+import { mailProvider } from '@caldera/mail'
+import { sesDriver } from '@caldera/mail/ses'
+import { smtpDriver } from '@caldera/mail/smtp'
 import { sessionProvider } from '@caldera/http'
 import { queueProvider } from '@caldera/queue'
 import { bullmqDriver } from '@caldera/queue/bullmq'
@@ -14,6 +17,7 @@ import { s3StorageDriver } from '@caldera/storage/s3'
 import { drizzle } from 'drizzle-orm/libsql'
 import { config } from '../.caldera/config.gen.js'
 import { listeners } from '../.caldera/listeners.gen.js'
+import { mails } from '../.caldera/mails.gen.js'
 import { schedules } from '../.caldera/schedules.gen.js'
 import { relations } from './db/relations.js'
 import { env } from './env.js'
@@ -36,5 +40,7 @@ export const app = createApp({
     scheduleProvider({ schedules }),
     // Disks in src/config/storage.ts: c.var.storage, storage.disk('public').
     storageProvider((app) => app.config.storage, { drivers: [localStorageDriver, s3StorageDriver] }),
+    // Mailers in src/config/mail.ts; every mail in src/mail. c.var.mail, or `mail` from '@caldera/mail'.
+    mailProvider((app) => app.config.mail, { mails, drivers: [sesDriver, smtpDriver] }),
   ],
 })
