@@ -14,5 +14,5 @@ export type {
 } from './inertia.js'
 export { always, defer, optional } from './props.js'
 export type { Prop, PropInput, PropsInput } from './props.js'
-export { viteAssets } from './vite.js'
+export { setViteManifest, viteAssets } from './vite.js'
 export type { ManifestChunk, ViteAssets, ViteAssetsOptions, ViteManifest } from './vite.js'

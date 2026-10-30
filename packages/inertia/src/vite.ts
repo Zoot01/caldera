@@ -32,6 +32,16 @@ export interface ViteAssets {
   version(): Promise<string | null>
 }
 
+const MANIFEST = Symbol.for('caldera.vite.manifest')
+
+/**
+ * Supplies the build manifest where there's no filesystem to read it from: a Worker entry does
+ * `import manifest from '../public/build/.vite/manifest.json'` then `setViteManifest(manifest)`.
+ */
+export function setViteManifest(manifest: ViteManifest | undefined) {
+  ;(globalThis as { [key: symbol]: unknown })[MANIFEST] = manifest
+}
+
 /**
  * Asset tags for the root HTML. While `vite` runs (the plugin writes a hot file) the tags point at
  * the dev server for HMR; otherwise they come from the build manifest.
@@ -46,6 +56,8 @@ export function viteAssets(options: ViteAssetsOptions): ViteAssets {
     (manifest ??= (async () => {
       if (typeof options.manifest === 'function') return options.manifest()
       if (options.manifest) return options.manifest
+      const provided = (globalThis as { [key: symbol]: unknown })[MANIFEST] as ViteManifest | undefined
+      if (provided) return provided
       const text = await readText('public/build/.vite/manifest.json')
       // Tests render pages without a build, like Laravel's tests without Vite: no tags, no version.
       if (text === undefined && isTestRun()) return null

@@ -7,7 +7,9 @@ import { createDatabase, setDefaultDatabase, type Database } from '@caldera/db'
 import { createMail, mailProvider, setDefaultMail, type MailService } from '@caldera/mail'
 import { createQueue, queueProvider, setDefaultQueue } from '@caldera/queue'
 import { sql } from 'drizzle-orm'
+import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
+import { Miniflare } from 'miniflare'
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -47,6 +49,15 @@ const backends: Backend[] = [
       const db = createDatabase(drizzleLibsql({ client }), { driver: 'sqlite' })
       await db.client.run(sql.raw(SQLITE_TABLE))
       return { db, teardown: async () => (client.close(), rmSync(dir, { recursive: true, force: true })) }
+    },
+  },
+  {
+    name: 'D1 (workerd, Miniflare)',
+    async setup() {
+      const mf = new Miniflare({ modules: true, script: 'export default { fetch: () => new Response(null) }', d1Databases: ['DB'], compatibilityDate: '2026-07-30' })
+      const d1 = await mf.getD1Database('DB')
+      await d1.exec(SQLITE_TABLE.replaceAll('\n', ' '))
+      return { db: createDatabase(drizzleD1(d1 as never), { driver: 'd1' }), teardown: () => mf.dispose() }
     },
   },
   ...(hasPostgres
@@ -152,7 +163,8 @@ describe.each(backends)('notifications on $name', (backend) => {
     expect(await channel.inbox(notifiable).list()).toHaveLength(1)
   })
 
-  it('writes through the current transaction: rolled back with it', async () => {
+  // D1 has no interactive transactions (db.transaction throws a CapabilityError there).
+  it.skipIf(backend.name.startsWith('D1'))('writes through the current transaction: rolled back with it', async () => {
     await expect(
       db.transaction(async () => {
         await notifications.send(ann, InvoicePaid, invoice)
@@ -172,7 +184,8 @@ describe.each(backends)('notifications on $name', (backend) => {
     expect(await notifications.inbox(ann).list()).toEqual([])
   })
 
-  it('queues one job per channel, routed per channel, and only once the transaction commits', async () => {
+  // D1 has no interactive transactions (db.transaction throws a CapabilityError there).
+  it.skipIf(backend.name.startsWith('D1'))('queues one job per channel, routed per channel, and only once the transaction commits', async () => {
     const queue = createQueue({ default: 'memory', connections: { memory: { driver: 'memory' } } })
     queue.register(notifications.job as never)
     setDefaultQueue(queue)
@@ -205,7 +218,8 @@ describe.each(backends)('notifications on $name', (backend) => {
     expect(await notifications.inbox(ann).list()).toHaveLength(1)
   })
 
-  it('drops the queued jobs on rollback', async () => {
+  // D1 has no interactive transactions (db.transaction throws a CapabilityError there).
+  it.skipIf(backend.name.startsWith('D1'))('drops the queued jobs on rollback', async () => {
     const queue = createQueue({ default: 'memory', connections: { memory: { driver: 'memory' } } })
     setDefaultQueue(queue)
     const fake = queue.fake()

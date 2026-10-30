@@ -26,8 +26,8 @@ export function databaseChannel(options: { table?: string; database?: () => Data
 
   const dialectOf = (db: Database<any>): 'pg' | 'sqlite' => {
     if (db.driver === 'postgres') return 'pg'
-    if (db.driver === 'sqlite' || db.driver === 'sqlite-sync') return 'sqlite'
-    throw new CapabilityError(`database (${db.driver})`, 'the database notification channel', 'It needs Postgres or SQLite.')
+    if (db.driver === 'sqlite' || db.driver === 'sqlite-sync' || db.driver === 'd1') return 'sqlite'
+    throw new CapabilityError(`database (${db.driver})`, 'the database notification channel', 'It needs Postgres, SQLite, libSQL or D1.')
   }
   const run = async <T>(query: SQL): Promise<T[]> => {
     const db = resolve()

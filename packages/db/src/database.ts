@@ -201,14 +201,15 @@ export function defaultDatabase(): Database<any> {
  * The connection is only opened when something first uses it.
  */
 export function databaseProvider<Client extends TransactionalClient>(options: {
-  driver: Driver
+  /** The driver, or a function picking it per environment (D1 on Workers, libSQL elsewhere). */
+  driver: Driver | ((app: RegisterContext<unknown>) => Driver)
   connect: (app: RegisterContext<unknown>) => Client
   capabilities?: Partial<DatabaseCapabilities>
 }) {
   return defineProvider({
     name: 'db',
     register: (app) => ({
-      db: app.singleton(() => createDatabase(options.connect(app), { driver: options.driver, capabilities: options.capabilities })),
+      db: app.singleton(() => createDatabase(options.connect(app), { driver: typeof options.driver === 'function' ? options.driver(app) : options.driver, capabilities: options.capabilities })),
     }),
     boot: (app) => setDefaultDatabase(() => app.services.db),
     shutdown: () => setDefaultDatabase(undefined),
