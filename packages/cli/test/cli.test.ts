@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeModel, describeProject, describeSchema, generate, listRoutes, openProject } from '../src/index.js'
+import { describeModel, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -14,7 +15,7 @@ let root: string
 beforeEach(() => {
   root = join(here, '.tmp', `app-${Math.random().toString(36).slice(2)}`)
   // Skip any .caldera/ generated in the fixture for editor support: tests start ungenerated.
-  cpSync(join(here, 'fixtures/basic-app'), root, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  cpSync(join(here, 'fixtures/basic-app'), root, { recursive: true, filter: (src) => !src.includes('/.caldera') && !src.includes('/drizzle/') })
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
 afterAll(() => rmSync(join(here, '.tmp'), { recursive: true, force: true }))
@@ -182,5 +183,36 @@ describe('caldera model:show and db:schema', () => {
       ['posts', 'post', 4],
     ])
     expect(tables[1]!.relations).toEqual([{ name: 'author', type: 'one', target: 'users' }])
+  })
+})
+
+describe('caldera db:generate / db:migrate / db:push', () => {
+  it('generates SQL migrations with the project’s drizzle-kit', () => {
+    const { code, json } = cli('db:generate')
+    expect(json.error).toBeUndefined()
+    expect(code).toBe(0)
+    const migrations = readdirSync(join(root, 'drizzle'), { recursive: true }) as string[]
+    const sql = migrations.filter((f) => f.endsWith('.sql')).map((f) => readFileSync(join(root, 'drizzle', f), 'utf8')).join('\n')
+    expect(sql).toMatch(/CREATE TABLE "users"/)
+    expect(sql).toMatch(/"password_hash" text NOT NULL/)
+  }, 60_000)
+
+  it('refuses database-changing commands in production without --force', () => {
+    expect(() => runMigrations(openProject(root), 'migrate', { env: { NODE_ENV: 'production' } })).toThrow(/Pass --force/)
+    expect(() => runMigrations(openProject(root), 'push', { env: { NODE_ENV: 'production' } })).toThrow(/Pass --force/)
+    // generate only writes files, so it is allowed.
+    expect(() => runMigrations(openProject(root), 'generate', { env: { ...process.env, NODE_ENV: 'production' }, capture: true })).not.toThrow()
+  }, 60_000)
+
+  it('explains a missing drizzle-kit or config file', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'caldera-no-kit-'))
+    try {
+      writeFileSync(join(outside, 'drizzle.config.ts'), 'export default {}\n')
+      expect(() => runMigrations(openProject(outside), 'generate')).toThrow(/drizzle-kit is not installed/)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+    rmSync(join(root, 'drizzle.config.ts'))
+    expect(cli('db:generate').json.error).toMatchObject({ code: 'missing_file', details: { file: 'drizzle.config.ts' } })
   })
 })

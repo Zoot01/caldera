@@ -4,6 +4,7 @@ import { generate } from './codegen.js'
 import { describeProject } from './describe.js'
 import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
+import { runMigrations, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
 
 const VERSION = '0.0.0'
@@ -117,6 +118,22 @@ const dbSchemaCommand = defineCommand({
     }),
 })
 
+function migrationCommand(command: MigrationCommand, description: string) {
+  return defineCommand({
+    meta: { name: `db:${command}`, description },
+    args: { ...shared, force: { type: 'boolean', description: 'Allow running against a production database' } },
+    run: ({ args, rawArgs }) =>
+      run(wantsJson(args.json), async () => {
+        // Anything after `--` goes to drizzle-kit unchanged.
+        const separator = rawArgs.indexOf('--')
+        const extraArgs = separator >= 0 ? rawArgs.slice(separator + 1) : []
+        const json = wantsJson(args.json)
+        const result = runMigrations(openProject(args.cwd), command, { force: args.force, capture: json, extraArgs })
+        return { data: { schemaVersion: 1, ...result }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }
+      }),
+  })
+}
+
 export const main = defineCommand({
   meta: { name: 'caldera', version: VERSION, description: 'Caldera framework CLI' },
   subCommands: {
@@ -125,6 +142,9 @@ export const main = defineCommand({
     'route:list': routeListCommand,
     'model:show': modelShowCommand,
     'db:schema': dbSchemaCommand,
+    'db:generate': migrationCommand('generate', 'Generate SQL migrations from your Drizzle schema (drizzle-kit generate)'),
+    'db:migrate': migrationCommand('migrate', 'Apply pending migrations (drizzle-kit migrate)'),
+    'db:push': migrationCommand('push', 'Push the schema straight to the database, for prototyping (drizzle-kit push)'),
   },
 })
 
