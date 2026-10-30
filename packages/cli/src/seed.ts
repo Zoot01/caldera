@@ -35,8 +35,9 @@ export async function seedProject(project: Project, options: SeedOptions = {}): 
   const app = await loadApp(project)
   await app.boot({ env })
   try {
-    // Loaded here, not at the top: the CLI must start in apps that never seed.
-    const { runSeeders } = await import('@caldera/db/seeders')
+    // Through the project's own loader: the same @caldera/db instance its factories use. Loaded
+    // here, not at the top, because the CLI must start in apps that never seed.
+    const { runSeeders } = await project.importPackage<typeof import('@caldera/db/seeders')>('@caldera/db/seeders')
     return await runSeeders(seeders, { environment, force: options.force, seed: options.seed, only: options.only })
   } finally {
     await app.shutdown()

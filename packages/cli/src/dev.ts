@@ -42,7 +42,13 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     const started = Date.now()
     debug('generate: start')
     try {
-      const result: GenerateResult = await generate(openProject(root))
+      const project = openProject(root)
+      let result: GenerateResult
+      try {
+        result = await generate(project)
+      } finally {
+        await project.dispose()
+      }
       debug(`generate: done in ${Date.now() - started}ms`)
       emit({ type: 'generated', changed: result.files.filter((f) => f.status !== 'unchanged').map((f) => f.path) })
     } catch (error) {

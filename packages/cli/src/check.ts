@@ -46,9 +46,11 @@ export async function check(project: Project): Promise<CheckResult> {
 }
 
 function asIssue(error: unknown): CheckIssue {
-  if (error instanceof CalderaError) {
-    const file = (error.details as { file?: string } | undefined)?.file
-    return { code: error.code, message: error.message, ...(file ? { file } : {}) }
+  // By shape: errors from the project's code come from its own copy of @caldera/core.
+  if (error instanceof Error && typeof (error as CalderaError).code === 'string') {
+    const e = error as CalderaError
+    const file = (e.details as { file?: string } | undefined)?.file
+    return { code: e.code, message: e.message, ...(file ? { file } : {}) }
   }
   return { code: 'internal_error', message: error instanceof Error ? error.message : String(error) }
 }

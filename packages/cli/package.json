@@ -26,9 +26,10 @@
     "@caldera/core": "workspace:*",
     "@caldera/db": "workspace:*",
     "citty": "0.2.2",
-    "jiti": "2.7.0"
+    "tsx": "4.23.15"
   },
   "devDependencies": {
+    "@caldera/cache": "workspace:*",
     "@caldera/events": "workspace:*",
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",
@@ -46,7 +47,6 @@
     "hono": "4.13.14",
     "ioredis": "6.0.0",
     "react": "19.3.1",
-    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "zod": "4.6.7"
   }

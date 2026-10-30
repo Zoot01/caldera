@@ -142,6 +142,32 @@ export const calderaJobs = sqliteTable(
   (t) => [index('caldera_jobs_queue_available').on(t.queue, t.availableAt)],
 )
 `,
+  mail: `import { defineMail } from '@caldera/mail'
+import { Body, Container, Head, Html, Preview, Text } from '@react-email/components'
+import { z } from 'zod'
+
+function {{ Name }}({ name }: { name: string }) {
+  return (
+    <Html>
+      <Head />
+      <Preview>{{ Name }}</Preview>
+      <Body style={{ fontFamily: 'system-ui, sans-serif' }}>
+        <Container>
+          <Text>Hi {name},</Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+{{ Name }}.PreviewProps = { name: 'Ann' }
+
+export const {{ Name }}Email = defineMail({
+  name: '{{ kebab }}',
+  props: z.object({ name: z.string() }),
+  subject: '{{ Name }}',
+  component: {{ Name }},
+})
+`,
   schedule: `import { defineSchedule } from '@caldera/schedule'
 import { {{ Job }} } from '../jobs/{{ jobKebab }}.js'
 

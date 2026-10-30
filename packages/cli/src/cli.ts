@@ -23,6 +23,10 @@ const shared = {
   json: { type: 'boolean', description: 'Print machine-readable JSON (default when output is not a terminal)' },
 } as const
 
+function isCalderaError(error: unknown): error is CalderaError {
+  return error instanceof Error && typeof (error as CalderaError).code === 'string' && typeof (error as CalderaError).toJSON === 'function'
+}
+
 /** JSON when asked for, and by default when piped or run by an agent, so tools never parse prose. */
 function wantsJson(flag: boolean | undefined): boolean {
   return flag ?? !process.stdout.isTTY
@@ -34,8 +38,10 @@ async function run(json: boolean, task: () => Promise<{ data: unknown; text: str
     process.stdout.write(json ? `${JSON.stringify(data, null, 2)}\n` : `${text}\n`)
     if (exitCode) process.exitCode = exitCode
   } catch (error) {
+    // By shape, not instanceof: the project's code runs in its own module graph with its own copy
+    // of @caldera/core, so its errors aren't instances of the CLI's CalderaError class.
     const body =
-      error instanceof CalderaError
+      isCalderaError(error)
         ? error.toJSON()
         : { name: 'Error', code: 'internal_error', message: error instanceof Error ? error.message : String(error) }
     if (json) process.stdout.write(`${JSON.stringify({ error: body }, null, 2)}\n`)
@@ -219,6 +225,7 @@ const DESCRIPTIONS: Record<MakeKind, string> = {
   event: 'Create an event in src/events/',
   listener: 'Create an event listener in src/listeners/ (needs --event)',
   schedule: 'Create a schedule in src/schedules/ (needs --job)',
+  mail: 'Create a mail (React Email) in src/mail/',
 }
 
 function makeCommand(kind: MakeKind) {

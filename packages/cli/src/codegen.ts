@@ -7,6 +7,7 @@ import { loadModels } from './models.js'
 import { loadPolicies } from './policies.js'
 import { inertiaRegister } from './pages.js'
 import { loadListeners } from './listeners.js'
+import { loadMails } from './mails.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { loadRouteGroups } from './routes.js'
@@ -136,6 +137,20 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
         HEADER +
         used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
         `${used.length ? '\n' : ''}export const schedules = [${schedules.map((s) => `${alias(s.file)}.${s.exportName}`).join(', ')}] as const\n`,
+    })
+  }
+
+  // Passed to mailProvider({ mails }) in app.ts (previews, and workers sending queued mail).
+  const mails = await loadMails(project)
+  if (mails.length > 0 || usesPackage(project, '@caldera/mail')) {
+    const used = [...new Set(mails.map((m) => m.file))]
+    const alias = (file: string) => `mails${used.indexOf(file)}`
+    generated.push({
+      path: `${dir}/mails.gen.ts`,
+      contents:
+        HEADER +
+        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file).replace(/\.tsx$/, '.js')}'\n`).join('') +
+        `${used.length ? '\n' : ''}export const mails = [${mails.map((m) => `${alias(m.file)}.${m.exportName}`).join(', ')}] as const\n`,
     })
   }
 

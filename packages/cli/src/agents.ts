@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { loadModels } from './models.js'
 import { pageFiles } from './pages.js'
 import { loadListeners } from './listeners.js'
+import { loadMails } from './mails.js'
 import { loadSchedules } from './schedule.js'
 import { loadJobs } from './queue.js'
 import { describeAbilities } from './policies.js'
@@ -98,6 +99,11 @@ async function generatedSection(project: Project): Promise<string> {
         ]),
       ),
     )
+  }
+
+  const mails = await loadMails(project)
+  if (mails.length > 0) {
+    parts.push(table('Mail', ['Mail', 'Export', 'Preview', 'Defined in'], mails.map(({ mail, exportName, file }) => [`\`${mail.name}\``, `\`${exportName}\``, mail.preview ? `/_caldera/mail/${mail.name}` : 'no preview props', file])))
   }
 
   const abilities = await describeAbilities(project)

@@ -1,8 +1,8 @@
 import { existsSync, readdirSync } from 'node:fs'
-import { join, relative, resolve, sep } from 'node:path'
-import { createRequire } from 'node:module'
-import { createJiti } from 'jiti'
+import { join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { CalderaError } from '@caldera/core'
+import { register } from 'tsx/esm/api'
 
 /**
  * File conventions every Caldera app follows. Generators, codegen and agents all
@@ -20,6 +20,7 @@ export const CONVENTIONS = {
   eventsDir: 'src/events',
   listenersDir: 'src/listeners',
   schedulesDir: 'src/schedules',
+  mailDir: 'src/mail',
   app: 'src/app.ts',
   inertia: 'src/inertia.ts',
   pagesDir: 'resources/pages',
@@ -34,15 +35,23 @@ export interface Project {
   load<T = Record<string, unknown>>(relativePath: string): Promise<T>
   /** Imports a package as the project resolves it, e.g. its own `better-auth`. */
   importPackage<T = Record<string, unknown>>(specifier: string): Promise<T>
+  /** Removes this project's loader hooks. Long-running commands (dev) call it before reloading. */
+  dispose(): Promise<void>
 }
+
+let loaders = 0
 
 export function openProject(root: string = process.cwd()): Project {
   const absoluteRoot = resolve(root)
   // One module graph per project: app.ts, seeders and models must share the same table and model
-  // instances, as in a real process. jiti's cache is Node's global CommonJS cache, so drop this
-  // project's own files from it first; each openProject() (a command, a watch reload) starts fresh.
-  purgeProjectModules(absoluteRoot)
-  const jiti = createJiti(join(absoluteRoot, 'caldera.ts'), { moduleCache: true, fsCache: false })
+  // instances, as in a real process. tsx's loader gives each openProject() (a command, a watch
+  // reload) its own namespace, so every load starts fresh and sees edits. It loads code the way the
+  // app runs it: `.js` imports of `.ts`/`.tsx` files, JSX in mail templates, tsconfig paths.
+  const loader = register({ namespace: `caldera-${process.pid}-${++loaders}` })
+  // Stack traces in source positions (tsx writes inline source maps): routes and limiters record
+  // where they're defined from them, for route:list and AGENTS.md.
+  process.setSourceMapsEnabled(true)
+  const parent = pathToFileURL(join(absoluteRoot, 'caldera.ts')).href
   const path = (relativePath: string) => join(absoluteRoot, relativePath)
 
   return {
@@ -57,24 +66,27 @@ export function openProject(root: string = process.cwd()): Project {
       if (!existsSync(file)) {
         throw new CalderaError('missing_file', `Expected ${relativePath} in ${absoluteRoot}.`, { file: relativePath })
       }
-      return (await jiti.import(file)) as never
+      return (await loader.import(pathToFileURL(file).href, parent)) as never
     },
     async importPackage(specifier) {
       try {
-        return (await jiti.import(specifier)) as never
+        return (await loader.import(specifier, parent)) as never
       } catch {
         throw new CalderaError('missing_dependency', `${specifier} is not installed in this project.`, { package: specifier })
       }
+    },
+    async dispose() {
+      await loader.unregister()
     },
   }
 }
 
 /** TypeScript files directly inside a convention directory, sorted so generated output is stable. */
-export function sourceFiles(project: Project, dir: string): string[] {
+export function sourceFiles(project: Project, dir: string, options: { tsx?: boolean } = {}): string[] {
   const absolute = project.path(dir)
   if (!existsSync(absolute)) return []
   return readdirSync(absolute)
-    .filter((file) => file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
+    .filter((file) => (file.endsWith('.ts') || (options.tsx && file.endsWith('.tsx'))) && !file.endsWith('.d.ts') && !/\.test\.tsx?$/.test(file))
     .sort()
     .map((file) => `${dir}/${file}`)
 }
@@ -87,6 +99,7 @@ export const policyFiles = (project: Project) => sourceFiles(project, CONVENTION
 export const jobFiles = (project: Project) => sourceFiles(project, CONVENTIONS.jobsDir)
 export const listenerFiles = (project: Project) => sourceFiles(project, CONVENTIONS.listenersDir)
 export const scheduleFiles = (project: Project) => sourceFiles(project, CONVENTIONS.schedulesDir)
+export const mailFiles = (project: Project) => sourceFiles(project, CONVENTIONS.mailDir, { tsx: true })
 
 /** Finds exported values tagged with a Caldera `kind`, e.g. `caldera.config`. */
 export function exportsOfKind<T>(module: Record<string, unknown>, kind: string): { exportName: string; value: T }[] {
@@ -95,10 +108,3 @@ export function exportsOfKind<T>(module: Record<string, unknown>, kind: string):
     .map(([exportName, value]) => ({ exportName, value: value as T }))
 }
 
-function purgeProjectModules(root: string) {
-  const cache = createRequire(import.meta.url).cache
-  const prefix = root.endsWith(sep) ? root : root + sep
-  for (const file of Object.keys(cache)) {
-    if (file.startsWith(prefix) && !file.includes(`${sep}node_modules${sep}`)) delete cache[file]
-  }
-}

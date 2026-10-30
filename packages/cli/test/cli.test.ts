@@ -143,7 +143,9 @@ describe('caldera describe', () => {
 
 describe('caldera route:list', () => {
   it('lists every route with relative source locations and input schemas', async () => {
-    const { routes } = await listRoutes(openProject(root))
+    // Through the real CLI: in-process, Vitest's own stack handling hides the loader's source maps.
+    await generate(openProject(root))
+    const { routes } = cli('route:list').json as Awaited<ReturnType<typeof listRoutes>>
     expect(routes.map((r) => `${r.method} ${r.path} ${r.name}`)).toEqual(['GET /health health.check', 'GET /posts posts.index', 'GET /posts/:post posts.show'])
     const show = routes.find((r) => r.name === 'posts.show')!
     expect(show.params).toEqual(['post'])
@@ -317,7 +319,8 @@ describe('caldera auth:schema', () => {
 
 describe('AGENTS.md and caldera check', () => {
   it('rebuilds only the generated section of AGENTS.md from the code', async () => {
-    await generate(openProject(root))
+    // Through the real CLI, for the source lines (see route:list above).
+    expect(cli('generate').code).toBe(0)
     const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
     expect(agents).toMatch(/^# Fixture app\n\nHand-written guidance that must survive regeneration\./)
     expect(agents).toMatch(/More hand-written notes after the markers\.\n$/)
