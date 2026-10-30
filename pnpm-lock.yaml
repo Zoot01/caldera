@@ -408,9 +408,15 @@ importers:
       aws4fetch:
         specifier: 1.0.20
         version: 1.0.20
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       hono:
         specifier: ^4.13.14
         version: 4.13.14
+      miniflare:
+        specifier: 4.20260730.0
+        version: 4.20260730.0
       nodemailer:
         specifier: 10.1.1
         version: 10.1.1

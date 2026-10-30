@@ -2,6 +2,7 @@ import { CalderaError, CapabilityError, createManager, defineProvider, type Dura
 import { z } from 'zod'
 import { renderMail, type AnyMail, type AttachmentSource, type MailProps, type Rendered } from './mail.js'
 import { formatAddress, messageSize, parseAddress, type Address, type AddressInput, type Attachment, type Message } from './message.js'
+import { cloudflareMailDriver } from './cloudflare.js'
 import { failoverDriver, logDriver, memoryDriver, postmarkDriver, resendDriver, roundrobinDriver, type MailCapabilities, type MailTransport, type Outbox, type SendResult } from './transports.js'
 
 export interface MailConfig<N extends string = string> {
@@ -68,7 +69,7 @@ export interface MailService<N extends string = string> extends PendingMail<N> {
   readonly manager: Manager<MailTransport, MailCapabilities, N>
 }
 
-export const MAIL_DRIVERS: readonly DriverDefinition<MailTransport, MailCapabilities>[] = [logDriver, memoryDriver, resendDriver, postmarkDriver, failoverDriver, roundrobinDriver]
+export const MAIL_DRIVERS: readonly DriverDefinition<MailTransport, MailCapabilities>[] = [logDriver, memoryDriver, resendDriver, postmarkDriver, cloudflareMailDriver, failoverDriver, roundrobinDriver]
 
 const HINTS = {
   ses: "It's in '@caldera/mail/ses': import { sesDriver } from it and pass `drivers: [sesDriver]`.",
@@ -97,7 +98,9 @@ interface StorageLike {
 }
 
 const currentRuntime = (): 'node' | 'bun' | 'edge' => {
-  const g = globalThis as { Bun?: unknown; process?: { versions?: { node?: string } } }
+  const g = globalThis as { Bun?: unknown; process?: { versions?: { node?: string } }; navigator?: { userAgent?: string } }
+  // Workers with nodejs_compat (on by default) have process.versions.node too.
+  if (g.navigator?.userAgent === 'Cloudflare-Workers') return 'edge'
   if (g.Bun) return 'bun'
   if (g.process?.versions?.node) return 'node'
   return 'edge'
