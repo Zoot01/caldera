@@ -16,6 +16,7 @@ import { startDev } from './dev.js'
 import { failedJobs, queueTable, startWorker } from './queue.js'
 import { cacheTable, notificationsTable } from './notifications.js'
 import { cloudflareSetup, d1Migrations } from './cloudflare.js'
+import { vercelBuild, vercelSetup } from './vercel.js'
 import { i18nReport } from './i18n.js'
 import { createMcpServer, serveStdio } from './mcp/protocol.js'
 import { calderaTools, INSTRUCTIONS } from './mcp/tools.js'
@@ -366,6 +367,27 @@ const cloudflareSetupCommand = defineCommand({
     }),
 })
 
+const vercelSetupCommand = defineCommand({
+  meta: { name: 'vercel:setup', description: 'Add vercel.json and api/index.ts to deploy this app to Vercel (Node.js runtime)' },
+  args: { ...shared, force: { type: 'boolean', description: 'Overwrite existing files' } },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const result = vercelSetup(openProject(args.cwd), { force: args.force })
+      return { data: result, text: [...result.created.map((p) => `created   ${p}`), ...result.hints.map((h) => `next      ${h}`)].join('\n') }
+    }),
+})
+
+const vercelBuildCommand = defineCommand({
+  meta: { name: 'vercel:build', description: 'Generate, then bundle the app for api/index.js (vercel.json\'s buildCommand)' },
+  args: { ...shared },
+  run: ({ args }) =>
+    run(wantsJson(args.json), async () => {
+      const project = openProject(args.cwd)
+      const result = await vercelBuild(project, () => generate(project))
+      return { data: result, text: `bundled   ${result.bundle} (${result.modules} modules)` }
+    }),
+})
+
 const d1MigrationsCommand = defineCommand({
   meta: { name: 'd1:migrations', description: 'Copy drizzle migrations to migrations/ for `wrangler d1 migrations apply`' },
   args: { ...shared },
@@ -556,6 +578,8 @@ export const main = defineCommand({
     'cache:table': cacheTableCommand,
     'cloudflare:setup': cloudflareSetupCommand,
     'd1:migrations': d1MigrationsCommand,
+    'vercel:setup': vercelSetupCommand,
+    'vercel:build': vercelBuildCommand,
     'i18n:missing': i18nMissingCommand,
     mcp: mcpCommand,
     'schedule:list': scheduleListCommand,

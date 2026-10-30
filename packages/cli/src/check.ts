@@ -4,6 +4,7 @@ import { AUTH_SCHEMA_FILE, generateProjectAuthSchema } from './auth-schema.js'
 import { generate } from './codegen.js'
 import { i18nReport } from './i18n.js'
 import { workersIssues } from './cloudflare.js'
+import { vercelIssues } from './vercel.js'
 import { loadApp, projectEnv } from './describe.js'
 import type { Project } from './project.js'
 
@@ -65,17 +66,18 @@ export async function check(project: Project): Promise<CheckResult> {
     }
   }
 
-  // Cloudflare Workers (a wrangler config): the defaults the app would use there.
-  try {
-    issues.push(
-      ...(await workersIssues(project, async (env) => {
-        const app = await loadApp(project)
-        await app.boot({ env: { ...projectEnv(project), ...env } })
-        return app as unknown as { config: Record<string, any>; shutdown(): Promise<void> }
-      })),
-    )
-  } catch (error) {
-    issues.push(asIssue(error))
+  // Deploy targets (a wrangler config, a vercel.json): the defaults the app would use there.
+  const bootWith = async (env: Record<string, unknown>, options: { local?: boolean } = {}) => {
+    const app = await loadApp(project)
+    await app.boot({ env: options.local === false ? env : { ...projectEnv(project), ...env } })
+    return app as unknown as { config: Record<string, any>; shutdown(): Promise<void> }
+  }
+  for (const target of [workersIssues, vercelIssues]) {
+    try {
+      issues.push(...(await target(project, bootWith)))
+    } catch (error) {
+      issues.push(asIssue(error))
+    }
   }
 
   return { schemaVersion: 1, ok: !issues.some((issue) => issue.severity !== 'warning'), issues }

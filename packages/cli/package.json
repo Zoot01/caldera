@@ -27,6 +27,7 @@
     "@caldera/db": "workspace:*",
     "@caldera/i18n": "workspace:*",
     "citty": "0.2.2",
+    "esbuild": "0.28.2",
     "tsx": "4.23.15",
     "zod": "^4.6.0"
   },
