@@ -271,6 +271,9 @@ importers:
       drizzle-orm:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(@electric-sql/pglite@0.5.13)(@libsql/client@0.18.0)(zod@4.6.7)
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
       ioredis:
         specifier: 6.0.0
         version: 6.0.0

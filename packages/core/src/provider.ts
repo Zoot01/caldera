@@ -29,6 +29,11 @@ export interface RegisterContext<Deps> {
   /** Services from the providers in `dependsOn`, resolved lazily on first access. */
   readonly services: Deps
   singleton<T>(factory: () => T): Singleton<T>
+  /**
+   * The request being handled right now, when the app was created with `asyncContext`; undefined
+   * outside a request or without it. For services that need the request later, e.g. `waitUntil`.
+   */
+  current(): { readonly context: Context } | undefined
 }
 
 export interface LifecycleContext<Services> {

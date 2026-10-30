@@ -3,6 +3,8 @@ import type { Envelope, Outcome } from './envelope.js'
 /** Given to drivers so they can run jobs (sync, memory) without knowing how a job is processed. */
 export interface QueueRuntime {
   process(envelope: Envelope): Promise<Outcome>
+  /** Keeps work alive after the response: Workers' `waitUntil`, when there is a current request. */
+  waitUntil?(): ((promise: Promise<unknown>) => void) | undefined
 }
 
 export interface WorkOptions {

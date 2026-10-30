@@ -1,6 +1,6 @@
 export { bullmqDriver, bullmqQueue } from './bullmq.js'
 export type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
-export { memoryDriver, memoryQueue, syncDriver } from './drivers.js'
+export { deferredDriver, memoryDriver, memoryQueue, syncDriver } from './drivers.js'
 export type { MemoryQueue } from './drivers.js'
 export type { Envelope, Outcome } from './envelope.js'
 export { backoffFor, defineJob, JobFailedError, JobReleasedError, JobTimeoutError } from './job.js'

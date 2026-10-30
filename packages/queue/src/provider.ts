@@ -18,6 +18,16 @@ export function queueProvider<const N extends string>(
       const queue: Queue<N> = createQueue(resolve(app), {
         drivers: [...QUEUE_DRIVERS, ...(options.drivers ?? [])],
         ...(options.store ? { store: (): QueueStore => options.store!(queue.services as Record<string, unknown>) } : {}),
+        waitUntil: () => {
+          const c = app.current()?.context
+          try {
+            // Hono's executionCtx getter throws on runtimes without one (Node).
+            const ctx = c?.executionCtx
+            return ctx ? (promise) => ctx.waitUntil(promise) : undefined
+          } catch {
+            return undefined
+          }
+        },
       })
       setDefaultQueue(queue)
       return { queue }

@@ -23,6 +23,36 @@ export const syncDriver = defineDriver<QueueDriver, QueueCapabilities>({
   }),
 })
 
+/**
+ * Runs each job right after the current response, in the same process (Laravel's `deferred`): no
+ * infrastructure, and the request doesn't wait. On Workers it uses `waitUntil` so the runtime keeps
+ * the isolate alive (create the app with `asyncContext` so the request can be found). Retries run at
+ * once; failures are logged, never thrown to the request. For short work only: nothing survives a crash.
+ */
+export const deferredDriver = defineDriver<QueueDriver, QueueCapabilities>({
+  name: 'deferred',
+  capabilities: { delay: false, maxDelaySeconds: null, maxPayloadBytes: null, workers: false, durable: false },
+  create: () => ({
+    async push(envelope, _delay, runtime) {
+      const run = new Promise<void>((resolve) => setTimeout(resolve, 0)).then(async () => {
+        let current: Envelope | undefined = envelope
+        while (current) {
+          const outcome: Outcome = await runtime.process(current)
+          if (outcome.status === 'done') return
+          if (outcome.status === 'failed') {
+            console.error(`[caldera] deferred job "${current.job}" failed`, outcome.error)
+            return
+          }
+          current = { ...current, attempt: current.attempt + 1 }
+        }
+      })
+      const waitUntil = runtime.waitUntil?.()
+      if (waitUntil) waitUntil(run)
+      else void run.catch((error: unknown) => console.error('[caldera] deferred job crashed', error))
+    },
+  }),
+})
+
 export interface MemoryQueue extends QueueDriver {
   /** Envelopes waiting, oldest first. */
   pending(): readonly { envelope: Envelope; availableAt: number }[]

@@ -1,7 +1,7 @@
 import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredServices } from '@caldera/core'
 import { bullmqDriver } from './bullmq.js'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
-import { memoryDriver, memoryQueue, syncDriver } from './drivers.js'
+import { deferredDriver, memoryDriver, memoryQueue, syncDriver } from './drivers.js'
 import type { Envelope, Outcome } from './envelope.js'
 import type { AnyJob, PayloadOf, PendingJob } from './job.js'
 import { processEnvelope } from './process.js'
@@ -75,7 +75,7 @@ interface BatchMeta {
 
 const BATCH_TTL = '7d'
 
-export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, memoryDriver, bullmqDriver]
+export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, deferredDriver, memoryDriver, bullmqDriver]
 
 export interface Queue<N extends string = string> {
   dispatch<J extends AnyJob>(job: J, payload: PayloadOf<J>, options?: DispatchOptions<N>): Promise<DispatchResult>
@@ -110,7 +110,12 @@ export interface QueueFake {
 
 export function createQueue<const N extends string>(
   config: QueueConfig<N>,
-  options: { drivers?: readonly DriverDefinition<QueueDriver, QueueCapabilities>[]; store?: () => QueueStore | undefined } = {},
+  options: {
+    drivers?: readonly DriverDefinition<QueueDriver, QueueCapabilities>[]
+    store?: () => QueueStore | undefined
+    /** The current request's `waitUntil`, if any (the provider finds it). */
+    waitUntil?: () => ((promise: Promise<unknown>) => void) | undefined
+  } = {},
 ): Queue<N> {
   const manager = createManager({ kind: 'queue', drivers: options.drivers ?? QUEUE_DRIVERS, config: { default: config.default, instances: config.connections } })
   const jobs = new Map<string, AnyJob>()
@@ -161,6 +166,7 @@ export function createQueue<const N extends string>(
   }
 
   const runtime: QueueRuntime = {
+    ...(options.waitUntil ? { waitUntil: options.waitUntil } : {}),
     process: (envelope) =>
       processEnvelope(envelope, {
         jobs,

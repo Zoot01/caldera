@@ -101,7 +101,7 @@ export function createApp<
     const registeredByProvider: Booted['registered'] = {}
     for (const provider of order) {
       const deps = servicesView(services, provider.dependsOn.map((d) => d.name), owner)
-      const registered = provider.register?.({ env: env as never, config: config as never, services: deps, singleton }) ?? {}
+      const registered = provider.register?.({ env: env as never, config: config as never, services: deps, singleton, current: () => scope?.getStore() }) ?? {}
       for (const [key, value] of Object.entries(registered)) {
         const previous = owner.get(key)
         if (previous) {
