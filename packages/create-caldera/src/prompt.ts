@@ -4,7 +4,8 @@ import type { Readable, Writable } from 'node:stream'
 export interface Prompter {
   /** `validate` returns an error to show (and ask again), or undefined when the answer is fine. */
   text(question: string, defaultValue?: string, validate?: (answer: string) => string | undefined): Promise<string>
-  select<T extends string>(question: string, options: readonly T[], defaultValue: T, hints?: Partial<Record<T, string>>): Promise<T>
+  /** `labels` replace the values on screen ("SQLite" for `sqlite`); `hints` are shown beside them. */
+  select<T extends string>(question: string, options: readonly T[], defaultValue: T, hints?: Partial<Record<T, string>>, labels?: Partial<Record<T, string>>): Promise<T>
   confirm(question: string, defaultValue: boolean): Promise<boolean>
 }
 
@@ -42,12 +43,12 @@ export function clackPrompter(streams: { input?: Readable; output?: Writable } =
         }),
       )
     },
-    async select(question, options, defaultValue, hints = {}) {
+    async select(question, options, defaultValue, hints = {}, labels = {}) {
       return answered(
         await select({
           ...streams,
           message: question,
-          options: options.map((value) => ({ value, label: value, ...(hints[value] ? { hint: hints[value] } : {}) })) as never,
+          options: options.map((value) => ({ value, label: labels[value] ?? value, ...(hints[value] ? { hint: hints[value] } : {}) })) as never,
           initialValue: defaultValue,
         }),
       ) as typeof defaultValue

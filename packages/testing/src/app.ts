@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { parseEnv } from 'node:util'
 import { CalderaError } from '@caldera/core'
 import { sql } from 'drizzle-orm'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -29,7 +30,8 @@ type FakeableName<S> = { [K in keyof S]: S[K] extends { fake(...args: any[]): un
 export interface SetupAppOptions {
   /**
    * Env for the test app, over `process.env`. Defaults: NODE_ENV=test, a random APP_KEY, and
-   * DATABASE_URL from DATABASE_TEST_URL, or a fresh SQLite file per test file (never your dev database).
+   * DATABASE_URL from DATABASE_TEST_URL (the environment, then `.env`), or a fresh SQLite file per
+   * test file (never your dev database).
    */
   env?: Record<string, unknown>
   /**
@@ -80,7 +82,8 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
   beforeAll(async () => {
     const env: Record<string, unknown> = { ...process.env, NODE_ENV: 'test', APP_KEY: randomBytes(32).toString('base64url') }
     if (options.env?.DATABASE_URL === undefined) {
-      if (process.env.DATABASE_TEST_URL) env.DATABASE_URL = process.env.DATABASE_TEST_URL
+      const testUrl = testDatabaseUrl()
+      if (testUrl) env.DATABASE_URL = testUrl
       else {
         tempDatabase = join(tmpdir(), `caldera-test-${process.pid}-${randomBytes(6).toString('hex')}.db`)
         env.DATABASE_URL = `file:${tempDatabase}`
@@ -88,6 +91,9 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
     }
     await app.boot({ env: { ...env, ...options.env } })
     db = (app.services as { db?: DatabaseLike }).db
+    if (tempDatabase && db && isPostgres(db)) {
+      throw new CalderaError('no_test_database', 'This app uses Postgres: set DATABASE_TEST_URL (in .env or the environment) to a database whose name contains "test", e.g. postgres://localhost:5432/app_test.')
+    }
     if (db && settings) {
       await migrateFresh(db, resolve(settings.migrations ?? 'drizzle'), String(env.DATABASE_URL ?? ''))
       if (settings.seed?.length) await seed(db, settings.seed)
@@ -140,6 +146,15 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
   }
 }
 
+/** DATABASE_TEST_URL from the environment, else from the project's `.env` (Vitest doesn't load it). */
+export function testDatabaseUrl(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (env.DATABASE_TEST_URL) return env.DATABASE_TEST_URL
+  const file = join(cwd, '.env')
+  return (existsSync(file) && parseEnv(readFileSync(file, 'utf8')).DATABASE_TEST_URL) || undefined
+}
+
+const isPostgres = (db: DatabaseLike) => db.driver === 'postgres' || db.driver === 'neon-http'
+
 /**
  * Runs every migration in `folder` against a fresh database. SQLite (a new file) starts empty;
  * Postgres is reset first, but only a database whose name contains "test", so a misconfigured
@@ -150,7 +165,7 @@ export async function migrateFresh(db: DatabaseLike, folder: string, url: string
     throw new CalderaError('no_migrations', `No migrations in ${folder}: run \`caldera db:generate\` (tests build the database from your migrations), or pass setupApp(app, { database: false }).`)
   }
   const migrations = readMigrationFiles({ migrationsFolder: folder })
-  const postgres = db.driver === 'postgres' || db.driver === 'neon-http'
+  const postgres = isPostgres(db)
   const run = (statement: string) => (postgres ? db.client.execute!(sql.raw(statement)) : db.client.run!(sql.raw(statement)))
   if (postgres) {
     const name = /\/([^/?]+)(?:\?|$)/.exec(url)?.[1] ?? ''

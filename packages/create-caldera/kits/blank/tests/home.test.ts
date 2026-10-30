@@ -5,7 +5,7 @@ import { http } from '../src/http.js'
 import { User } from '../src/models/user.js'
 
 // Boots the app for this file with a fresh database built from drizzle/ (your migrations), and rolls
-// every test back. Your dev database (local.db) is never touched.
+// every test back. Your dev database is never touched.
 const t = setupApp(app)
 
 it('renders the home page', async () => {

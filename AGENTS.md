@@ -14,7 +14,7 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 | `packages/cache` | cache stores, locks, tags, rate limiting |
 | `packages/queue` | jobs, dispatch, drivers, the worker runtime |
 | `packages/cli` | `caldera` commands: generate, dev, make:*, db:*, queue:work… |
-| `packages/create-caldera` | the scaffolder and its bundled `template/` |
+| `packages/create-caldera` | the scaffolder; apps are copied in layers: `template/` (shared base), then `kits/<kit>/` (Inertia) or `template-next/`, then `databases/postgres/` |
 
 ## Commands
 

@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { STUBS } from '../../cli/dist/stubs.js'
+import { hasPostgres, startPostgres } from './postgres-server.js'
 import { createProject, detectPackageManager, packageManagerVersion } from '../src/index.js'
 
 const repo = join(import.meta.dirname, '../../..')
@@ -56,6 +58,70 @@ describe('createProject', () => {
     expect(agents).toContain('with a Next.js frontend')
     expect(agents).not.toMatch(/resources\/pages|src\/inertia\.ts/)
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.next')
+  })
+
+  it('layers a kit over the shared base: the starter by default, or blank', async () => {
+    const starter = await createProject({ directory: join(base, 'starter'), ...offline })
+    expect([starter.kit, starter.database, starter.target]).toEqual(['starter', 'sqlite', 'node'])
+    const blank = await createProject({ directory: join(base, 'blank'), ...offline, kit: 'blank' })
+    expect(blank.kit).toBe('blank')
+    for (const dir of [starter.directory, blank.directory]) {
+      for (const file of ['vite.config.ts', 'resources/app.tsx', 'src/inertia.ts', 'src/http.ts', 'src/server.ts', 'tests/home.test.ts', 'src/app.ts']) expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    expect((await createProject({ directory: join(base, 'next'), ...offline, frontend: 'next' })).kit).toBeNull()
+  })
+
+  it('keeps Caldera’s own tables in step with `caldera queue:table` and friends, for both dialects', () => {
+    const tables = { 'caldera-jobs': 'queue-table', 'caldera-cache': 'cache-table', 'caldera-notifications': 'notifications-table' } as const
+    for (const [file, stub] of Object.entries(tables)) {
+      expect(readFileSync(join(import.meta.dirname, `../template/src/db/tables/${file}.ts`), 'utf8'), file).toBe(STUBS[`${stub}-sqlite`])
+      expect(readFileSync(join(import.meta.dirname, `../databases/postgres/src/db/tables/${file}.ts`), 'utf8'), file).toBe(STUBS[stub])
+    }
+  })
+
+  it('makes a Postgres app: node-postgres, pg tables, a test database, and migrations left to you', async () => {
+    const result = await createProject({ directory: join(base, 'Shop App'), ...offline, packageManager: 'pnpm', database: 'postgres' })
+    const dir = result.directory
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    expect(result.database).toBe('postgres')
+    expect(read('src/app.ts')).toContain("import { drizzle } from 'drizzle-orm/node-postgres'")
+    expect(read('src/app.ts')).toContain("driver: 'postgres'")
+    expect(read('src/app.ts')).not.toMatch(/libsql|d1/)
+    expect(read('src/db/schema.ts')).toContain("from 'drizzle-orm/pg-core'")
+    expect(read('src/db/tables/caldera-jobs.ts')).toContain('pgTable')
+    expect(read('drizzle.config.ts')).toContain("dialect: 'postgresql'")
+    expect(read('src/env.ts')).toContain("DATABASE_URL: z.string().default('postgres://localhost:5432/shop_app')")
+    expect(read('src/env.ts')).not.toContain('DATABASE_AUTH_TOKEN')
+    expect(read('src/config/database.ts')).not.toContain('authToken')
+    expect(read('.env')).toContain('DATABASE_TEST_URL=postgres://localhost:5432/shop_app_test')
+    expect(read('README.md')).toContain('(Postgres: shop_app)')
+    const manifest = JSON.parse(read('package.json'))
+    expect(manifest.dependencies.pg).toBeDefined()
+    expect(manifest.devDependencies['@types/pg']).toBeDefined()
+    expect(manifest.dependencies['@libsql/client']).toBeUndefined()
+    expect(result.next).toEqual([`cd ${dir}`, 'pnpm install', 'pnpm exec caldera generate', 'pnpm exec caldera db:generate -- --name init', 'createdb shop_app && createdb shop_app_test', 'pnpm exec caldera db:migrate', 'pnpm dev'])
+    // The Next.js variant shares the base, so it gets Postgres the same way.
+    const next = await createProject({ directory: join(base, 'next-pg'), ...offline, frontend: 'next', database: 'postgres' })
+    expect(readFileSync(join(next.directory, 'src/app.ts'), 'utf8')).toContain("from 'drizzle-orm/node-postgres'")
+  })
+
+  it('sets up a deploy target with its own command, its dependencies already in package.json', async () => {
+    const vercel = await createProject({ directory: join(base, 'v'), ...offline, packageManager: 'pnpm', target: 'vercel' })
+    expect(vercel.steps.find((s) => s.name === 'target')).toEqual({ name: 'target', status: 'skipped', command: 'pnpm exec caldera vercel:setup' })
+    expect(vercel.next).toContain('pnpm exec caldera vercel:setup')
+    expect(JSON.parse(readFileSync(join(vercel.directory, 'package.json'), 'utf8')).dependencies['@vercel/functions']).toBeDefined()
+    const workers = await createProject({ directory: join(base, 'w'), ...offline, packageManager: 'pnpm', target: 'cloudflare' })
+    expect(JSON.parse(readFileSync(join(workers.directory, 'package.json'), 'utf8')).devDependencies.wrangler).toBe('4.151.0')
+    expect(readFileSync(join(workers.directory, '.gitignore'), 'utf8')).toContain('.dev.vars')
+    // Vercel builds Next.js apps itself: nothing to set up.
+    const next = await createProject({ directory: join(base, 'nv'), ...offline, frontend: 'next', target: 'vercel' })
+    expect(next.steps.map((s) => s.name)).not.toContain('target')
+  })
+
+  it('refuses combinations that can’t work, before writing anything', async () => {
+    await expect(createProject({ directory: join(base, 'a'), ...offline, database: 'postgres', target: 'cloudflare' })).rejects.toThrow(expect.objectContaining({ code: 'unsupported', message: expect.stringContaining('D1') }))
+    await expect(createProject({ directory: join(base, 'b'), ...offline, frontend: 'next', target: 'cloudflare' })).rejects.toThrow(expect.objectContaining({ code: 'unsupported' }))
+    expect(existsSync(join(base, 'a'))).toBe(false)
   })
 
   it('never touches a non-empty folder, and suggests a free name', async () => {
@@ -225,14 +291,14 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-start.pid!, 'SIGTERM')
     }
   }, 600_000)
-  it('runs on Cloudflare Workers after cloudflare:setup: D1, the database cache, R2 and assets under wrangler dev', async () => {
-    const result = await createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false })
+  it('runs on Cloudflare Workers (--target cloudflare): D1, the database cache, R2 and assets under wrangler dev', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false, target: 'cloudflare' })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    expect(existsSync(join(dir, 'wrangler.json'))).toBe(true)
+    expect(readFileSync(join(dir, '.dev.vars'), 'utf8')).toMatch(/^APP_KEY=[\w-]{43}\n$/)
     const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
     const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
-    ok(run('pnpm', 'exec', 'caldera', 'cloudflare:setup'))
-    ok(run('pnpm', 'add', '-D', 'wrangler@4.151.0'))
     // A route using each Workers service, as an app would.
     writeFileSync(
       join(dir, 'src/routes/edge.ts'),
@@ -244,7 +310,6 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     ok(run('pnpm', 'exec', 'caldera', 'd1:migrations'))
     ok(run('pnpm', 'exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'))
     ok(run('pnpm', 'build'))
-    writeFileSync(join(dir, '.dev.vars'), `APP_KEY=${'k'.repeat(43)}\n`)
     const check = run('pnpm', 'exec', 'caldera', 'check', '--json')
     expect(JSON.parse(check.stdout).issues.filter((i: { code: string }) => i.code.startsWith('workers_'))).toEqual([])
 
@@ -280,13 +345,12 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-dev.pid!, 'SIGTERM')
     }
   }, 600_000)
-  it.runIf(spawnSync('turso', ['--version']).status === 0)('deploys to Vercel after vercel:setup: vercel build, then pages, assets, a remote libSQL database and deferred jobs', async () => {
-    const result = await createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false })
+  it.runIf(spawnSync('turso', ['--version']).status === 0)('deploys to Vercel (--target vercel): vercel build, then pages, assets, a remote libSQL database and deferred jobs', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-vercel'), packageManager: 'pnpm', link: repo, git: false, target: 'vercel' })
     const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     const run = (command: string, ...args: string[]) => spawnSync(command, args, { cwd: dir, encoding: 'utf8' })
     const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
-    ok(run('pnpm', 'exec', 'caldera', 'vercel:setup'))
-    ok(run('pnpm', 'add', '@vercel/functions@3.4.0'))
     writeFileSync(
       join(dir, 'src/routes/signup.ts'),
       `import { defineRoutes } from '@caldera/http'\nimport { inbox, notify } from '@caldera/notifications'\nimport { User } from '../models/user.js'\nimport { Welcome } from '../notifications/welcome.js'\n\nexport const signup = defineRoutes('signup')\n  .post('store', '/signup', async (c) => {\n    const user = await User.create(await c.req.json())\n    await notify(user, Welcome, { name: user.name, url: 'https://example.test' })\n    return c.json({ id: user.id })\n  })\n  .get('inbox', '/inbox/:id', async (c) => c.json(await inbox(await User.findOrFail(c.req.param('id'))).list()))\n`,
@@ -328,4 +392,38 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-turso.pid!, 'SIGTERM')
     }
   }, 600_000)
+  it.runIf(hasPostgres)('creates a Postgres app that migrates, type-checks, tests (DATABASE_TEST_URL from .env) and serves', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-pg'), packageManager: 'pnpm', link: repo, git: false, database: 'postgres' })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    expect(readdirSync(join(dir, 'drizzle')).some((f) => f.endsWith('_init'))).toBe(true)
+    const server = await startPostgres()
+    const { spawn } = await import('node:child_process')
+    try {
+      // As the next steps say (createdb), against a throwaway server instead of localhost.
+      for (const name of ['e2e_pg', 'e2e_pg_test']) expect(spawnSync('psql', [server.url, '-c', `create database ${name}`]).status).toBe(0)
+      const env = readFileSync(join(dir, '.env'), 'utf8')
+        .replace(/^DATABASE_URL=.*$/m, `DATABASE_URL=${server.url.replace(/\/postgres$/, '/e2e_pg')}`)
+        .replace(/^DATABASE_TEST_URL=.*$/m, `DATABASE_TEST_URL=${server.url.replace(/\/postgres$/, '/e2e_pg_test')}`)
+      writeFileSync(join(dir, '.env'), env)
+      const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+      const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+      ok(run('exec', 'caldera', 'db:migrate'))
+      ok(run('typecheck'))
+      ok(run('test'))
+      const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465' }, detached: true })
+      try {
+        let body: unknown
+        for (let i = 0; i < 60 && body === undefined; i++) {
+          body = await fetch('http://localhost:3465/users').then((r) => r.json()).catch(() => undefined)
+          if (body === undefined) await new Promise((r) => setTimeout(r, 500))
+        }
+        expect(body).toEqual({ users: [] })
+      } finally {
+        process.kill(-dev.pid!, 'SIGTERM')
+      }
+    } finally {
+      await server.stop()
+    }
+  }, 300_000)
 })

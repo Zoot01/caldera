@@ -1,12 +1,20 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 /** `inertia`: React pages over Inertia, served by the app (Vite). `next`: a Next.js app with Caldera behind /api. */
 export type Frontend = 'inertia' | 'next'
 export const FRONTENDS = ['inertia', 'next'] as const
+/** `starter`: auth, settings and a dashboard (Inertia). `blank`: the UI setup and one page. */
+export type Kit = 'starter' | 'blank'
+export const KITS = ['starter', 'blank'] as const
+export type Database = 'sqlite' | 'postgres'
+export const DATABASES = ['sqlite', 'postgres'] as const
+/** Where it will run: `node` needs nothing extra; the others run `caldera <target>:setup`. */
+export type Target = 'node' | 'vercel' | 'cloudflare'
+export const TARGETS = ['node', 'vercel', 'cloudflare'] as const
 
 export interface CreateOptions {
   /** Where to create the app. Must not exist, or be empty. */
@@ -14,6 +22,12 @@ export interface CreateOptions {
   packageManager?: PackageManager
   /** Default `inertia`. */
   frontend?: Frontend
+  /** Default `starter`. Inertia only: the Next.js variant has no kits yet. */
+  kit?: Kit
+  /** Default `sqlite` (libSQL: a local file, or Turso). */
+  database?: Database
+  /** Default `node`. */
+  target?: Target
   install?: boolean
   git?: boolean
   /** Development only: point @caldera/* dependencies at a local checkout's packages/ folder. */
@@ -25,7 +39,7 @@ export interface CreateOptions {
 }
 
 export interface Step {
-  name: 'files' | 'install' | 'generate' | 'database' | 'git'
+  name: 'files' | 'install' | 'generate' | 'database' | 'target' | 'git'
   status: 'done' | 'skipped' | 'failed'
   /** What to run yourself when the step was skipped or failed. */
   command?: string
@@ -37,6 +51,10 @@ export interface CreateResult {
   name: string
   packageManager: PackageManager
   frontend: Frontend
+  /** null for the Next.js variant. */
+  kit: Kit | null
+  database: Database
+  target: Target
   steps: Step[]
   /** Commands to finish setup, in order. Empty when everything succeeded. */
   next: string[]
@@ -45,7 +63,7 @@ export interface CreateResult {
 
 export class CreateError extends Error {
   constructor(
-    readonly code: 'dir_not_empty' | 'invalid_name' | 'template_missing',
+    readonly code: 'dir_not_empty' | 'invalid_name' | 'template_missing' | 'unsupported',
     message: string,
     readonly details?: Record<string, unknown>,
   ) {
@@ -53,9 +71,35 @@ export class CreateError extends Error {
   }
 }
 
+// The app is copied in layers, each over the last: the shared base, then the frontend (a kit, or
+// the Next.js variant), then the database's files.
 const TEMPLATE = new URL('../template/', import.meta.url)
 const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
+const KIT_LAYERS: Record<Kit, URL[]> = {
+  blank: [new URL('../kits/blank/', import.meta.url)],
+  starter: [new URL('../kits/blank/', import.meta.url), new URL('../kits/starter/', import.meta.url)],
+}
+const POSTGRES = new URL('../databases/postgres/', import.meta.url)
+// Added for the target, so the first install has them (the setup commands only write files).
+const TARGET_DEPENDENCIES: Record<Target, { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }> = {
+  node: {},
+  vercel: { dependencies: { '@vercel/functions': '^3.4.0' } },
+  cloudflare: { devDependencies: { wrangler: '4.151.0' } },
+}
 const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'broadcast', 'i18n', 'next', 'testing']
+
+/** The targets that work with this frontend and database, in prompt order. */
+export function targetsFor(frontend: Frontend, database: Database): Target[] {
+  return TARGETS.filter((target) => !unsupported(frontend, database, target))
+}
+
+/** Why a combination can't be created, or undefined when it can. */
+export function unsupported(frontend: Frontend, database: Database, target: Target): string | undefined {
+  if (target !== 'cloudflare') return undefined
+  if (frontend === 'next') return 'The Next.js variant doesn’t run on Cloudflare Workers yet; use --target node or vercel.'
+  if (database === 'postgres') return 'Cloudflare Workers apps use D1 (SQLite); use --database sqlite, or --target node or vercel for Postgres.'
+  return undefined
+}
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -73,6 +117,12 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     throw new CreateError('dir_not_empty', `${directory} already exists and isn't empty. Try \`${suggestion}\` instead.`, { directory, suggestion })
   }
   if (!existsSync(TEMPLATE)) throw new CreateError('template_missing', 'The bundled template is missing; reinstall create-caldera.')
+  const frontend = options.frontend ?? 'inertia'
+  const kit = frontend === 'next' ? null : (options.kit ?? 'starter')
+  const database = options.database ?? 'sqlite'
+  const target = options.target ?? 'node'
+  const problem = unsupported(frontend, database, target)
+  if (problem) throw new CreateError('unsupported', problem, { frontend, database, target })
 
   const pm = options.packageManager ?? detectPackageManager(env)
   const run = pm === 'npm' ? 'npm run' : pm
@@ -82,8 +132,10 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   mkdirSync(directory, { recursive: true })
   cpSync(TEMPLATE, directory, { recursive: true })
   renameSync(join(directory, '_gitignore'), join(directory, '.gitignore'))
-  const frontend = options.frontend ?? 'inertia'
-  if (frontend === 'next') applyNext(directory)
+  if (kit) {
+    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) cpSync(layer, directory, { recursive: true, force: true })
+  } else applyNext(directory)
+  if (database === 'postgres') applyPostgres(directory, name)
   for (const file of listFiles(directory)) {
     const text = readFileSync(file, 'utf8')
     if (text.includes('{{')) writeFileSync(file, text.replaceAll('{{ name }}', name).replaceAll('{{ run }}', run))
@@ -95,6 +147,11 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   )
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, any>
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const added = TARGET_DEPENDENCIES[target][field]
+    if (added) manifest[field] = sorted({ ...manifest[field], ...added })
+  }
+  if (target === 'cloudflare') appendFileSync(join(directory, '.gitignore'), '.dev.vars\n.wrangler\n')
   const version = packageManagerVersion(pm, env)
   if (version) manifest.packageManager = `${pm}@${version}` // never a bare name: corepack rejects it
   const overrides = options.link ? linkLocalPackages(manifest, resolve(options.link), directory, pm) : []
@@ -141,7 +198,14 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const exec = [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : [])]
   const migrate = [...exec, 'caldera', 'db:migrate']
   await attempt('database', installed, [...exec, 'caldera', 'db:generate', '--', '--name', 'init'])
-  if (steps.at(-1)!.status === 'done') {
+  // A Postgres server and its databases are yours to create: the migration is generated, and
+  // applying it is left to the next steps.
+  const later: string[] = []
+  if (database === 'postgres') {
+    report()
+    const db = databaseName(name)
+    later.push(`createdb ${db} && createdb ${db}_test`, migrate.join(' '))
+  } else if (steps.at(-1)!.status === 'done') {
     steps.pop()
     await attempt('database', true, migrate)
     report()
@@ -150,6 +214,15 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     // Not generated, so not applied either: finishing takes both.
     const step = steps.at(-1)!
     step.command = `${step.command} && ${migrate.join(' ')}`
+  }
+  if (target !== 'node' && kit) {
+    await attempt('target', installed, [...exec, 'caldera', `${target}:setup`])
+    report()
+    // Local secrets for `wrangler dev`, like .env: the same APP_KEY.
+    if (target === 'cloudflare' && steps.at(-1)!.status === 'done') {
+      const key = readFileSync(join(directory, '.env'), 'utf8').match(/^APP_KEY=.*$/m)![0]
+      writeFileSync(join(directory, '.dev.vars'), `${key}\n`)
+    }
   }
   const git = (options.git ?? true) && commandExists('git', env)
   if (git) {
@@ -171,9 +244,10 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const next = [
     `cd ${relative}`,
     ...steps.filter((s) => s.status !== 'done' && s.command && s.name !== 'git').map((s) => s.command!),
+    ...later,
     `${run} dev`,
   ]
-  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, steps, next, log }
+  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, kit, database, target, steps, next, log }
 }
 
 /** Runs a command, collecting its output for .create.log (never thrown: a missing program is a failed step). */
@@ -261,15 +335,11 @@ function commandExists(command: string, env: NodeJS.ProcessEnv): boolean {
   return (env.PATH ?? '').split(delimiter).some((dir) => dir && extensions.some((ext) => existsSync(join(dir, command + ext))))
 }
 
-/** What the Next.js variant drops from the shared template: Inertia pages, Vite, the Node server entry. */
-const NEXT_REMOVES = ['resources', 'vite.config.ts', 'src/inertia.ts', 'src/server.ts', 'src/uploads.ts', 'public/build']
-
 /**
  * Turns the shared template into the Next.js variant: Next renders pages from app/, and the Caldera
  * app (models, jobs, mail, i18n…) serves /api and is used directly from Server Components and actions.
  */
 function applyNext(directory: string) {
-  for (const path of NEXT_REMOVES) rmSync(join(directory, path), { recursive: true, force: true })
   cpSync(TEMPLATE_NEXT, directory, { recursive: true, force: true })
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> }
@@ -277,7 +347,7 @@ function applyNext(directory: string) {
   for (const name of ['@inertiajs/vite', '@vitejs/plugin-react', 'vite']) delete manifest.devDependencies[name]
   manifest.dependencies['@caldera/next'] = '^0.0.0'
   manifest.dependencies.next = '^16.4.2'
-  manifest.dependencies = Object.fromEntries(Object.entries(manifest.dependencies).sort(([a], [b]) => a.localeCompare(b)))
+  manifest.dependencies = sorted(manifest.dependencies)
   Object.assign(manifest.scripts, { build: 'next build', start: 'next start' })
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   appendFileSync(join(directory, '.gitignore'), '.next\nnext-env.d.ts\n')
@@ -306,4 +376,56 @@ function applyNext(directory: string) {
     .replace('In pages: `useChannel(', 'In client components (app/realtime.tsx, in the root layout, connects them): `useChannel(')
     .replace("'post.updated': () => router.reload()", "'post.updated': () => router.refresh()")
   writeFileSync(agentsPath, agents)
+}
+
+/**
+ * Postgres instead of libSQL: the layer's schema, Caldera's tables and drizzle config, then the
+ * connection (node-postgres), env and dependencies. Each edit must find its text, so a changed
+ * template fails here (and in the tests) rather than leaving a half-SQLite app.
+ */
+function applyPostgres(directory: string, name: string) {
+  cpSync(POSTGRES, directory, { recursive: true, force: true })
+  const db = databaseName(name)
+  edit(directory, 'src/app.ts', [
+    ["import { drizzle as d1 } from 'drizzle-orm/d1'\nimport { drizzle } from 'drizzle-orm/libsql'\n", "import { drizzle } from 'drizzle-orm/node-postgres'\n"],
+    [
+      /    \/\/ libSQL \(DATABASE_URL\).*\n    databaseProvider\(\{\n.*\n.*\n    \}\),\n/,
+      "    // Postgres (DATABASE_URL), through node-postgres's connection pool.\n    databaseProvider({\n      driver: 'postgres',\n      connect: (app) => drizzle({ connection: app.config.database.url, relations }),\n    }),\n",
+    ],
+  ])
+  edit(directory, 'src/env.ts', [
+    ["DATABASE_URL: z.string().default('file:local.db'),", `DATABASE_URL: z.string().default('postgres://localhost:5432/${db}'),`],
+    [/  \/\/ For a hosted libSQL database.*\n  DATABASE_AUTH_TOKEN: .*\n/, ''],
+  ])
+  edit(directory, '.env.example', [
+    [/DATABASE_URL=file:local\.db\n# Turso.*\nDATABASE_AUTH_TOKEN=\n/, `DATABASE_URL=postgres://localhost:5432/${db}\n# Tests reset this database (its name must contain "test").\nDATABASE_TEST_URL=postgres://localhost:5432/${db}_test\n`],
+  ])
+  edit(directory, 'README.md', [['(SQLite by default: local.db)', `(Postgres: ${db})`]])
+  const manifestPath = join(directory, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, Record<string, string>>
+  delete manifest.dependencies!['@libsql/client']
+  manifest.dependencies = sorted({ ...manifest.dependencies, pg: '^8.23.1' })
+  manifest.devDependencies = sorted({ ...manifest.devDependencies, '@types/pg': '^8.23.1' })
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+/** Replaces text in a created file; each pattern must match. */
+function edit(directory: string, file: string, edits: [string | RegExp, string][]) {
+  const path = join(directory, file)
+  let text = readFileSync(path, 'utf8')
+  for (const [pattern, replacement] of edits) {
+    const found = typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text)
+    if (!found) throw new CreateError('template_missing', `The template's ${file} has changed: can't find ${String(pattern)}.`)
+    text = text.replace(pattern, replacement)
+  }
+  writeFileSync(path, text)
+}
+
+/** A Postgres database name from the package name: my-app → my_app. */
+function databaseName(name: string): string {
+  return name.replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'app'
+}
+
+function sorted(record: Record<string, string> = {}): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)))
 }

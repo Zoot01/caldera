@@ -17,7 +17,9 @@
     "bin",
     "dist",
     "template",
-    "template-next"
+    "template-next",
+    "kits",
+    "databases"
   ],
   "engines": {
     "node": ">=22"
