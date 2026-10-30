@@ -15,7 +15,10 @@ export interface DatabaseCapabilities {
 
 export const CAPABILITIES = {
   postgres: { interactiveTransactions: true, savepoints: true, returning: true, batch: false },
+  /** Async SQLite clients (libsql). */
   sqlite: { interactiveTransactions: true, savepoints: true, returning: true, batch: false },
+  /** Synchronous drivers (node:sqlite, better-sqlite3, bun:sqlite): Drizzle can't run async code in their transactions. */
+  'sqlite-sync': { interactiveTransactions: false, savepoints: false, returning: true, batch: false },
   d1: { interactiveTransactions: false, savepoints: false, returning: true, batch: true },
   'neon-http': { interactiveTransactions: false, savepoints: false, returning: true, batch: true },
   mysql: { interactiveTransactions: true, savepoints: true, returning: false, batch: false },
