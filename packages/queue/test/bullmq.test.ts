@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { createCacheService } from '@caldera/cache'
 import { createQueue, defineJob, type Envelope, type Outcome, type Queue, type Worker } from '../src/index.js'
 import { hasRedis, startRedis } from './redis-server.js'
 
@@ -28,6 +29,14 @@ const Later = defineJob({
   handle: (_p, ctx) => (ctx.attempt === 1 ? ctx.release(0.3) : undefined),
 })
 const Step = defineJob({ name: 'bull.step', payload: z.object({ id: z.string() }), queue: 'other', handle: () => {} })
+const callbacks: string[] = []
+const Part = defineJob({
+  name: 'bull.part',
+  payload: z.object({ id: z.string() }),
+  // Some work, so parallel workers really overlap.
+  handle: () => new Promise((r) => setTimeout(r, 10 + Math.random() * 30)),
+})
+const Done = defineJob({ name: 'bull.done', payload: z.object({ kind: z.string() }), handle: ({ kind }) => void callbacks.push(kind) })
 
 function record(envelope: Envelope, outcome: Outcome) {
   outcomes.push({ envelope, outcome })
@@ -48,8 +57,9 @@ const runsOf = (id: string) => runs.filter((r) => (r.payload as { id: string }).
 describe.runIf(hasRedis)('bullmq driver (real Redis)', () => {
   beforeAll(async () => {
     redis = await startRedis()
-    queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis.url, prefix: `t${Date.now()}` } } })
-    queue.register(Flaky, Final, Later, Step)
+    const cache = createCacheService({ default: 'redis', stores: { redis: { driver: 'redis', url: redis.url } }, prefix: `c${Date.now()}` })
+    queue = createQueue({ default: 'redis', connections: { redis: { driver: 'bullmq', url: redis.url, prefix: `t${Date.now()}` } } }, { store: () => cache })
+    queue.register(Flaky, Final, Later, Step, Part, Done)
     worker = queue.work({ queues: ['default', 'other'], concurrency: 4, onOutcome: record })
   })
   afterAll(async () => {
@@ -95,6 +105,18 @@ describe.runIf(hasRedis)('bullmq driver (real Redis)', () => {
     await until(() => (runsOf('later').length === 2 ? true : undefined))
     const [first, second] = runsOf('later')
     expect(second!.at - first!.at).toBeGreaterThanOrEqual(250)
+  })
+
+  it('finishes a batch exactly once with 4 workers in parallel', async () => {
+    const { batchId } = await queue
+      .batch(Array.from({ length: 20 }, (_, i) => Part.with({ id: `p${i}` })))
+      .then(Done.with({ kind: 'then' }))
+      .finally(Done.with({ kind: 'finally' }))
+      .dispatch()
+    await until(() => (callbacks.length >= 2 ? true : undefined))
+    await new Promise((r) => setTimeout(r, 300))
+    expect(callbacks.sort()).toEqual(['finally', 'then'])
+    expect(await queue.batchStatus(batchId)).toMatchObject({ total: 20, pending: 0, failed: 0, finished: true })
   })
 
   it('runs a chain across queues', async () => {

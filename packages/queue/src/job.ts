@@ -7,6 +7,8 @@ export interface JobContext {
   readonly maxTries: number
   /** The envelope id, stable across retries. */
   readonly jobId: string
+  /** The batch this job belongs to (or reports on, for then/catch/finally jobs). */
+  readonly batchId: string | null
   /** Aborts when the job's `timeout` passes. Pass it to fetch, database calls and so on. */
   readonly signal: AbortSignal
   /** The app's services (db, cache, mail…), typed once `caldera generate` has registered the app. */

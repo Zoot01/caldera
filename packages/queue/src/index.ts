@@ -8,5 +8,6 @@ export type { AnyJob, JobContext, JobDefinition, JobMiddleware, JobOptions, Payl
 export { processEnvelope } from './process.js'
 export type { ProcessContext } from './process.js'
 export { queueProvider } from './provider.js'
-export { chain, createQueue, defaultQueue, dispatch, QUEUE_DRIVERS, setDefaultQueue } from './queue.js'
-export type { DispatchOptions, DispatchResult, Queue, QueueConfig, QueueFake, UniqueLocks } from './queue.js'
+export { batch, chain, createQueue, defaultQueue, dispatch, QUEUE_DRIVERS, setDefaultQueue } from './queue.js'
+export type { BatchBuilder, BatchStatus, DispatchOptions, DispatchResult, Queue, QueueConfig, QueueFake, QueueStore } from './queue.js'
+export { rateLimited, withoutOverlapping } from './middleware.js'

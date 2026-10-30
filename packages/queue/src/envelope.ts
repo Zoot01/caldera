@@ -20,6 +20,10 @@ export interface Envelope {
   chain?: { job: string; queue: string; payload: unknown }[]
   /** The unique lock to release when the job finishes. */
   uniqueKey?: string
+  /** The batch this job counts toward. */
+  batchId?: string
+  /** Set on a batch's then/catch/finally jobs: the batch they report on (they don't count toward it). */
+  batchCallbackOf?: string
 }
 
 /** What happened to one attempt. Drivers turn this into ack, retry or dead-letter. */

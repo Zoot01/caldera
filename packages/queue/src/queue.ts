@@ -28,12 +28,52 @@ export interface DispatchResult {
   dispatched: boolean
 }
 
-/** What `unique` jobs need: an atomic add-if-absent with expiry, e.g. `c.var.cache`. */
-export interface UniqueLocks {
-  readonly capabilities: { locks: boolean }
+/**
+ * What unique jobs and batches keep their state in: a cache with atomic writes, e.g. `c.var.cache`
+ * from `@caldera/cache` (Redis in production; memory on a single server).
+ */
+export interface QueueStore {
+  readonly capabilities: { locks: boolean; atomicCounters: boolean }
   add(key: string, value: unknown, ttl?: Duration): Promise<boolean>
   forget(key: string): Promise<boolean>
+  get<T = unknown>(key: string): Promise<T | undefined>
+  put(key: string, value: unknown, ttl?: Duration): Promise<void>
+  increment(key: string, by?: number, ttl?: Duration): Promise<number>
 }
+
+export interface BatchStatus {
+  id: string
+  name: string | null
+  total: number
+  pending: number
+  failed: number
+  finished: boolean
+  createdAt: number
+}
+
+export interface BatchBuilder<N extends string> {
+  /** Runs when every job succeeded. */
+  then(job: PendingJob): BatchBuilder<N>
+  /** Runs once, on the first failure. */
+  catch(job: PendingJob): BatchBuilder<N>
+  /** Runs when every job is over, whatever happened. */
+  finally(job: PendingJob): BatchBuilder<N>
+  /** Keep running the other jobs after one fails (by default they're skipped). */
+  allowFailures(): BatchBuilder<N>
+  dispatch(options?: DispatchOptions<N>): Promise<{ batchId: string; size: number }>
+}
+
+interface BatchMeta {
+  name: string | null
+  total: number
+  allowFailures: boolean
+  then?: { job: string; queue: string; payload: unknown }
+  catch?: { job: string; queue: string; payload: unknown }
+  finally?: { job: string; queue: string; payload: unknown }
+  createdAt: number
+}
+
+const BATCH_TTL = '7d'
 
 export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, memoryDriver, bullmqDriver]
 
@@ -41,6 +81,9 @@ export interface Queue<N extends string = string> {
   dispatch<J extends AnyJob>(job: J, payload: PayloadOf<J>, options?: DispatchOptions<N>): Promise<DispatchResult>
   /** Runs jobs one after another; a failure stops the rest. */
   chain(jobs: readonly PendingJob[]): { dispatch(options?: DispatchOptions<N>): Promise<DispatchResult> }
+  /** Runs jobs in parallel and tracks them together. Needs a store with atomic counters. */
+  batch(jobs: readonly PendingJob[], options?: { name?: string }): BatchBuilder<N>
+  batchStatus(id: string): Promise<BatchStatus | undefined>
   /** Makes jobs known to this process, so it can run them (workers do this from `src/jobs`). */
   register(...jobs: AnyJob[]): void
   /** Starts consuming, on drivers with workers. */
@@ -67,7 +110,7 @@ export interface QueueFake {
 
 export function createQueue<const N extends string>(
   config: QueueConfig<N>,
-  options: { drivers?: readonly DriverDefinition<QueueDriver, QueueCapabilities>[]; locks?: () => UniqueLocks | undefined } = {},
+  options: { drivers?: readonly DriverDefinition<QueueDriver, QueueCapabilities>[]; store?: () => QueueStore | undefined } = {},
 ): Queue<N> {
   const manager = createManager({ kind: 'queue', drivers: options.drivers ?? QUEUE_DRIVERS, config: { default: config.default, instances: config.connections } })
   const jobs = new Map<string, AnyJob>()
@@ -78,11 +121,43 @@ export function createQueue<const N extends string>(
   }
   let fake: { only: Set<string> | null; store: ReturnType<typeof memoryQueue>; captured: { envelope: Envelope; delaySeconds: number }[] } | undefined
 
-  const locks = () => {
-    const store = options.locks?.()
-    if (!store) throw new CalderaError('unique_needs_locks', 'Unique jobs need a cache with locks: queueProvider(..., { locks: (s) => s.cache }).')
-    if (!store.capabilities.locks) throw new CapabilityError('cache', 'locks', 'Unique jobs need a store with atomic writes (Redis, or memory on one server).')
+  const storeFor = (feature: 'Unique jobs' | 'Batches', capability: 'locks' | 'atomicCounters') => {
+    const store = options.store?.()
+    if (!store) throw new CalderaError('queue_store_missing', `${feature} need a store: queueProvider(..., { store: (s) => s.cache }).`)
+    if (!store.capabilities[capability]) throw new CapabilityError('cache', capability, `${feature} need a store with atomic writes (Redis, or memory on one server).`)
     return store
+  }
+  const locks = () => storeFor('Unique jobs', 'locks')
+
+  const batchKeys = (id: string) => ({ meta: `batch:${id}`, pending: `batch:${id}:pending`, failed: `batch:${id}:failed`, done: `batch:${id}:done` })
+  const dispatchCallback = async (callback: BatchMeta['then'], batchId: string) => {
+    if (!callback) return
+    const job = jobs.get(callback.job)
+    const envelope = job ? envelopeFor(job, callback.payload, { queue: callback.queue }) : null
+    if (envelope) await send({ ...envelope, batchCallbackOf: batchId }, 0, undefined)
+  }
+  // Counters are decremented atomically, so with many workers exactly one sees the batch finish.
+  const batchFinished = async (envelope: Envelope, ok: boolean) => {
+    if (!envelope.batchId) return
+    const store = storeFor('Batches', 'atomicCounters')
+    const keys = batchKeys(envelope.batchId)
+    const meta = await store.get<BatchMeta>(keys.meta)
+    if (!meta) return
+    const failed = ok ? Number((await store.get(keys.failed)) ?? 0) : await store.increment(keys.failed, 1, BATCH_TTL)
+    if (!ok && failed === 1) await dispatchCallback(meta.catch, envelope.batchId)
+    const pending = await store.increment(keys.pending, -1, BATCH_TTL)
+    if (pending > 0 || !(await store.add(keys.done, Date.now(), BATCH_TTL))) return
+    const failures = Number((await store.get(keys.failed)) ?? 0)
+    if (failures === 0) await dispatchCallback(meta.then, envelope.batchId)
+    await dispatchCallback(meta.finally, envelope.batchId)
+  }
+  // Once a batch has failed (and doesn't allow failures), its remaining jobs are skipped.
+  const batchStillRunning = async (envelope: Envelope) => {
+    if (!envelope.batchId) return true
+    const store = storeFor('Batches', 'atomicCounters')
+    const meta = await store.get<BatchMeta>(batchKeys(envelope.batchId).meta)
+    if (!meta || meta.allowFailures) return true
+    return Number((await store.get(batchKeys(envelope.batchId).failed)) ?? 0) === 0
   }
 
   const runtime: QueueRuntime = {
@@ -94,6 +169,8 @@ export function createQueue<const N extends string>(
         releaseUnique: async (key) => {
           await locks().forget(key)
         },
+        before: batchStillRunning,
+        finished: batchFinished,
       }),
   }
 
@@ -186,6 +263,52 @@ export function createQueue<const N extends string>(
         },
       }
     },
+    batch(pending, batchOptions = {}) {
+      const meta: Omit<BatchMeta, 'total' | 'createdAt'> = { name: batchOptions.name ?? null, allowFailures: false }
+      const callback = (p: PendingJob) => {
+        register(p.job)
+        p.job.payload.parse(p.payload)
+        return { job: p.job.name, queue: p.job.queue, payload: p.payload }
+      }
+      const builder: BatchBuilder<N> = {
+        then: (p) => ((meta.then = callback(p)), builder),
+        catch: (p) => ((meta.catch = callback(p)), builder),
+        finally: (p) => ((meta.finally = callback(p)), builder),
+        allowFailures: () => ((meta.allowFailures = true), builder),
+        async dispatch(opts = {}) {
+          if (pending.length === 0) throw new CalderaError('batch_empty', 'batch() needs at least one job.')
+          const store = storeFor('Batches', 'atomicCounters')
+          // Validate every payload before anything is queued: a batch starts whole or not at all.
+          const envelopes = pending.map((p) => {
+            register(p.job)
+            return envelopeFor(p.job, p.payload, opts)
+          })
+          const batchId = crypto.randomUUID()
+          const keys = batchKeys(batchId)
+          await store.put(keys.meta, { ...meta, total: pending.length, createdAt: Date.now() } satisfies BatchMeta, BATCH_TTL)
+          await store.put(keys.failed, 0, BATCH_TTL)
+          await store.put(keys.pending, pending.length, BATCH_TTL)
+          for (const envelope of envelopes) await send({ ...envelope, batchId }, opts.delay === undefined ? 0 : parseDuration(opts.delay), opts.connection)
+          return { batchId, size: pending.length }
+        },
+      }
+      return builder
+    },
+    async batchStatus(id) {
+      const store = storeFor('Batches', 'atomicCounters')
+      const keys = batchKeys(id)
+      const meta = await store.get<BatchMeta>(keys.meta)
+      if (!meta) return undefined
+      return {
+        id,
+        name: meta.name,
+        total: meta.total,
+        pending: Number((await store.get(keys.pending)) ?? 0),
+        failed: Number((await store.get(keys.failed)) ?? 0),
+        finished: (await store.get(keys.done)) !== undefined,
+        createdAt: meta.createdAt,
+      }
+    },
     work(opts = {}) {
       const name = opts.connection ?? config.default
       const driver = manager.use(name)
@@ -262,4 +385,9 @@ export function dispatch<J extends AnyJob>(job: J, payload: PayloadOf<J>, option
 /** `await chain([A.with(a), B.with(b)]).dispatch()`, on the app's queue. */
 export function chain(jobs: readonly PendingJob[]) {
   return defaultQueue().chain(jobs)
+}
+
+/** `await batch([A.with(a), B.with(b)]).then(Done.with(x)).dispatch()`, on the app's queue. */
+export function batch(jobs: readonly PendingJob[], options?: { name?: string }) {
+  return defaultQueue().batch(jobs, options)
 }

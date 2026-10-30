@@ -190,7 +190,7 @@ describe('unique jobs', () => {
 
   it('queues one per key until it has run', async () => {
     const cache = createCacheService({ default: 'm', stores: { m: { driver: 'memory' } } })
-    const queue = createQueue({ default: 'memory', connections: { memory: { driver: 'memory' } } }, { locks: () => cache })
+    const queue = createQueue({ default: 'memory', connections: { memory: { driver: 'memory' } } }, { store: () => cache })
     const driver = queue.manager.use('memory') as ReturnType<typeof import('../src/index.js').memoryQueue>
     expect((await queue.dispatch(Report, { teamId: 1 })).dispatched).toBe(true)
     expect((await queue.dispatch(Report, { teamId: 1 })).dispatched).toBe(false)
@@ -201,7 +201,7 @@ describe('unique jobs', () => {
   })
 
   it('needs a lock store', async () => {
-    await expect(memory().dispatch(Report, { teamId: 1 })).rejects.toThrow(/Unique jobs need a cache with locks/)
+    await expect(memory().dispatch(Report, { teamId: 1 })).rejects.toThrow(/Unique jobs need a store/)
   })
 })
 

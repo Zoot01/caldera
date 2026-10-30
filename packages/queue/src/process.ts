@@ -9,6 +9,10 @@ export interface ProcessContext {
   dispatchEnvelope(envelope: Envelope, delaySeconds: number): Promise<void>
   /** Releases a `unique` lock. */
   releaseUnique(key: string): Promise<void>
+  /** Return false to skip the job (it counts as done without running), e.g. in a failed batch. */
+  before?(envelope: Envelope): Promise<boolean>
+  /** Called once a job is over for good: succeeded (true) or failed (false). Never on a retry. */
+  finished?(envelope: Envelope, ok: boolean): Promise<void>
   now?: () => number
 }
 
@@ -21,11 +25,18 @@ export async function processEnvelope(envelope: Envelope, context: ProcessContex
   const job = context.jobs.get(envelope.job)
   if (!job) {
     // No retry can fix this: the worker doesn't have the job's code (renamed or not deployed).
-    return { status: 'failed', error: new CalderaError('job_missing', `No job named "${envelope.job}" is registered in this worker.`, { job: envelope.job }) }
+    const error = new CalderaError('job_missing', `No job named "${envelope.job}" is registered in this worker.`, { job: envelope.job })
+    await context.finished?.(envelope, false)
+    return { status: 'failed', error }
+  }
+  if (context.before && !(await context.before(envelope))) {
+    await context.finished?.(envelope, true)
+    return { status: 'done' }
   }
 
   const finish = async (error: unknown) => {
     if (envelope.uniqueKey) await context.releaseUnique(envelope.uniqueKey).catch(() => {})
+    await context.finished?.(envelope, error === undefined)
     if (error === undefined) return
     try {
       const payload = job.payload.safeParse(envelope.payload)
@@ -47,6 +58,7 @@ export async function processEnvelope(envelope: Envelope, context: ProcessContex
     attempt: envelope.attempt,
     maxTries: envelope.maxTries,
     jobId: envelope.id,
+    batchId: envelope.batchId ?? envelope.batchCallbackOf ?? null,
     signal: controller.signal,
     services: context.services,
     fail: (reason) => {
@@ -105,6 +117,9 @@ export async function processEnvelope(envelope: Envelope, context: ProcessContex
         ...defaultsFor(context.jobs.get(next.job), envelope, now()),
         chain: rest,
         dispatchedAt: now(),
+        // A chained job is its own job: it doesn't count toward (or report on) the first one's batch.
+        batchId: undefined,
+        batchCallbackOf: undefined,
       },
       0,
     )
