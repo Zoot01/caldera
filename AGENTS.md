@@ -15,10 +15,12 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 | `packages/queue` | jobs, dispatch, drivers, the worker runtime |
 | `packages/cli` | `caldera` commands: generate, dev, make:*, db:*, queue:work… |
 | `packages/create-caldera` | the scaffolder; apps are copied in layers: `template/` (shared base), then `kits/<kit>/` (Inertia: `blank`, then `starter`, then `starter-teams` with `--teams`; `*-postgres` layers hold their Postgres schema) or `template-next/`, with `databases/postgres/` underneath. Kits change earlier layers' files through checked `edit()`s in `create.ts`. A layer's `package.json` is merged. coss ui components in the kits come from `pnpm sync:coss` (`scripts/sync-coss.mjs`): change the kit's `USES` list there, not the files by hand |
+| `apps/docs` | the docs site (Next.js + Fumadocs, Caldera's brand): pages are MDX in `content/docs/`, ordered by `meta.json`. `pnpm docs` runs it on :3200. Code in the docs is code that ran: build examples in a sandbox app first |
 
 ## Commands
 
 - `pnpm test`: build every package, then run all tests.
+- `pnpm docs`: the docs site, live, on http://localhost:3200 (`pnpm --filter @caldera/docs build` checks every page compiles).
 - `pnpm typecheck`: build, then type-check every package (tests included).
 - `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs the app's own browser tests (Playwright, `pnpm test:browser`), `pnpm dev` with Vite and a production build, across Starter/Blank, teams and SQLite/Postgres. Slow; run it before committing template changes.
 - One package: `pnpm vitest run packages/<name>`. Packages import each other through `dist/`, so rebuild a dependency (`pnpm -s build` in it) after changing it.

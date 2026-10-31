@@ -359,12 +359,16 @@ describe('viteAssets', () => {
 })
 
 it('types c.render from the page registry, minus shared props and errors', () => {
-  expectTypeOf<RenderProps<'Home'>>().toEqualTypeOf<{ greeting: string | (() => string | Promise<string>) | import('../src/props.js').Prop<string> }>()
+  expectTypeOf<RenderProps<'Home'>>().toEqualTypeOf<{ greeting: string | (() => string | Promise<string>) | import('../src/props.js').AlwaysProp<string> }>()
   new Hono().get('/', (c) => {
     // @ts-expect-error unknown page
     void c.render('Nope', {})
     // @ts-expect-error missing required prop
     void c.render('Home', {})
+    // @ts-expect-error deferred, but the page needs it on the first render (only `stats?` may be deferred)
+    void c.render('Posts/Index', { posts: defer(async () => []) })
+    // always() is fine for any prop.
+    void c.render('Posts/Index', { posts: always(() => []) })
     return c.render('Posts/Index', { posts: [], stats: defer(async () => ({ total: 0 })) })
   })
   void sessionOf

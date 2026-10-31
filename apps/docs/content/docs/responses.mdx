@@ -1,0 +1,84 @@
+---
+title: Responses and errors
+description: What a route can answer with, redirects and flashed messages, and how errors reach people and API clients.
+---
+
+A handler returns a response. Most return a page, a redirect, or JSON:
+
+```ts
+c.render('Notes/Index', { notes }) // a page (see Pages)
+c.json({ ok: true }) // JSON, for API clients
+c.text('pong') // plain text
+redirect(c, '/notes') // a redirect
+```
+
+`c` is [Hono's context](https://hono.dev/docs/api/context), so everything Hono can answer with works: headers with `c.header()`, `c.body()` for raw bytes, streams.
+
+## Redirects
+
+```ts
+import { back, intended, redirect } from '@caldera/http'
+
+redirect(c, '/notes') // to a path or URL
+back(c) // to the page the request came from (this site only), or '/'
+intended(c, '/dashboard') // after sign-in: where the visitor was headed, or '/dashboard'
+```
+
+After anything but a GET they redirect with a 303, so the browser follows with a GET: what Inertia expects after a form, and right for any POST.
+
+### Flashed messages
+
+A redirect can carry a message to the next page, for one request only:
+
+```ts
+return back(c).with('success', 'Note added.')
+```
+
+In the starter kit, `success` and `error` show as toasts on the next page. Anything else you flash is on `usePage().flash`. `withErrors({ title: 'Too long' })` sends field errors to a form, as if validation had failed.
+
+## Errors
+
+Throw an error from a handler (or a model, a policy, middleware) and Caldera answers with the right status. You don't build error responses by hand:
+
+| Throw | Status | `code` |
+| --- | --- | --- |
+| `new ValidationError({ title: ['…'] })` | 422 | `validation_failed` |
+| `new BadRequestError('Send a date.')` | 400 | `bad_request` |
+| `new UnauthenticatedError()` | 401 | `unauthenticated` |
+| `new ForbiddenError()` | 403 | `forbidden` |
+| `new NotFoundError()` | 404 | `not_found` |
+| `new TooManyRequestsError()` | 429 | `rate_limited` |
+| anything else | 500 | `server_error` |
+
+All of them come from `@caldera/http`. A refused policy is a 403, a bound row that doesn't exist a 404, a rate limit a 429, all without code of yours.
+
+### For API clients
+
+Clients that send or ask for JSON get every error in the same shape, so they can handle one format:
+
+```json
+{
+  "error": {
+    "code": "bad_request",
+    "message": "Send a date.",
+    "status": 400,
+    "requestId": "1413ec60-8d3e-4faf-b0d4-d414d8879b1e"
+  }
+}
+```
+
+A validation error adds `fields`, each field's messages; a 429 adds `retryAfter`, in seconds.
+
+### For people
+
+Browsers get a page instead: `resources/pages/Error.tsx`, with the error's status and message, and that status code. It's your component: change how it looks. A few errors do something more useful than a page:
+
+- **401** on a page visit goes to the login page, and back after signing in.
+- **422** (validation) goes back to the form with its errors.
+- **429** on a form goes back with the message on the form.
+
+### What a 500 shows
+
+Never the error itself. People see "Something went wrong" (API clients get the request id); the error, with its stack, goes to your logs. Under `caldera dev` it's also recorded for coding agents (`caldera mcp`'s `last_errors`), with the stack pointing at your source lines.
+
+To translate Caldera's own messages, add them to `lang/<locale>/errors.json` by code (`"not_found": "Page introuvable."`); they're then shown in the visitor's language. Messages you write (`new ForbiddenError('Only the owner can do that.')`) are shown as you wrote them.

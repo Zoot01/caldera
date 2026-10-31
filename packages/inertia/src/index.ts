@@ -16,7 +16,7 @@ export type {
   SharedPropsOf,
 } from './inertia.js'
 export { always, defer, optional } from './props.js'
-export type { Prop, PropInput, PropsInput } from './props.js'
+export type { AlwaysProp, LazyProp, Prop, PropInput, PropsInput } from './props.js'
 export { renderOnServer, setSsrRender, viteSsr } from './ssr.js'
 export type { SsrRenderer, SsrResult } from './ssr.js'
 export { setViteManifest, viteAssets } from './vite.js'

@@ -32,6 +32,14 @@ export function names(input: string): Names {
   }
 }
 
+/** The singular a plural came from (`notes` → `note`, `categories` → `category`); a singular is kept. */
+export function singularize(word: string): string {
+  for (const candidate of [word.endsWith('ies') ? `${word.slice(0, -3)}y` : '', word.endsWith('es') ? word.slice(0, -2) : '', word.endsWith('s') ? word.slice(0, -1) : '']) {
+    if (candidate && pluralize(candidate) === word) return candidate
+  }
+  return word
+}
+
 export function pluralize(word: string): string {
   if (/[^aeiou]y$/.test(word)) return `${word.slice(0, -1)}ies`
   if (/(s|x|z|ch|sh)$/.test(word)) return `${word}es`

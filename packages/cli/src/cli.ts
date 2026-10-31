@@ -144,12 +144,17 @@ const dbSchemaCommand = defineCommand({
 function migrationCommand(command: MigrationCommand, description: string) {
   return defineCommand({
     meta: { name: `db:${command}`, description },
-    args: { ...shared, force: { type: 'boolean', description: 'Allow running against a production database' } },
+    args: {
+      ...shared,
+      force: { type: 'boolean', description: 'Allow running against a production database' },
+      ...(command === 'generate' ? { name: { type: 'string', description: 'The migration\'s name, e.g. add-notes (else drizzle-kit picks a random one)' } } : {}),
+    },
     run: ({ args, rawArgs }) =>
       run(wantsJson(args.json), async () => {
         // Anything after `--` goes to drizzle-kit unchanged.
         const separator = rawArgs.indexOf('--')
-        const extraArgs = separator >= 0 ? rawArgs.slice(separator + 1) : []
+        const name = (args as { name?: string }).name
+        const extraArgs = [...(name ? ['--name', name] : []), ...(separator >= 0 ? rawArgs.slice(separator + 1) : [])]
         const json = wantsJson(args.json)
         const result = runMigrations(openProject(args.cwd), command, { force: args.force, capture: json, extraArgs })
         return { data: { schemaVersion: 1, ...result }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }

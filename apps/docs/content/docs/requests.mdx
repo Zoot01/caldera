@@ -1,0 +1,106 @@
+---
+title: Requests and validation
+description: Validate a route's input with Zod, and what happens when it's wrong.
+---
+
+A request says what a route accepts: a [Zod](https://zod.dev) schema for its JSON body, form, query string or parameters. Validation runs before the handler, so the handler only ever sees valid, typed input.
+
+```ts title="src/routes/notes.ts"
+import { defineRequest, defineRoutes } from '@caldera/http'
+import { z } from 'zod'
+
+const NoteForm = defineRequest({
+  body: z.object({
+    title: z.string().trim().min(1, 'Give the note a title.').max(200),
+    body: z.string().max(10_000).default(''),
+  }),
+})
+
+export const notes = defineRoutes('notes', { prefix: '/notes' })
+  .post('store', '/', { request: NoteForm }, async (c) => {
+    const { title, body } = c.req.valid('json')
+    // title is a trimmed, non-empty string; body is a string, '' if it wasn't sent.
+  })
+```
+
+`c.req.valid()` gives what the schema produced, so `.trim()`, `.default()` and `.transform()` have already been applied.
+
+## What to validate
+
+| Key | Validates | Read it with |
+| --- | --- | --- |
+| `body` | A JSON body (Inertia forms and `fetch` send JSON) | `c.req.valid('json')` |
+| `form` | A form body, URL-encoded or multipart (file uploads) | `c.req.valid('form')` |
+| `query` | The query string | `c.req.valid('query')` |
+| `params` | Route parameters | `c.req.valid('param')` |
+
+Query strings and parameters arrive as text, so coerce them:
+
+```ts
+const Search = defineRequest({
+  query: z.object({
+    q: z.string().trim().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+  }),
+})
+
+.get('search', '/search', { request: Search }, (c) => {
+  const { q, page } = c.req.valid('query') // page is a number, 1 if it wasn't given
+})
+```
+
+## When it's invalid
+
+The handler doesn't run. What the caller gets depends on who it is:
+
+- **Pages (Inertia forms):** a redirect back, with the messages as the page's `errors` prop. `useForm` shows each field's message, and keeps what was typed.
+- **Plain HTML forms:** the same redirect, with the submitted values flashed so the form can be refilled.
+- **API clients** (JSON, or `Accept: application/json`): a 422 with the messages per field.
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "The given data was invalid.",
+    "status": 422,
+    "fields": { "title": ["Give the note a title."] },
+    "requestId": "7130bb51-61f1-4fd7-ab8b-e76f84af333f"
+  }
+}
+```
+
+Zod's own messages come out in plain language ("The title field must be at least 1 character.") and in the visitor's language, from your app's translations. Write your own where it matters, as `'Give the note a title.'` above.
+
+Some rules need the database, or more than one field. Throw a `ValidationError` from the handler and it's answered the same way:
+
+```ts
+import { ValidationError } from '@caldera/http'
+
+if (await Note.findFirst({ where: { userId, title } })) {
+  throw new ValidationError({ title: ['You already have a note with that title.'] })
+}
+```
+
+## Checking who may send it
+
+A request can also say who may call it. `authorize` runs before the body is read, and `false` is a 403:
+
+```ts
+const Rename = defineRequest({
+  body: z.object({ title: z.string().trim().min(1).max(200) }),
+  authorize: (c) => c.var.user?.emailVerified === true,
+})
+```
+
+For checks against a row (is this *their* note?), use the route's `authorize` with a policy, after the row is bound: see [Routing](/docs/routing#route-options).
+
+## Reusing a schema
+
+A request is plain data, and its schemas are ordinary Zod. Declare the object once to share it:
+
+```ts
+const noteFields = z.object({ title: z.string().trim().min(1).max(200), body: z.string().max(10_000) })
+
+const CreateNote = defineRequest({ body: noteFields })
+const UpdateNote = defineRequest({ body: noteFields.partial() })
+```

@@ -1,0 +1,4 @@
+{
+  "title": "Caldera",
+  "pages": ["---Getting started---", "index", "installation", "first-app", "structure", "cli", "---The basics---", "routing", "requests", "pages", "middleware", "responses"]
+}

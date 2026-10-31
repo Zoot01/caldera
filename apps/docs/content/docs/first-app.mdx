@@ -1,0 +1,229 @@
+---
+title: Your first app
+description: A list of notes, from the table to the test, in a fresh starter app.
+---
+
+This builds a small notes list on the starter kit: people add notes with a title and a body, see their own, and delete them. Along the way it touches the parts you'll use every day: a model and its migration, routes, a page with a form, and a test. Start from a new app ([Installation](/docs/installation)) with `pnpm dev` running.
+
+<Steps>
+<Step>
+
+### Make the model
+
+```bash
+pnpm exec caldera make:model Note
+```
+
+That writes the table, `src/db/tables/note.ts`, and the model, `src/models/note.ts`. Give the table its columns: who wrote the note, a title and a body.
+
+```ts title="src/db/tables/note.ts"
+import { snakeCase, text } from 'drizzle-orm/sqlite-core'
+import { timestamps } from '@caldera/db/sqlite'
+import { users } from '../schema'
+
+export const notes = snakeCase.table('notes', {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text().notNull(),
+  body: text().notNull().default(''),
+  ...timestamps(),
+})
+```
+
+Every table is registered in `src/db/relations.ts`:
+
+```ts title="src/db/relations.ts"
+import { defineRelations } from 'drizzle-orm'
+import { users } from './schema'
+import { notes } from './tables/note'
+
+export const relations = defineRelations({ users, notes })
+```
+
+</Step>
+<Step>
+
+### Migrate
+
+```bash
+pnpm exec caldera db:generate --name notes
+pnpm exec caldera db:migrate
+```
+
+`db:generate` compares your tables with the migrations in `drizzle/` and writes the SQL for what changed; `db:migrate` applies it. Commit the migration with the code: tests and production build their database from the same files.
+
+</Step>
+<Step>
+
+### Add the routes
+
+```bash
+pnpm exec caldera make:routes notes
+```
+
+Then write them: a page listing your notes, a form posting new ones, and deleting one.
+
+```ts title="src/routes/notes.ts"
+import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera/http'
+import { z } from 'zod'
+import { mw } from '../middleware'
+import { Note } from '../models/note'
+
+const NoteForm = defineRequest({
+  body: z.object({
+    title: z.string().trim().min(1, 'Give the note a title.').max(200),
+    body: z.string().max(10_000).default(''),
+  }),
+})
+
+export const notes = defineRoutes('notes', { prefix: '/notes', middleware: [mw.auth()] })
+  .get('index', '/', async (c) => {
+    const mine = await Note.findMany({ where: { userId: c.var.user!.id }, orderBy: { createdAt: 'desc' } })
+    return c.render('Notes/Index', {
+      notes: mine.map((note) => ({ id: note.id, title: note.title, body: note.body, createdAt: note.createdAt.toISOString() })),
+    })
+  })
+  .post('store', '/', { request: NoteForm }, async (c) => {
+    await Note.create({ ...c.req.valid('json'), userId: c.var.user!.id })
+    return back(c).with('success', 'Note added.')
+  })
+  .delete('destroy', '/:note', { bind: { note: Note } }, async (c) => {
+    // Only your own notes: anyone else's is "not found".
+    if (c.var.note.userId !== c.var.user!.id) throw new NotFoundError()
+    await Note.delete(c.var.note)
+    return back(c)
+  })
+```
+
+- `mw.auth()` keeps guests out: they're sent to the login page, and back here after.
+- `defineRequest` validates the body with Zod. A bad request never reaches the handler: the form gets its errors back instead.
+- `bind: { note: Note }` loads the note in the URL, or answers 404 if there isn't one.
+- `c.render('Notes/Index', …)` is type-checked against the page's props, which is the next step.
+
+</Step>
+<Step>
+
+### Make the page
+
+```bash
+pnpm exec caldera make:page Notes/Index
+```
+
+```tsx title="resources/pages/Notes/Index.tsx"
+import { Head, router, useForm } from '@inertiajs/react'
+import type { FormEvent } from 'react'
+import { FormField } from '@/components/form-field'
+import { Section } from '@/components/section'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+type Note = { id: string; title: string; body: string; createdAt: string }
+
+export default function Index({ notes }: { notes: Note[] }) {
+  const form = useForm({ title: '', body: '' })
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    form.post('/notes', { preserveScroll: true, onSuccess: () => form.reset() })
+  }
+  return (
+    <>
+      <Head title="Notes" />
+      <Section title="New note">
+        <form onSubmit={submit} className="space-y-4">
+          <FormField label="Title" error={form.errors.title}>
+            <Input value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} />
+          </FormField>
+          <FormField label="Body" error={form.errors.body}>
+            <Input value={form.data.body} onChange={(e) => form.setData('body', e.target.value)} />
+          </FormField>
+          <Button type="submit" loading={form.processing}>
+            Add note
+          </Button>
+        </form>
+      </Section>
+      <Section title="Your notes">
+        {notes.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No notes yet.</p>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {notes.map((note) => (
+              <li key={note.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{note.title}</p>
+                  {note.body && <p className="text-muted-foreground">{note.body}</p>}
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => router.delete(`/notes/${note.id}`, { preserveScroll: true })}>
+                  Delete
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+    </>
+  )
+}
+```
+
+Its props are what the route renders it with. Change one and `pnpm typecheck` points at every `c.render` that no longer matches. `useForm` posts the form, shows each field's errors, and keeps what was typed when it fails.
+
+Add it to the navigation in `resources/components/navigation.ts`:
+
+```ts title="resources/components/navigation.ts"
+{ title: 'Notes', href: '/notes', icon: NotebookPen },
+```
+
+Open [localhost:3000/notes](http://localhost:3000/notes), sign up, and add a note: “Note added.” appears as a toast.
+
+</Step>
+<Step>
+
+### Test it
+
+```ts title="tests/notes.test.ts"
+import { setupApp } from '@caldera/testing'
+import { expect, it } from 'vitest'
+import { app } from '../src/app'
+import { http } from '../src/http'
+import { createUser } from './helpers'
+
+const t = setupApp(app)
+
+it('lists, adds and deletes your notes', async () => {
+  const ann = await t.client(http).actingAs(await createUser(t))
+  ;(await ann.post('/notes', { json: { title: 'Groceries', body: 'Milk, eggs' } })).assertRedirect()
+  const page = await ann.visit('/notes')
+  page.assertOk().assertInertia('Notes/Index', (props) => expect(props.notes).toMatchObject([{ title: 'Groceries', body: 'Milk, eggs' }]))
+
+  // A note needs a title.
+  await (await ann.post('/notes', { json: { title: '' } })).assertValidationErrors(['title'])
+
+  // Nobody else can delete it.
+  const [note] = page.page().props.notes as { id: string }[]
+  const bob = await t.client(http).actingAs(await createUser(t, { name: 'Bob', email: 'bob@example.test' }))
+  ;(await bob.delete(`/notes/${note!.id}`)).assertNotFound()
+  ;(await ann.delete(`/notes/${note!.id}`)).assertRedirect()
+})
+
+it('sends guests to log in', async () => {
+  ;(await t.client(http).visit('/notes')).assertRedirect('/login')
+})
+```
+
+```bash
+pnpm test
+```
+
+`setupApp(app)` gives each test file a fresh database built from your migrations, and rolls every test back. `actingAs` signs the client in; `assertInertia` checks which page was rendered and with what.
+
+</Step>
+</Steps>
+
+## Where to next
+
+- [Directory structure](/docs/structure): where everything else goes.
+- [The CLI](/docs/cli): the other generators, and the commands for the database, queues and deploys.

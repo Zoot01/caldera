@@ -1,0 +1,97 @@
+---
+title: Installation
+description: Create a Caldera app and start it.
+---
+
+You need [Node.js](https://nodejs.org) 22 or newer, and a package manager: pnpm, npm, Yarn or Bun.
+
+## Create an app
+
+<Tabs items={['pnpm', 'npm', 'Yarn', 'Bun']}>
+  <Tab value="pnpm">
+    ```bash
+    pnpm create caldera my-app
+    ```
+  </Tab>
+  <Tab value="npm">
+    ```bash
+    npm create caldera@latest my-app
+    ```
+  </Tab>
+  <Tab value="Yarn">
+    ```bash
+    yarn create caldera my-app
+    ```
+  </Tab>
+  <Tab value="Bun">
+    ```bash
+    bun create caldera my-app
+    ```
+  </Tab>
+</Tabs>
+
+<Callout title="Before the first release">
+  Caldera isn't on npm yet. Until it is, create apps from a checkout of the Caldera repository, which installs its packages from your copy:
+
+```bash
+node path/to/caldera/packages/create-caldera/bin/create-caldera.js my-app --link path/to/caldera
+```
+</Callout>
+
+It asks a few questions:
+
+| Question | Choices |
+| --- | --- |
+| Starter kit | **Starter**: sign-up, login, settings and a dashboard. **Blank**: Tailwind and the UI kit, with one page. |
+| Add teams support? | With the starter kit: a personal team for everyone, invitations by email, and roles. |
+| Database | **SQLite**: a local file, and Turso or D1 in production. **Postgres**: needs a Postgres server. |
+| Deploy target | **Node server**, **Vercel** or **Cloudflare Workers**. |
+| Package manager | The one you ran it with, by default. |
+
+Then it installs the dependencies, writes the generated types, creates the first migration and (on SQLite) applies it, and makes the first git commit.
+
+To skip the questions, pass the answers. `-y` takes the defaults for anything you leave out:
+
+```bash
+pnpm create caldera my-app --teams --database postgres --target vercel -y
+```
+
+| Option | What it does |
+| --- | --- |
+| `--starter`, `--blank` | The kit (starter is the default). |
+| `--teams` | Teams, with the starter kit. |
+| `--database sqlite\|postgres` | The database (SQLite is the default). |
+| `--target node\|vercel\|cloudflare` | Where it will run (a Node server is the default). |
+| `--next` | A Next.js app with Caldera at `/api`, instead of Inertia pages. |
+| `--pm pnpm\|npm\|yarn\|bun` | The package manager. |
+| `--no-install`, `--no-git` | Skip installing, or the git repository. |
+| `-y`, `--yes` | Ask nothing. |
+
+## Start it
+
+```bash
+cd my-app
+pnpm dev
+```
+
+Open [localhost:3000](http://localhost:3000). `caldera dev` runs everything an app needs while you work:
+
+- **The app** on port 3000, restarting when you change a file in `src/`.
+- **Vite** for the pages, which update in place as you save.
+- **The realtime server**, so live updates work locally.
+- **Type generation**: routes, pages, config and models are re-read as you edit, so `c.render('Posts/Index', …)` and friends stay type-checked.
+
+Mail isn't sent while you develop. Every message lands in the outbox at [/_caldera/mail/outbox](http://localhost:3000/_caldera/mail/outbox), and [/_caldera/mail](http://localhost:3000/_caldera/mail) previews each mail your app can send.
+
+<Callout title="With Postgres">
+  Create the databases first (the app's, and one for tests), then apply the first migration:
+
+```bash
+createdb my_app && createdb my_app_test
+pnpm exec caldera db:migrate
+```
+</Callout>
+
+## Next
+
+Build something with it: [Your first app](/docs/first-app).
