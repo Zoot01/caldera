@@ -1,5 +1,8 @@
+export { appearance, appearanceOf, APPEARANCES } from './appearance.js'
+export type { Appearance, AppearanceOptions } from './appearance.js'
 export { defineInertia, htmlLang, location, serializePage } from './inertia.js'
 export type {
+  DocumentPart,
   InertiaDefinition,
   InertiaOptions,
   InertiaRegister,

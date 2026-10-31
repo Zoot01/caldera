@@ -1,12 +1,21 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 /** `inertia`: React pages over Inertia, served by the app (Vite). `next`: a Next.js app with Caldera behind /api. */
 export type Frontend = 'inertia' | 'next'
 export const FRONTENDS = ['inertia', 'next'] as const
+/** `starter`: auth, settings and a dashboard (Inertia). `blank`: the UI setup and one page. */
+export type Kit = 'starter' | 'blank'
+export const KITS = ['starter', 'blank'] as const
+export type Database = 'sqlite' | 'postgres'
+export const DATABASES = ['sqlite', 'postgres'] as const
+/** Where it will run: `node` needs nothing extra; the others run `caldera <target>:setup`. */
+export type Target = 'node' | 'vercel' | 'cloudflare'
+export const TARGETS = ['node', 'vercel', 'cloudflare'] as const
 
 export interface CreateOptions {
   /** Where to create the app. Must not exist, or be empty. */
@@ -14,6 +23,14 @@ export interface CreateOptions {
   packageManager?: PackageManager
   /** Default `inertia`. */
   frontend?: Frontend
+  /** Default `starter`. Inertia only: the Next.js variant has no kits yet. */
+  kit?: Kit
+  /** Teams (Better Auth organizations): the starter kit only. Default false. */
+  teams?: boolean
+  /** Default `sqlite` (libSQL: a local file, or Turso). */
+  database?: Database
+  /** Default `node`. */
+  target?: Target
   install?: boolean
   git?: boolean
   /** Development only: point @caldera/* dependencies at a local checkout's packages/ folder. */
@@ -25,7 +42,7 @@ export interface CreateOptions {
 }
 
 export interface Step {
-  name: 'files' | 'install' | 'generate' | 'database' | 'git'
+  name: 'files' | 'install' | 'generate' | 'database' | 'target' | 'git'
   status: 'done' | 'skipped' | 'failed'
   /** What to run yourself when the step was skipped or failed. */
   command?: string
@@ -37,6 +54,11 @@ export interface CreateResult {
   name: string
   packageManager: PackageManager
   frontend: Frontend
+  /** null for the Next.js variant. */
+  kit: Kit | null
+  teams: boolean
+  database: Database
+  target: Target
   steps: Step[]
   /** Commands to finish setup, in order. Empty when everything succeeded. */
   next: string[]
@@ -45,7 +67,7 @@ export interface CreateResult {
 
 export class CreateError extends Error {
   constructor(
-    readonly code: 'dir_not_empty' | 'invalid_name' | 'template_missing',
+    readonly code: 'dir_not_empty' | 'invalid_name' | 'template_missing' | 'unsupported',
     message: string,
     readonly details?: Record<string, unknown>,
   ) {
@@ -53,9 +75,40 @@ export class CreateError extends Error {
   }
 }
 
+// The app is copied in layers, each over the last: the shared base, then the frontend (a kit, or
+// the Next.js variant), then the database's files.
 const TEMPLATE = new URL('../template/', import.meta.url)
 const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
+const KIT_LAYERS: Record<Kit, URL[]> = {
+  blank: [new URL('../kits/blank/', import.meta.url)],
+  starter: [new URL('../kits/blank/', import.meta.url), new URL('../kits/starter/', import.meta.url)],
+}
+const POSTGRES = new URL('../databases/postgres/', import.meta.url)
+// The starter's auth tables for Postgres (its own files are SQLite's).
+const STARTER_POSTGRES = new URL('../kits/starter-postgres/', import.meta.url)
+// Teams, over the starter; and its auth tables for Postgres.
+const STARTER_TEAMS = new URL('../kits/starter-teams/', import.meta.url)
+const STARTER_TEAMS_POSTGRES = new URL('../kits/starter-teams-postgres/', import.meta.url)
+// Added for the target, so the first install has them (the setup commands only write files).
+const TARGET_DEPENDENCIES: Record<Target, { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }> = {
+  node: {},
+  vercel: { dependencies: { '@vercel/functions': '^3.4.0' } },
+  cloudflare: { devDependencies: { wrangler: '4.151.0' } },
+}
 const CALDERA_PACKAGES = ['core', 'db', 'http', 'cli', 'auth', 'inertia', 'cache', 'queue', 'events', 'schedule', 'storage', 'mail', 'notifications', 'broadcast', 'i18n', 'next', 'testing']
+
+/** The targets that work with this frontend and database, in prompt order. */
+export function targetsFor(frontend: Frontend, database: Database): Target[] {
+  return TARGETS.filter((target) => !unsupported(frontend, database, target))
+}
+
+/** Why a combination can't be created, or undefined when it can. */
+export function unsupported(frontend: Frontend, database: Database, target: Target): string | undefined {
+  if (target !== 'cloudflare') return undefined
+  if (frontend === 'next') return 'The Next.js variant doesn’t run on Cloudflare Workers yet; use --target node or vercel.'
+  if (database === 'postgres') return 'Cloudflare Workers apps use D1 (SQLite); use --database sqlite, or --target node or vercel for Postgres.'
+  return undefined
+}
 
 /**
  * Creates a Caldera app. Only writing the files can fail; every later step (install, codegen,
@@ -73,17 +126,40 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     throw new CreateError('dir_not_empty', `${directory} already exists and isn't empty. Try \`${suggestion}\` instead.`, { directory, suggestion })
   }
   if (!existsSync(TEMPLATE)) throw new CreateError('template_missing', 'The bundled template is missing; reinstall create-caldera.')
+  const frontend = options.frontend ?? 'inertia'
+  const kit = frontend === 'next' ? null : (options.kit ?? 'starter')
+  const database = options.database ?? 'sqlite'
+  const target = options.target ?? 'node'
+  const teams = options.teams ?? false
+  if (teams && kit !== 'starter') throw new CreateError('unsupported', 'Teams come with the starter kit: leave out --blank and --next, or --teams.', { kit, frontend })
+  const problem = unsupported(frontend, database, target)
+  if (problem) throw new CreateError('unsupported', problem, { frontend, database, target })
 
   const pm = options.packageManager ?? detectPackageManager(env)
-  const run = pm === 'npm' ? 'npm run' : pm
+  // `bun test` is Bun's own test runner, not the script.
+  const run = pm === 'npm' || pm === 'bun' ? `${pm} run` : pm
   const log = join(directory, '.create.log')
 
   // 1. Files: the only step allowed to fail the run.
   mkdirSync(directory, { recursive: true })
   cpSync(TEMPLATE, directory, { recursive: true })
   renameSync(join(directory, '_gitignore'), join(directory, '.gitignore'))
-  const frontend = options.frontend ?? 'inertia'
-  if (frontend === 'next') applyNext(directory)
+  // The database's files first, so a kit can replace them (the starter's users table has auth columns).
+  if (database === 'postgres') cpSync(POSTGRES, directory, { recursive: true, force: true })
+  if (kit) {
+    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) copyLayer(layer, directory)
+    edit(directory, 'AGENTS.md', [
+      [/^Tests \(`pnpm test`, Vitest\).*$/m, `$&\n\n${BROWSER_AGENTS}`],
+      ['- `pnpm typecheck`, `pnpm test`', '- `pnpm typecheck`, `pnpm test`, `pnpm test:browser`'],
+    ])
+    edit(directory, 'README.md', [['{{ run }} test       # run the tests\n', '{{ run }} test       # run the tests\n{{ run }} test:browser  # browser tests (Playwright; once: npx playwright install chromium)\n']])
+    if (kit === 'starter') applyStarter(directory, database)
+    if (teams) applyTeams(directory, database)
+  } else applyNext(directory)
+  if (database === 'postgres') applyPostgres(directory, name)
+  // Both variants resolve like a bundler (Vite, Next, tsx): relative imports have no extension,
+  // which is also what `caldera generate` and `make` write.
+  extensionlessImports(directory)
   for (const file of listFiles(directory)) {
     const text = readFileSync(file, 'utf8')
     if (text.includes('{{')) writeFileSync(file, text.replaceAll('{{ name }}', name).replaceAll('{{ run }}', run))
@@ -95,7 +171,18 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   )
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, any>
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const added = TARGET_DEPENDENCIES[target][field]
+    if (added) manifest[field] = sorted({ ...manifest[field], ...added })
+  }
+  if (target === 'cloudflare') appendFileSync(join(directory, '.gitignore'), '.dev.vars\n.wrangler\n')
   const version = packageManagerVersion(pm, env)
+  if (kit) {
+    // Browser tests (Playwright) and CI that runs them.
+    appendFileSync(join(directory, '.gitignore'), 'test-results/\nplaywright-report/\nblob-report/\n')
+    mkdirSync(join(directory, '.github/workflows'), { recursive: true })
+    writeFileSync(join(directory, '.github/workflows/ci.yml'), ciWorkflow(pm, run, database, name, version))
+  }
   if (version) manifest.packageManager = `${pm}@${version}` // never a bare name: corepack rejects it
   const overrides = options.link ? linkLocalPackages(manifest, resolve(options.link), directory, pm) : []
   if (options.link) appendFileSync(join(directory, '.gitignore'), '.caldera-local\n')
@@ -141,7 +228,14 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const exec = [pm, ...(pm === 'npm' ? ['exec', '--'] : pm === 'pnpm' ? ['exec'] : [])]
   const migrate = [...exec, 'caldera', 'db:migrate']
   await attempt('database', installed, [...exec, 'caldera', 'db:generate', '--', '--name', 'init'])
-  if (steps.at(-1)!.status === 'done') {
+  // A Postgres server and its databases are yours to create: the migration is generated, and
+  // applying it is left to the next steps.
+  const later: string[] = []
+  if (database === 'postgres') {
+    report()
+    const db = databaseName(name)
+    later.push(`createdb ${db} && createdb ${db}_test`, migrate.join(' '))
+  } else if (steps.at(-1)!.status === 'done') {
     steps.pop()
     await attempt('database', true, migrate)
     report()
@@ -150,6 +244,16 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     // Not generated, so not applied either: finishing takes both.
     const step = steps.at(-1)!
     step.command = `${step.command} && ${migrate.join(' ')}`
+  }
+  if (target !== 'node' && kit) {
+    await attempt('target', installed, [...exec, 'caldera', `${target}:setup`])
+    report()
+  }
+  // Local secrets for `wrangler dev`, like .env: the same APP_KEY. Written even when the setup step is
+  // left to the next steps, which don't mention it.
+  if (target === 'cloudflare') {
+    const key = readFileSync(join(directory, '.env'), 'utf8').match(/^APP_KEY=.*$/m)![0]
+    writeFileSync(join(directory, '.dev.vars'), `${key}\n`)
   }
   const git = (options.git ?? true) && commandExists('git', env)
   if (git) {
@@ -171,9 +275,10 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const next = [
     `cd ${relative}`,
     ...steps.filter((s) => s.status !== 'done' && s.command && s.name !== 'git').map((s) => s.command!),
+    ...later,
     `${run} dev`,
   ]
-  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, steps, next, log }
+  return { schemaVersion: 1, directory, name, packageManager: pm, frontend, kit, teams, database, target, steps, next, log }
 }
 
 /** Runs a command, collecting its output for .create.log (never thrown: a missing program is a failed step). */
@@ -261,34 +366,20 @@ function commandExists(command: string, env: NodeJS.ProcessEnv): boolean {
   return (env.PATH ?? '').split(delimiter).some((dir) => dir && extensions.some((ext) => existsSync(join(dir, command + ext))))
 }
 
-/** What the Next.js variant drops from the shared template: Inertia pages, Vite, the Node server entry. */
-const NEXT_REMOVES = ['resources', 'vite.config.ts', 'src/inertia.ts', 'src/server.ts', 'src/uploads.ts', 'public/build']
-
 /**
  * Turns the shared template into the Next.js variant: Next renders pages from app/, and the Caldera
  * app (models, jobs, mail, i18n…) serves /api and is used directly from Server Components and actions.
  */
 function applyNext(directory: string) {
-  for (const path of NEXT_REMOVES) rmSync(join(directory, path), { recursive: true, force: true })
   cpSync(TEMPLATE_NEXT, directory, { recursive: true, force: true })
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> }
-  for (const name of ['@caldera/inertia', '@inertiajs/core', '@inertiajs/react', '@hono/node-server']) delete manifest.dependencies[name]
-  for (const name of ['@inertiajs/vite', '@vitejs/plugin-react', 'vite']) delete manifest.devDependencies[name]
   manifest.dependencies['@caldera/next'] = '^0.0.0'
   manifest.dependencies.next = '^16.4.2'
-  manifest.dependencies = Object.fromEntries(Object.entries(manifest.dependencies).sort(([a], [b]) => a.localeCompare(b)))
+  manifest.dependencies = sorted(manifest.dependencies)
   Object.assign(manifest.scripts, { build: 'next build', start: 'next start' })
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   appendFileSync(join(directory, '.gitignore'), '.next\nnext-env.d.ts\n')
-  // Next resolves like a bundler: relative imports have no extension (the Inertia template, run by
-  // Node, imports `./app.js`). `caldera generate` and `make` follow the tsconfig.
-  for (const file of listFiles(directory)) {
-    if (!/\.tsx?$/.test(file) || file.includes(`${join(directory, 'node_modules')}`)) continue
-    const text = readFileSync(file, 'utf8')
-    const stripped = text.replace(/((?:from|import)\s*\(?\s*'\.{1,2}\/[^']+)\.js'/g, "$1'")
-    if (stripped !== text) writeFileSync(file, stripped)
-  }
   const agentsPath = join(directory, 'AGENTS.md')
   let agents = readFileSync(agentsPath, 'utf8')
   agents = agents
@@ -298,7 +389,7 @@ function applyNext(directory: string) {
       "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera/auth` for `user`), both from `@caldera/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
     )
     .split('\n')
-    .filter((line) => !/resources\/pages|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
+    .filter((line) => !/resources\/pages|resources\/components|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
     .join('\n')
     .replace('| Providers |', '| Pages, layouts, server actions (Next.js) | `app/**` | |\n| Providers |')
     .replace(/A page lists what it needs with `export const messages[^.]*\.[^.]*\./, 'In Server Components and actions, translate with `requestContext(app)`’s `i18n`.')
@@ -306,4 +397,216 @@ function applyNext(directory: string) {
     .replace('In pages: `useChannel(', 'In client components (app/realtime.tsx, in the root layout, connects them): `useChannel(')
     .replace("'post.updated': () => router.reload()", "'post.updated': () => router.refresh()")
   writeFileSync(agentsPath, agents)
+}
+
+const BROWSER_AGENTS =
+  'Browser tests (`pnpm test:browser`, Playwright, `tests/browser/*.spec.ts`): Playwright builds the app and serves it on port 3100 (`tests/browser/server.ts`), on a database of its own that is emptied and migrated on every run (a SQLite file, or `DATABASE_TEST_URL` on Postgres). ' +
+  'Open pages with `visit(page, path)` from `tests/browser/helpers.ts`, which waits for React to take over before anything is clicked. Mail sent during a test is in the outbox: `page.request.get(\'/_caldera/mail/outbox\', { headers: { accept: \'application/json\' } })`. ' +
+  'Once per machine: `npx playwright install chromium`. CI (`.github/workflows/ci.yml`) runs `typecheck`, `test` and `test:browser` on every push and pull request.'
+
+const STARTER_AGENTS =
+  'Auth (the starter kit): Better Auth in `src/auth.ts`, on the app-owned users table (`src/db/schema.ts`; its own tables are in `src/db/auth-schema.ts`, regenerated by `caldera auth:schema` after changing plugins). ' +
+  'Pages post to the app\'s routes (`src/routes/auth.ts`, `settings.ts`), which call `c.var.auth.api.*` with `asResponse: true` and answer with `withAuthCookies(c, res, redirect(...))` from `@caldera/auth`, so failures become `ValidationError`s on the form. ' +
+  '`c.var.user` is set on every request (null for guests); named middleware in `src/middleware.ts`: `mw.auth()` (signed in, else a 401 that page visits turn into /login and back), `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()`. ' +
+  'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
+  'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
+  'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (sidebar or header; simple, card or split), so switching is one line. Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
+  'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password counts as confirming it). ' +
+  'Browser tests sign up with `register(page)`, log out with `logOut(page, name)` and use passkeys through `virtualAuthenticator(context, page)` (Chrome\'s virtual authenticator), all from `tests/browser/helpers.ts`.'
+
+const TEAMS_AGENTS =
+  'Teams (Better Auth organizations, `src/teams.ts`): everyone gets a personal team at registration (it can\'t be deleted, left or shared); the current team is the session\'s active organization (`c.var.authSession.activeOrganizationId`), switched with the sidebar\'s team switcher (POST /teams/switch). ' +
+  'Settings → Teams (`src/routes/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, leave. ' +
+  'Roles and what they may do are in `src/roles.ts` (Better Auth access control: add your own resources there); policies check them with `g.org.id` (the current team) and `await g.org.has({ project: [\'create\'] })`. Scope a team\'s data by a `teamId` column and the current team, and check `g.org.id` in policies.'
+
+/** Teams over the starter: Better Auth's organization plugin, the gate's `g.org`, the switcher and settings. */
+function applyTeams(directory: string, database: Database) {
+  copyLayer(STARTER_TEAMS, directory)
+  if (database === 'postgres') cpSync(STARTER_TEAMS_POSTGRES, directory, { recursive: true, force: true })
+  edit(directory, 'src/auth.ts', [
+    ["import { User } from './models/user.js'\n", "import { User } from './models/user.js'\nimport { teamHooks, teamsPlugin } from './teams.js'\n"],
+    ['      // Both are always installed', '      // A personal team for every account; new sessions start in their first team (src/teams.ts).\n      databaseHooks: teamHooks(db),\n      // Both are always installed'],
+    ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL, appName: config.app.name }),\n'],
+  ])
+  edit(directory, 'src/app.ts', [
+    ["import { auth } from './auth.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
+    ['    auth,\n', '    auth,\n    // c.var.gate for policies, with g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ extend: organizationGate({ roles }) }),\n'],
+  ])
+  edit(directory, 'src/inertia.ts', [
+    ["import { getCookie } from 'hono/cookie'\n", "import { getCookie } from 'hono/cookie'\nimport { teamsFor } from './teams.js'\n"],
+    ['    // The signed-in user (or null), for the layouts and pages.\n', '    // The person\'s teams and the current one, for the team switcher (src/teams.ts).\n    teams: () => teamsFor(c),\n    // The signed-in user (or null), for the layouts and pages.\n'],
+  ])
+  edit(directory, 'resources/components/app-sidebar.tsx', [
+    ["import { AppLogo } from '@/components/app-logo'\n", ''],
+    ["import { UserInfo } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo } from '@/components/user-info'\n"],
+    [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
+  ])
+  edit(directory, 'resources/layouts/settings-layout.tsx', [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])
+}
+
+/** The starter kit's sign-in (src/auth.ts) as a provider of the app, and its tables for Postgres. */
+function applyStarter(directory: string, database: Database) {
+  edit(directory, 'src/app.ts', [
+    ["import { env } from './env.js'\n", "import { auth } from './auth.js'\nimport { env } from './env.js'\n"],
+    ['  providers: [\n', '  providers: [\n    // Sign-in, sessions and passwords (Better Auth): c.var.auth, and c.var.user on every request.\n    auth,\n'],
+  ])
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${STARTER_AGENTS}\n\nTests (\`pnpm test\``]])
+  if (database === 'postgres') {
+    cpSync(STARTER_POSTGRES, directory, { recursive: true, force: true })
+    edit(directory, 'src/auth.ts', [["provider: 'sqlite'", "provider: 'pg'"]])
+  }
+}
+
+/**
+ * Copies a layer over the app. Its package.json isn't copied but merged: its dependencies,
+ * devDependencies and scripts are added to the app's.
+ */
+function copyLayer(layer: URL, directory: string) {
+  const manifestFile = join(fileURLToPath(layer), 'package.json')
+  cpSync(layer, directory, { recursive: true, force: true, filter: (source) => resolve(source) !== resolve(manifestFile) })
+  if (!existsSync(manifestFile)) return
+  const added = JSON.parse(readFileSync(manifestFile, 'utf8')) as Record<string, Record<string, string>>
+  const manifestPath = join(directory, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, Record<string, string>>
+  for (const field of ['dependencies', 'devDependencies'] as const) if (added[field]) manifest[field] = sorted({ ...manifest[field], ...added[field] })
+  if (added.scripts) manifest.scripts = { ...manifest.scripts, ...added.scripts }
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+/** `from './app.js'` → `from './app'` in every TypeScript file (the templates are written NodeNext-style). */
+function extensionlessImports(directory: string) {
+  for (const file of listFiles(directory)) {
+    if (!/\.tsx?$/.test(file)) continue
+    const text = readFileSync(file, 'utf8')
+    const stripped = text.replace(/((?:from|import)\s*\(?\s*'\.{1,2}\/[^']+)\.js'/g, "$1'")
+    if (stripped !== text) writeFileSync(file, stripped)
+  }
+}
+
+/**
+ * Postgres instead of libSQL: the layer's schema, Caldera's tables and drizzle config, then the
+ * connection (node-postgres), env and dependencies. Each edit must find its text, so a changed
+ * template fails here (and in the tests) rather than leaving a half-SQLite app.
+ */
+function applyPostgres(directory: string, name: string) {
+  const db = databaseName(name)
+  edit(directory, 'src/app.ts', [
+    ["import { drizzle as d1 } from 'drizzle-orm/d1'\nimport { drizzle } from 'drizzle-orm/libsql'\n", "import { drizzle } from 'drizzle-orm/node-postgres'\n"],
+    [
+      /    \/\/ libSQL \(DATABASE_URL\).*\n    databaseProvider\(\{\n.*\n.*\n    \}\),\n/,
+      "    // Postgres (DATABASE_URL), through node-postgres's connection pool.\n    databaseProvider({\n      driver: 'postgres',\n      connect: (app) => drizzle({ connection: app.config.database.url, relations }),\n    }),\n",
+    ],
+  ])
+  edit(directory, 'src/env.ts', [
+    ["DATABASE_URL: z.string().default('file:local.db'),", `DATABASE_URL: z.string().default('postgres://localhost:5432/${db}'),`],
+    [/  \/\/ For a hosted libSQL database.*\n  DATABASE_AUTH_TOKEN: .*\n/, ''],
+  ])
+  edit(directory, '.env.example', [
+    [/DATABASE_URL=file:local\.db\n# Turso.*\nDATABASE_AUTH_TOKEN=\n/, `DATABASE_URL=postgres://localhost:5432/${db}\n# Tests reset this database (its name must contain "test").\nDATABASE_TEST_URL=postgres://localhost:5432/${db}_test\n`],
+  ])
+  edit(directory, 'README.md', [['(SQLite by default: local.db)', `(Postgres: ${db})`]])
+  // Every test file resets the one test database (SQLite gives each file its own), so files run one
+  // at a time, as Laravel's tests do without --parallel.
+  const vitestConfig = join(directory, 'vitest.config.ts')
+  if (!existsSync(vitestConfig)) writeFileSync(vitestConfig, POSTGRES_VITEST_CONFIG)
+  else if (readFileSync(vitestConfig, 'utf8').includes('test: { ')) {
+    edit(directory, 'vitest.config.ts', [
+      ['export default', '// Test files share the Postgres test database (DATABASE_TEST_URL), which each one resets: one at a time.\nexport default'],
+      ['test: { ', 'test: { fileParallelism: false, '],
+    ])
+  } else edit(directory, 'vitest.config.ts', [['export default defineConfig({ ', 'export default defineConfig({ test: { fileParallelism: false }, ']])
+  const manifestPath = join(directory, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, Record<string, string>>
+  delete manifest.dependencies!['@libsql/client']
+  manifest.dependencies = sorted({ ...manifest.dependencies, pg: '^8.23.1' })
+  manifest.devDependencies = sorted({ ...manifest.devDependencies, '@types/pg': '^8.23.1' })
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+const POSTGRES_VITEST_CONFIG = `import { defineConfig } from 'vitest/config'
+
+// Test files share the Postgres test database (DATABASE_TEST_URL), which each one resets: one at a time.
+export default defineConfig({ test: { fileParallelism: false } })
+`
+
+/**
+ * GitHub Actions for a kit app: types, tests and browser tests on every push and pull request, with
+ * the package manager the app was made with (and a Postgres service for Postgres apps).
+ */
+function ciWorkflow(pm: PackageManager, run: string, database: Database, name: string, version: string | undefined): string {
+  const install = { pnpm: 'pnpm install --frozen-lockfile', npm: 'npm ci', yarn: 'yarn install --frozen-lockfile', bun: 'bun install --frozen-lockfile' }[pm]
+  const testDatabase = `${databaseName(name)}_test`
+  const lines = [
+    'name: CI',
+    '',
+    'on:',
+    '  push:',
+    // `git init`'s default branch is either, depending on the machine.
+    '    branches: [main, master]',
+    '  pull_request:',
+    '',
+    'jobs:',
+    '  test:',
+    '    runs-on: ubuntu-latest',
+    ...(database === 'postgres'
+      ? [
+          '    services:',
+          '      postgres:',
+          '        image: postgres:17',
+          '        env:',
+          '          POSTGRES_PASSWORD: postgres',
+          `          POSTGRES_DB: ${testDatabase}`,
+          '        ports: ["5432:5432"]',
+          '        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10',
+          '    env:',
+          '      # Tests and the browser tests reset this database; its name must contain "test".',
+          `      DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/${testDatabase}`,
+        ]
+      : []),
+    '    steps:',
+    '      - uses: actions/checkout@v5',
+    // pnpm/action-setup reads the version from package.json's packageManager when it's there.
+    ...(pm === 'pnpm' ? ['      - uses: pnpm/action-setup@v4', ...(version ? [] : ['        with:', '          version: 11'])] : []),
+    ...(pm === 'bun' ? ['      - uses: oven-sh/setup-bun@v2'] : []),
+    '      - uses: actions/setup-node@v5',
+    '        with:',
+    '          node-version: 24',
+    // Yarn 2+ (package.json's packageManager) comes from corepack; the runner's global Yarn is 1.x.
+    ...(pm === 'bun' || pm === 'yarn' ? [] : [`          cache: ${pm}`]),
+    ...(pm === 'yarn' ? ['      - run: corepack enable'] : []),
+    `      - run: ${install}`,
+    `      - run: ${run} typecheck`,
+    `      - run: ${run} test`,
+    '      - run: npx playwright install --with-deps chromium',
+    `      - run: ${run} test:browser`,
+    '      - uses: actions/upload-artifact@v4',
+    '        if: failure()',
+    '        with:',
+    '          name: playwright-report',
+    '          path: playwright-report/',
+    '          retention-days: 7',
+  ]
+  return `${lines.join('\n')}\n`
+}
+
+/** Replaces text in a created file; each pattern must match. */
+function edit(directory: string, file: string, edits: [string | RegExp, string][]) {
+  const path = join(directory, file)
+  let text = readFileSync(path, 'utf8')
+  for (const [pattern, replacement] of edits) {
+    const found = typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text)
+    if (!found) throw new CreateError('template_missing', `The template's ${file} has changed: can't find ${String(pattern)}.`)
+    text = text.replace(pattern, replacement)
+  }
+  writeFileSync(path, text)
+}
+
+/** A Postgres database name from the package name: my-app → my_app. */
+function databaseName(name: string): string {
+  return name.replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'app'
+}
+
+function sorted(record: Record<string, string> = {}): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)))
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { Plugin } from 'vite'
 
@@ -64,22 +64,34 @@ export default function caldera(options: CalderaViteOptions): Plugin {
       }
     },
     configureServer(server) {
+      // Only a server that listens (`vite`, `caldera dev`) owns the hot file. Vitest runs Vite too,
+      // without listening: it must leave a running dev server's file alone, or `pnpm test` during
+      // development would point the app back at a build that isn't there.
+      const httpServer = server.httpServer
+      if (!httpServer) return
       hotPath = resolve(server.config.root, hotFile)
-      const write = () => {
+      const origin = () => server.config.server.origin ?? `http://localhost:${server.config.server.port}`
+      // Only this server's own file: another dev server may have started since.
+      const remove = () => {
+        try {
+          if (readFileSync(hotPath!, 'utf8') === origin()) rmSync(hotPath!, { force: true })
+        } catch {
+          // Already gone.
+        }
+      }
+      httpServer.once('listening', () => {
         mkdirSync(dirname(hotPath!), { recursive: true })
-        writeFileSync(hotPath!, server.config.server.origin ?? `http://localhost:${server.config.server.port}`)
-      }
-      const remove = () => rmSync(hotPath!, { force: true })
-      server.httpServer?.once('listening', write)
-      server.httpServer?.once('close', remove)
-      // Without the hot file the app falls back to the build, so it must not outlive the server.
-      process.once('exit', remove)
-      for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-        process.once(signal, () => {
-          remove()
-          process.exit()
-        })
-      }
+        writeFileSync(hotPath!, origin())
+        httpServer.once('close', remove)
+        // Without the hot file the app falls back to the build, so it must not outlive the server.
+        process.once('exit', remove)
+        for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+          process.once(signal, () => {
+            remove()
+            process.exit()
+          })
+        }
+      })
     },
   }
 }

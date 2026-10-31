@@ -14,13 +14,13 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 | `packages/cache` | cache stores, locks, tags, rate limiting |
 | `packages/queue` | jobs, dispatch, drivers, the worker runtime |
 | `packages/cli` | `caldera` commands: generate, dev, make:*, db:*, queue:work… |
-| `packages/create-caldera` | the scaffolder and its bundled `template/` |
+| `packages/create-caldera` | the scaffolder; apps are copied in layers: `template/` (shared base), then `kits/<kit>/` (Inertia: `blank`, then `starter`, then `starter-teams` with `--teams`; `*-postgres` layers hold their Postgres schema) or `template-next/`, with `databases/postgres/` underneath. Kits change earlier layers' files through checked `edit()`s in `create.ts`. A layer's `package.json` is merged. coss ui components in the kits come from `pnpm sync:coss` (`scripts/sync-coss.mjs`): change the kit's `USES` list there, not the files by hand |
 
 ## Commands
 
 - `pnpm test`: build every package, then run all tests.
 - `pnpm typecheck`: build, then type-check every package (tests included).
-- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs `pnpm dev` with Vite and a production build. Slow; run it before committing template changes.
+- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs the app's own browser tests (Playwright, `pnpm test:browser`), `pnpm dev` with Vite and a production build, across Starter/Blank, teams and SQLite/Postgres. Slow; run it before committing template changes.
 - One package: `pnpm vitest run packages/<name>`. Packages import each other through `dist/`, so rebuild a dependency (`pnpm -s build` in it) after changing it.
 
 ## Tests against real backends
@@ -56,4 +56,5 @@ node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <n
 - Optional backends (ioredis, bullmq, aws4fetch, nodemailer…) live in their own entry points (`@caldera/queue/bullmq`, `@caldera/storage/s3`, `@caldera/mail/smtp`) and are passed as `drivers: [...]`, so edge bundles never see them.
 - The CLI loads a project with tsx (`openProject()`), in its own module graph: the project's packages are separate copies from the CLI's. Process-wide state goes on `globalThis` (`Symbol.for(...)`), errors are recognised by shape, and anything that must share the app's instances is loaded through `project.importPackage()`.
 - Packages don't depend on each other just to recognise errors or objects: match a `code`, a `kind`, or a `Symbol.for(...)` on `globalThis`.
+- Template and kit code (routes, middleware, models) never imports `src/app.ts`: `caldera generate` loads those files before the generated files `app.ts` imports exist, so a fresh app or clone couldn't generate. Services and the resolved config are on `c.var` (`c.var.config.auth`).
 - Commit per feature, with a message that says what changed and why.

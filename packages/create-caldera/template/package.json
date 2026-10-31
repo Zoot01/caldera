@@ -4,8 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "caldera dev",
-    "build": "vite build && vite build --ssr",
-    "start": "tsx src/server.ts",
     "generate": "caldera generate",
     "db:push": "caldera db:push",
     "test": "vitest run",
@@ -22,15 +20,11 @@
     "@caldera/events": "^0.0.0",
     "@caldera/http": "^0.0.0",
     "@caldera/i18n": "^0.0.0",
-    "@caldera/inertia": "^0.0.0",
     "@caldera/mail": "^0.0.0",
     "@caldera/notifications": "^0.0.0",
     "@caldera/queue": "^0.0.0",
     "@caldera/schedule": "^0.0.0",
     "@caldera/storage": "^0.0.0",
-    "@hono/node-server": "^2.1.5",
-    "@inertiajs/core": "^3.9.1",
-    "@inertiajs/react": "^3.9.1",
     "@libsql/client": "^0.18.0",
     "@react-email/components": "^1.0.12",
     "aws4fetch": "^1.0.20",
@@ -47,17 +41,14 @@
   "devDependencies": {
     "@caldera/cli": "^0.0.0",
     "@caldera/testing": "^0.0.0",
-    "@inertiajs/vite": "^3.9.1",
     "@react-email/tailwind": "^2.0.7",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
     "drizzle-kit": "1.0.0-rc.5",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   }
 }

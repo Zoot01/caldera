@@ -1,14 +1,16 @@
-import { detectPackageManager, FRONTENDS, unavailable, type CreateOptions, type Frontend, type PackageManager } from './create.js'
+import { DATABASES, detectPackageManager, KITS, targetsFor, unavailable, type CreateOptions, type Database, type Frontend, type Kit, type PackageManager, type Target } from './create.js'
 import type { Prompter } from './prompt.js'
 
 const MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const
 
+export type Answers = Pick<CreateOptions, 'directory' | 'packageManager' | 'frontend' | 'kit' | 'teams' | 'database' | 'target' | 'install'>
+
 /** Asks only for what wasn't given on the command line. */
 export async function askCreateOptions(
   prompter: Prompter,
-  given: { directory?: string; packageManager?: PackageManager; frontend?: Frontend; install?: boolean },
+  given: { directory?: string; packageManager?: PackageManager; frontend?: Frontend; kit?: Kit; teams?: boolean; database?: Database; target?: Target; install?: boolean },
   env: NodeJS.ProcessEnv = process.env,
-): Promise<Pick<CreateOptions, 'directory' | 'packageManager' | 'frontend' | 'install'>> {
+): Promise<Answers> {
   let directory = given.directory
   let question = 'Project name'
   // A free name by default; nothing is ever merged into an existing folder.
@@ -27,10 +29,32 @@ export async function askCreateOptions(
       suggestion = free
     }
   }
-  const frontend =
-    given.frontend ??
-    (await prompter.select('Frontend', FRONTENDS, 'inertia', { inertia: 'React pages served by the app', next: 'Next.js, with Caldera at /api' }))
+  // The Next.js variant (--next) has no kits yet.
+  const frontend = given.frontend ?? 'inertia'
+  const kit =
+    frontend === 'next'
+      ? undefined
+      : (given.kit ??
+        (await prompter.select('Starter kit', KITS, 'starter', { starter: 'Auth, settings and a dashboard', blank: 'Tailwind and the UI kit, one page' }, { starter: 'Starter', blank: 'Blank' })))
+  // Teams change the data model (every account gets a team), so they're asked for up front.
+  // --teams with another kit is passed on, so creating refuses it as it would without a terminal.
+  const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : given.teams
+  const database =
+    given.database ??
+    (await prompter.select('Database', DATABASES, 'sqlite', { sqlite: 'A local file; Turso or D1 in production', postgres: 'Needs a Postgres server' }, { sqlite: 'SQLite', postgres: 'Postgres' }))
+  const targets = targetsFor(frontend, database)
+  const target =
+    given.target ??
+    (targets.length === 1
+      ? targets[0]!
+      : await prompter.select(
+          'Deploy target',
+          targets,
+          'node',
+          { node: 'Any server or container', vercel: 'Functions (Node.js runtime)', cloudflare: 'Workers, D1, R2 and Queues' },
+          { node: 'Node server', vercel: 'Vercel', cloudflare: 'Cloudflare Workers' },
+        ))
   const packageManager = given.packageManager ?? (await prompter.select('Package manager', MANAGERS, detectPackageManager(env)))
   const install = given.install ?? (await prompter.confirm('Install dependencies now?', true))
-  return { directory, frontend, packageManager, install }
+  return { directory, frontend, ...(kit ? { kit } : {}), ...(teams !== undefined ? { teams } : {}), database, target, packageManager, install }
 }

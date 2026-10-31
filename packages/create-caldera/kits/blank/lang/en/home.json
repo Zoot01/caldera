@@ -1,0 +1,7 @@
+{
+  "title": "Welcome",
+  "running": "Your app is running.",
+  "edit": "Edit <code>resources/pages/Home.tsx</code> and save: the page updates in place.",
+  "next": "Add a page with <code>caldera make:page Posts/Index</code>, then render it from a route with <code>c.render('Posts/Index', …)</code>.",
+  "ui": "Components are yours, in <code>resources/components/ui</code> (coss ui). Add more with <code>npx shadcn add @coss/…</code>."
+}

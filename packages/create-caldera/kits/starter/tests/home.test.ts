@@ -1,0 +1,18 @@
+import { setupApp } from '@caldera/testing'
+import { expect, it } from 'vitest'
+import { app } from '../src/app.js'
+import { http } from '../src/http.js'
+import { createUser } from './helpers.js'
+
+const t = setupApp(app)
+
+it('renders the welcome page for guests and signed-in users', async () => {
+  ;(await t.client(http).visit('/')).assertOk().assertInertia('Home', { message: 'Your app is running.', appName: '{{ name }}', auth: { user: null } })
+  const client = await t.client(http).actingAs(await createUser(t))
+  ;(await client.visit('/')).assertInertia('Home', (props) => expect(props.auth).toMatchObject({ user: { email: 'ann@example.test' } }))
+})
+
+it('paints the visitor’s light or dark choice on the first load (the appearance cookie)', async () => {
+  const dark = await t.client(http).get('/', { headers: { cookie: 'appearance=dark' } })
+  expect(dark.assertOk().text()).toContain('class="dark"')
+})

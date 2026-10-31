@@ -1,5 +1,5 @@
 import { createApp, defineEnv } from '@caldera/core'
-import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession, type ErrorBody } from '@caldera/http'
+import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera/http'
 import { Hono } from 'hono'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cacheProvider, createCacheService, defineLimiter, every, gcra, perMinute } from '../src/index.js'
@@ -38,6 +38,11 @@ function makeHttp(store: { driver: string; [k: string]: unknown }) {
     .get('burst', '/burst', { throttle: burst }, (c) => c.json({ ok: true }))
     .post('login', '/login', { throttle: login }, (c) => (c.req.header('x-password') === 'right' ? c.json({ ok: true }) : c.json({ ok: false }, 401)))
     .get('trial', '/trial', { throttle: trial }, (c) => c.json({ ok: true }))
+    // A login form: a wrong password is a validation error, which Inertia posts get as a redirect back.
+    .post('form', '/login-form', { throttle: login }, (c) => {
+      if (c.req.header('x-password') !== 'right') throw new ValidationError({ email: ['These credentials do not match our records.'] })
+      return c.json({ ok: true })
+    })
   const router = createRouter(routes)
   return { http: new Hono().use(app.middleware()).use(startSession()).route('/', router.app).onError(errorHandler({ report: () => {} })), router, api }
 }
@@ -104,6 +109,18 @@ describe.each(backends)('limiters on $name', { timeout: 20_000 }, ({ store, setu
 })
 
 describe('integration', () => {
+  it('counts a failed Inertia login, though it answers with a redirect back', async () => {
+    const { http } = makeHttp({ driver: 'memory' })
+    const headers = (password: string) => ({ 'x-inertia': 'true', 'x-email': 'cy@example.test', 'x-password': password, referer: 'http://localhost/login', 'content-type': 'application/json' })
+    for (let i = 0; i < 3; i++) {
+      const res = await http.request('http://localhost/login-form', { method: 'POST', headers: headers('wrong'), body: '{}' })
+      expect(res.status).toBe(303)
+    }
+    // Blocked now, even with the right password.
+    const blocked = await http.request('http://localhost/login-form', { method: 'POST', headers: headers('right'), body: '{}' })
+    expect(blocked.status).not.toBe(200)
+  })
+
   it('shows a refused Inertia form post as a form error', async () => {
     const { http } = makeHttp({ driver: 'memory' })
     const headers = { 'x-inertia': 'true', 'x-email': 'bob@example.test', 'x-password': 'wrong', referer: 'http://localhost/login', 'content-type': 'application/json' }

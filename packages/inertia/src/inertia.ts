@@ -42,6 +42,16 @@ export interface RenderOptions {
   ssr?: boolean
 }
 
+/**
+ * Adds to the HTML document of first visits: attributes on `<html>` and tags at the top of `<head>`
+ * (before the stylesheets and scripts). `appearance()` is one.
+ */
+export interface DocumentPart {
+  attributes?(c: Context): Record<string, string | undefined>
+  /** Inline tags; give `<script>` and `<style>` tags the `nonce`, or the CSP blocks scripts. */
+  head?(c: Context, nonce: string | undefined): string
+}
+
 export interface RootViewContext {
   page: PageObject
   /** Vite tags for the `<head>`. */
@@ -51,6 +61,8 @@ export interface RootViewContext {
   c: Context
   /** The server-rendered page (with `ssr` on): `head` tags, and `body` to use instead of the page script and empty app div. */
   ssr: SsrResult | null
+  /** From the `document` parts: ` class="dark"`-style attributes for `<html>` (with a leading space), and tags for the top of `<head>`. */
+  document: { attributes: string; head: string }
 }
 
 export interface InertiaOptions<S extends Record<string, unknown> = Record<string, unknown>> {
@@ -64,6 +76,8 @@ export interface InertiaOptions<S extends Record<string, unknown> = Record<strin
   rootView?: (context: RootViewContext) => string
   /** Document `<title>` for the default root view. */
   title?: string
+  /** Attributes and inline head tags for every first visit, e.g. `[appearance()]`. */
+  document?: DocumentPart[]
   /**
    * Server-side rendering for first loads (Inertia visits stay JSON): `viteSsr()`. If it fails or
    * times out, the page renders on the client, as without it.
@@ -181,7 +195,8 @@ async function render(c: Context, options: InertiaOptions, version: string | nul
   }
   const nonce = (c.var as { secureHeadersNonce?: string }).secureHeadersNonce
   const [assets, ssr] = await Promise.all([options.assets ? options.assets.tags(nonce) : '', options.ssr && renderOptions.ssr !== false ? renderOnServer(options.ssr, page) : null])
-  const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c, ssr })
+  const document = documentOf(options.document ?? [], c, nonce)
+  const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c, ssr, document })
   return c.html(html)
 }
 
@@ -273,17 +288,37 @@ export function htmlLang(c: Context): string {
   return `lang="${escapeAttribute(locale)}"${dir === 'rtl' ? ' dir="rtl"' : ''}`
 }
 
+/** Merges the parts' attributes (classes are combined; a later part wins for others) and head tags. */
+function documentOf(parts: DocumentPart[], c: Context, nonce: string | undefined): RootViewContext['document'] {
+  const attributes: Record<string, string> = {}
+  for (const part of parts) {
+    for (const [name, value] of Object.entries(part.attributes?.(c) ?? {})) {
+      if (value === undefined) continue
+      attributes[name] = name === 'class' && attributes.class ? `${attributes.class} ${value}` : value
+    }
+  }
+  return {
+    attributes: Object.entries(attributes)
+      .map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`)
+      .join(''),
+    head: parts
+      .map((part) => part.head?.(c, nonce) ?? '')
+      .filter(Boolean)
+      .join('\n    '),
+  }
+}
+
 function defaultRootView(title = 'Caldera') {
-  return ({ page, assets, c, nonce, ssr }: RootViewContext) => {
+  return ({ page, assets, c, nonce, ssr, document }: RootViewContext) => {
     // Scripts a page put in its <Head> run under the strict CSP only with this request's nonce.
     const head = (ssr?.head ?? []).map((tag) => (nonce && tag.startsWith('<script') && !tag.includes(' nonce=') ? tag.replace('<script', `<script nonce="${escapeAttribute(nonce)}"`) : tag))
     const hasTitle = head.some((tag) => tag.startsWith('<title'))
     return `<!doctype html>
-<html ${htmlLang(c)}>
+<html ${htmlLang(c)}${document.attributes}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    ${hasTitle ? '' : `<title>${escapeAttribute(title)}</title>\n    `}${[...head, ...assets.split('\n')].filter(Boolean).join('\n    ')}
+    ${document.head ? `${document.head}\n    ` : ''}${hasTitle ? '' : `<title>${escapeAttribute(title)}</title>\n    `}${[...head, ...assets.split('\n')].filter(Boolean).join('\n    ')}
   </head>
   <body>
     ${ssr ? ssr.body : `<script data-page="app" type="application/json">${serializePage(page)}</script>\n    <div id="app"></div>`}

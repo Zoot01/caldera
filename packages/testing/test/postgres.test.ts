@@ -1,9 +1,11 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDatabase } from '@caldera/db'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { migrateFresh } from '../src/index.js'
+import { migrateFresh, testDatabaseUrl } from '../src/index.js'
 import { hasPostgres, startPostgres } from './postgres-server.js'
 
 describe.runIf(hasPostgres)('a Postgres test database (real server)', () => {
@@ -38,5 +40,18 @@ describe.runIf(hasPostgres)('a Postgres test database (real server)', () => {
     await expect(migrateFresh(db as never, folder, server.url)).rejects.toThrow('Refusing to reset the Postgres database "postgres" for tests: its name must contain "test"')
     expect((await pool.query("select count(*)::int as n from information_schema.tables where table_name = 'keep'")).rows).toEqual([{ n: 1 }])
     await pool.end()
+  })
+})
+
+describe('testDatabaseUrl', () => {
+  it('comes from the environment, then the project’s .env (Vitest doesn’t load it)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'caldera-test-url-'))
+    expect(testDatabaseUrl(dir, {})).toBeUndefined()
+    writeFileSync(join(dir, '.env'), 'DATABASE_URL=postgres://localhost/app\nDATABASE_TEST_URL=postgres://localhost/app_test\n')
+    expect(testDatabaseUrl(dir, {})).toBe('postgres://localhost/app_test')
+    expect(testDatabaseUrl(dir, { DATABASE_TEST_URL: 'postgres://elsewhere/x_test' })).toBe('postgres://elsewhere/x_test')
+    writeFileSync(join(dir, '.env'), 'DATABASE_TEST_URL=\n')
+    expect(testDatabaseUrl(dir, {})).toBeUndefined()
+    rmSync(dir, { recursive: true, force: true })
   })
 })

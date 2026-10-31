@@ -1,13 +1,13 @@
 import { PGlite } from '@electric-sql/pglite'
 import { createApp, defineEnv, type HonoEnvOf } from '@caldera/core'
 import { databaseProvider, type Row } from '@caldera/db'
-import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, sessionProvider, startSession, type ErrorBody } from '@caldera/http'
+import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, redirect, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera/http'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { drizzle } from 'drizzle-orm/pglite'
 import { Hono } from 'hono'
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import { allows, authenticate, authorizationProvider, authRoutes, betterAuthProvider } from '../src/index.js'
+import { allows, authenticate, authorizationProvider, authRoutes, betterAuthProvider, withAuthCookies } from '../src/index.js'
 import { account, Post, relations, SCHEMA_SQL, session, User, users, verification } from './fixtures.js'
 
 const ORIGIN = 'http://localhost:3000'
@@ -64,6 +64,17 @@ async function makeServer() {
       return c.json({ ok: true })
     })
     .get('recall', '/recall', (c) => c.json({ cart: c.var.session.get('cart') ?? null }))
+  // An app's own sign-in and sign-out routes, calling Better Auth on the server.
+  const forms = defineRoutes('forms')
+    .post('login', '/login', async (c) => {
+      const body = (await c.req.json()) as { email: string; password: string }
+      const res = await c.var.auth.api.signInEmail({ body, headers: c.req.raw.headers, asResponse: true })
+      if (!res.ok) throw new ValidationError({ email: ['These credentials do not match our records.'] })
+      return withAuthCookies(c, res, redirect(c, '/home'))
+    })
+    .post('logout', '/logout', async (c) =>
+      withAuthCookies(c, await c.var.auth.api.signOut({ headers: c.req.raw.headers, asResponse: true }), redirect(c, '/')),
+    )
   const posts = defineRoutes('posts').post('store', '/posts', { middleware: [mw.auth()], authorize: allows(Post, 'create') }, async (c) => {
     const post = await Post.create({ slug: `p-${Date.now()}`, authorId: c.var.user!.id })
     return c.json({ id: post.id }, 201)
@@ -73,7 +84,7 @@ async function makeServer() {
     .use(originCheck({ trustedOrigins: TRUSTED }))
     .use(app.middleware())
     .use(startSession())
-    .route('/', authRoutes()).route('/', createRouter(me, posts).app).onError(errorHandler())
+    .route('/', authRoutes()).route('/', createRouter(me, posts, forms).app).onError(errorHandler())
   return { http, client, app }
 }
 
@@ -131,24 +142,24 @@ describe('Better Auth integration', () => {
   })
 })
 
-describe('the app session', () => {
-  /** Keeps both cookies, like a browser. */
-  function jar() {
-    const cookies = new Map<string, string>()
-    return async (method: string, path: string, body?: unknown) => {
-      const headers: Record<string, string> = { origin: ORIGIN, cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join('; ') }
-      if (body) headers['content-type'] = 'application/json'
-      const res = await server.http.request(`${ORIGIN}${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) }, {})
-      for (const cookie of res.headers.getSetCookie()) {
-        const [pair] = cookie.split(';')
-        const [name, value] = [pair!.slice(0, pair!.indexOf('=')), pair!.slice(pair!.indexOf('=') + 1)]
-        if (value === '' || /max-age=0/i.test(cookie)) cookies.delete(name)
-        else cookies.set(name, value)
-      }
-      return { res, json: async () => (await res.json()) as Record<string, unknown>, appCookie: () => cookies.get('caldera_session') }
+/** Keeps both cookies, like a browser. */
+function jar() {
+  const cookies = new Map<string, string>()
+  return async (method: string, path: string, body?: unknown) => {
+    const headers: Record<string, string> = { origin: ORIGIN, cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join('; ') }
+    if (body) headers['content-type'] = 'application/json'
+    const res = await server.http.request(`${ORIGIN}${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) }, {})
+    for (const cookie of res.headers.getSetCookie()) {
+      const [pair] = cookie.split(';')
+      const [name, value] = [pair!.slice(0, pair!.indexOf('=')), pair!.slice(pair!.indexOf('=') + 1)]
+      if (value === '' || /max-age=0/i.test(cookie)) cookies.delete(name)
+      else cookies.set(name, value)
     }
+    return { res, json: async () => (await res.json()) as Record<string, unknown>, appCookie: () => cookies.get('caldera_session') }
   }
+}
 
+describe('the app session', () => {
   it('is reissued on sign-in and cleared on sign-out', async () => {
     const send = jar()
     await send('POST', '/remember')
@@ -163,6 +174,45 @@ describe('the app session', () => {
     expect(signedOut.res.status).toBe(200)
     expect(signedOut.appCookie()).toBeUndefined()
     expect(await (await send('GET', '/recall')).json()).toEqual({ cart: null })
+  })
+})
+
+describe('transactions', () => {
+  it('joins the app’s open transaction: a sign-up rolled back with it leaves nothing behind', async () => {
+    await server.app.boot()
+    const { db, auth } = server.app.services
+    await expect(
+      db.transaction(async () => {
+        await auth.api.signUpEmail({ body: { name: 'Ann', email: 'ann@example.test', password: 'correct-horse-battery' } })
+        throw new Error('rolled back')
+      }),
+    ).rejects.toThrow('rolled back')
+    expect((await server.client.query('select count(*)::int as n from users')).rows).toEqual([{ n: 0 }])
+    // Outside a transaction, it writes as usual.
+    await auth.api.signUpEmail({ body: { name: 'Ann', email: 'ann@example.test', password: 'correct-horse-battery' } })
+    expect((await server.client.query('select count(*)::int as n from users')).rows).toEqual([{ n: 1 }])
+  })
+})
+
+describe('withAuthCookies', () => {
+  it('signs in and out from the app’s own routes: Better Auth’s cookies on the app’s redirect, the app session in step', async () => {
+    const send = jar()
+    await send('POST', '/api/auth/sign-up/email', { name: 'Ann', email: 'ann@example.test', password: 'correct-horse-battery' })
+    await send('POST', '/api/auth/sign-out', {})
+    expect((await send('POST', '/login', { email: 'ann@example.test', password: 'wrong-password' })).res.status).toBe(422)
+    await send('POST', '/remember')
+    const before = (await send('GET', '/recall')).appCookie()
+    const signedIn = await send('POST', '/login', { email: 'ann@example.test', password: 'correct-horse-battery' })
+    expect(signedIn.res.status).toBe(303)
+    expect(signedIn.res.headers.get('location')).toBe('/home')
+    expect(signedIn.appCookie()).not.toBe(before)
+    expect(await (await send('GET', '/me')).json()).toMatchObject({ email: 'ann@example.test' })
+    expect(await (await send('GET', '/recall')).json()).toEqual({ cart: ['book'] })
+
+    const signedOut = await send('POST', '/logout')
+    expect(signedOut.res.headers.get('location')).toBe('/')
+    expect(signedOut.appCookie()).toBeUndefined()
+    expect((await send('GET', '/me')).res.status).toBe(401)
   })
 })
 

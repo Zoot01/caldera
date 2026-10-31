@@ -1,0 +1,29 @@
+{
+  "//": "Merged into the app's package.json by create-caldera (dependencies, devDependencies, scripts).",
+  "dependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@caldera/inertia": "^0.0.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@hono/node-server": "^2.1.5",
+    "@inertiajs/core": "^3.9.1",
+    "@inertiajs/react": "^3.9.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.64.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@inertiajs/vite": "^3.9.1",
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.5"
+  },
+  "scripts": {
+    "build": "vite build && vite build --ssr",
+    "start": "tsx src/server.ts",
+    "test:browser": "playwright test"
+  }
+}
