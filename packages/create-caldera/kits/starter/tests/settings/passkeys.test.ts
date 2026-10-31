@@ -4,7 +4,7 @@ import { expect, it } from 'vitest'
 import { app } from '../../src/app.js'
 import { http } from '../../src/http.js'
 import { passkey } from '../../src/db/schema.js'
-import { createUser } from '../helpers.js'
+import { actingAsConfirmed, createUser } from '../helpers.js'
 
 const t = setupApp(app)
 
@@ -12,7 +12,7 @@ const t = setupApp(app)
 // tests cover those. Here: the settings page and removing one.
 
 it('lists the person’s passkeys on the security page', async () => {
-  const client = await t.client(http).actingAs(await createUser(t))
+  const client = await actingAsConfirmed(t, await createUser(t))
   ;(await client.visit('/settings/security')).assertInertia('settings/Security', (props) => expect(props.passkeys).toEqual([]))
 })
 
@@ -25,16 +25,18 @@ it('can’t remove a passkey that isn’t theirs', async () => {
   const id = crypto.randomUUID()
   // Stored as a registration would (its key material is never read here).
   await defaultDatabase().current().insert(passkey).values({ id, name: 'Bob’s phone', publicKey: 'key', userId: bob.id, credentialID: 'cred', counter: 0, deviceType: 'singleDevice', backedUp: false, createdAt: new Date() })
-  const client = await t.client(http).actingAs(await createUser(t))
+  const client = await actingAsConfirmed(t, await createUser(t))
   ;(await client.delete(`/settings/passkeys/${id}`)).assertNotFound()
   ;(await client.delete('/settings/passkeys/not-an-id')).assertNotFound()
   expect(await defaultDatabase().current().select().from(passkey)).toHaveLength(1)
 })
 
-it('starts registration only for signed-in people', async () => {
+it('starts registration only for signed-in people who confirmed their password recently', async () => {
   const guest = await t.client(http).get('/api/auth/passkey/generate-register-options')
   expect(guest.status).toBe(401)
-  const client = await t.client(http).actingAs(await createUser(t))
+  const unconfirmed = await t.client(http).actingAs(await createUser(t, { email: 'bob@example.test' }))
+  expect((await unconfirmed.get('/api/auth/passkey/generate-register-options')).status).toBe(403)
+  const client = await actingAsConfirmed(t, await createUser(t))
   const options = await client.get('/api/auth/passkey/generate-register-options')
   expect(options.status).toBe(200)
   expect(JSON.parse(options.text())).toMatchObject({ rp: { id: 'localhost' }, user: { name: 'ann@example.test' } })

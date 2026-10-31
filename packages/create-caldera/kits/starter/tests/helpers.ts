@@ -1,4 +1,5 @@
 import type { TestApp } from '@caldera/testing'
+import { http } from '../src/http.js'
 import { User } from '../src/models/user.js'
 
 export const PASSWORD = 'correct-horse-battery'
@@ -10,4 +11,14 @@ export async function createUser(t: TestApp<any>, attributes: { name?: string; e
   const input = { name: 'Ann', email: 'ann@example.test', password: PASSWORD, ...attributes }
   await t.services.auth.api.signUpEmail({ body: input })
   return (await User.findFirst({ where: { email: input.email } }))!
+}
+
+/**
+ * Signed in as `user` with the password just confirmed, as after signing in with it: what pages
+ * behind `mw.passwordConfirmed()` (Security) need.
+ */
+export async function actingAsConfirmed(t: TestApp<any>, user: { id: string }) {
+  const client = await t.client(http).actingAs(user as never)
+  ;(await client.post('/confirm-password', { json: { password: PASSWORD } })).assertRedirect()
+  return client
 }

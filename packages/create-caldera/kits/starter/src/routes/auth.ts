@@ -50,6 +50,7 @@ export const auth = defineRoutes('auth')
     if (!res.ok) throw new ValidationError({ email: ['This email address is already registered.'] })
     // With mustVerifyEmail, Better Auth signs people in only once they've clicked the link.
     if (c.var.config.auth.mustVerifyEmail) return redirect(c, '/login').with('status', 'Check your inbox: click the link we sent to confirm your email, then sign in.')
+    confirmPassword(c)
     return withAuthCookies(c, res, redirect(c, c.var.config.auth.home))
   })
   .get('login', '/login', { middleware: [mw.guest()] }, (c) => c.render('auth/Login', { canResetPassword: true, canRegister: true, passkeys: c.var.config.auth.passkeys }))
@@ -60,6 +61,8 @@ export const auth = defineRoutes('auth')
     if (!res.ok) throw new ValidationError({ email: ['These credentials don’t match our records.'] })
     // Two-factor on: the password was right, and Better Auth wants the second factor before signing in.
     if (((await res.clone().json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect) return withAuthCookies(c, res, redirect(c, '/two-factor-challenge'))
+    // The password was just typed: sensitive settings don't ask for it again (mw.passwordConfirmed()).
+    confirmPassword(c)
     return withAuthCookies(c, res, intended(c, c.var.config.auth.home))
   })
   // Where the browser goes after signing in with a passkey (Better Auth's endpoint set the session).
@@ -76,6 +79,8 @@ export const auth = defineRoutes('auth')
       ? await c.var.auth.api.verifyBackupCode({ body: { code: recoveryCode, trustDevice: remember }, headers: headers(c), asResponse: true })
       : await c.var.auth.api.verifyTOTP({ body: { code: code ?? '', trustDevice: remember }, headers: headers(c), asResponse: true })
     if (!res.ok) throw new ValidationError(recoveryCode ? { recoveryCode: ['That recovery code is invalid or used.'] } : { code: ['That code is invalid.'] })
+    // Signed in with the password and a second factor.
+    confirmPassword(c)
     return withAuthCookies(c, res, intended(c, c.var.config.auth.home))
   })
   .post('logout', '/logout', { middleware: [mw.auth()] }, async (c) => {

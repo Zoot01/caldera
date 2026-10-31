@@ -37,7 +37,8 @@ export async function askCreateOptions(
       : (given.kit ??
         (await prompter.select('Starter kit', KITS, 'starter', { starter: 'Auth, settings and a dashboard', blank: 'Tailwind and the UI kit, one page' }, { starter: 'Starter', blank: 'Blank' })))
   // Teams change the data model (every account gets a team), so they're asked for up front.
-  const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : undefined
+  // --teams with another kit is passed on, so creating refuses it as it would without a terminal.
+  const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : given.teams
   const database =
     given.database ??
     (await prompter.select('Database', DATABASES, 'sqlite', { sqlite: 'A local file; Turso or D1 in production', postgres: 'Needs a Postgres server' }, { sqlite: 'SQLite', postgres: 'Postgres' }))

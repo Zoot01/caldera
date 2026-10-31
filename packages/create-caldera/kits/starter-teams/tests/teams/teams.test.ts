@@ -110,6 +110,15 @@ it('deletes teams, but never a personal one', async () => {
   ;(await client.visit(`/settings/teams/${acme}`)).assertNotFound()
 })
 
+it('stays in the current team when deleting another one', async () => {
+  const client = await t.client(http).actingAs(await createUser(t))
+  const acme = await createTeam(client, 'Acme')
+  const globex = await createTeam(client, 'Globex')
+  ;(await client.post('/teams/switch', { json: { teamId: acme } })).assertRedirect()
+  ;(await client.delete(`/settings/teams/${globex}`)).assertRedirect('/settings/teams')
+  expect((await teamsOf(client)).current).toMatchObject({ id: acme })
+})
+
 it('renames a team', async () => {
   const client = await t.client(http).actingAs(await createUser(t))
   const acme = await createTeam(client, 'Acme')

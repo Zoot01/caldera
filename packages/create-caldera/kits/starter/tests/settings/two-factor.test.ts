@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import { app } from '../../src/app.js'
 import { http } from '../../src/http.js'
 import { User } from '../../src/models/user.js'
-import { createUser, PASSWORD, totp } from '../helpers.js'
+import { actingAsConfirmed, createUser, PASSWORD, totp } from '../helpers.js'
 
 const t = setupApp(app)
 
@@ -19,7 +19,7 @@ async function turnOn(client: TestClient) {
 
 it('turns on only after a right code from the app, and shows the recovery codes once', async () => {
   const user = await createUser(t)
-  const client = await t.client(http).actingAs(user)
+  const client = await actingAsConfirmed(t, user)
   await (await client.post('/settings/two-factor', { json: { password: 'wrong-password' } })).assertValidationErrors(['password'])
   ;(await client.post('/settings/two-factor', { json: { password: PASSWORD } })).assertRedirect()
   await (await client.post('/settings/two-factor/confirm', { json: { code: '000000' } })).assertValidationErrors(['code'])
@@ -33,7 +33,7 @@ it('turns on only after a right code from the app, and shows the recovery codes 
 })
 
 it('asks for a code after the password, then signs in', async () => {
-  const client = await t.client(http).actingAs(await createUser(t))
+  const client = await actingAsConfirmed(t, await createUser(t))
   const { key } = await turnOn(client)
   await client.post('/logout')
 
@@ -47,7 +47,7 @@ it('asks for a code after the password, then signs in', async () => {
 })
 
 it('takes a recovery code instead, once', async () => {
-  const client = await t.client(http).actingAs(await createUser(t))
+  const client = await actingAsConfirmed(t, await createUser(t))
   const { recoveryCodes } = await turnOn(client)
   await client.post('/logout')
   await client.post('/login', { json: { email: 'ann@example.test', password: PASSWORD } })
@@ -64,7 +64,7 @@ it('sends people without a pending sign-in back to the login page', async () => 
 
 it('turns off with the password', async () => {
   const user = await createUser(t)
-  const client = await t.client(http).actingAs(user)
+  const client = await actingAsConfirmed(t, user)
   await turnOn(client)
   await (await client.delete('/settings/two-factor', { json: { password: 'wrong-password' } })).assertValidationErrors(['password'])
   ;(await client.delete('/settings/two-factor', { json: { password: PASSWORD } })).assertRedirect()

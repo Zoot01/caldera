@@ -1,3 +1,4 @@
+import { defaultDatabase } from '@caldera/db'
 import { mail } from '@caldera/mail'
 import { organization } from 'better-auth/plugins'
 import { asc, eq } from 'drizzle-orm'
@@ -80,15 +81,20 @@ export function teamHooks(db: any) {
   }
 }
 
-/** The signed-in person's teams and the current one, for every page (src/inertia.ts shares it). */
+/**
+ * The signed-in person's teams and the current one, for every page (src/inertia.ts shares it). One
+ * query, oldest membership first (the personal team leads); a partial reload that doesn't ask skips it.
+ */
 export async function teamsFor(c: Context) {
-  const vars = c.var as {
-    user?: unknown
-    authSession?: { activeOrganizationId?: string | null } | null
-    auth: { api: { listOrganizations(options: { headers: Headers }): Promise<{ id: string; name: string; metadata?: unknown }[]> } }
-  }
+  const vars = c.var as { user?: { id: string } | null; authSession?: { activeOrganizationId?: string | null } | null }
   if (!vars.user) return null
-  const all = await vars.auth.api.listOrganizations({ headers: c.req.raw.headers })
+  const all: { id: string; name: string; metadata: unknown }[] = await defaultDatabase()
+    .current()
+    .select({ id: teams.id, name: teams.name, metadata: teams.metadata })
+    .from(member)
+    .innerJoin(teams, eq(member.organizationId, teams.id))
+    .where(eq(member.userId, vars.user.id))
+    .orderBy(asc(member.createdAt))
   const summary = (team: (typeof all)[number]) => ({ id: team.id, name: team.name, personal: isPersonal(team) })
   const current = all.find((team) => team.id === vars.authSession?.activeOrganizationId)
   return { current: current ? summary(current) : null, all: all.map(summary) }

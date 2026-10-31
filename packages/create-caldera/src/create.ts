@@ -181,7 +181,7 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     // Browser tests (Playwright) and CI that runs them.
     appendFileSync(join(directory, '.gitignore'), 'test-results/\nplaywright-report/\nblob-report/\n')
     mkdirSync(join(directory, '.github/workflows'), { recursive: true })
-    writeFileSync(join(directory, '.github/workflows/ci.yml'), ciWorkflow(pm, database, name, version))
+    writeFileSync(join(directory, '.github/workflows/ci.yml'), ciWorkflow(pm, run, database, name, version))
   }
   if (version) manifest.packageManager = `${pm}@${version}` // never a bare name: corepack rejects it
   const overrides = options.link ? linkLocalPackages(manifest, resolve(options.link), directory, pm) : []
@@ -248,11 +248,12 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   if (target !== 'node' && kit) {
     await attempt('target', installed, [...exec, 'caldera', `${target}:setup`])
     report()
-    // Local secrets for `wrangler dev`, like .env: the same APP_KEY.
-    if (target === 'cloudflare' && steps.at(-1)!.status === 'done') {
-      const key = readFileSync(join(directory, '.env'), 'utf8').match(/^APP_KEY=.*$/m)![0]
-      writeFileSync(join(directory, '.dev.vars'), `${key}\n`)
-    }
+  }
+  // Local secrets for `wrangler dev`, like .env: the same APP_KEY. Written even when the setup step is
+  // left to the next steps, which don't mention it.
+  if (target === 'cloudflare') {
+    const key = readFileSync(join(directory, '.env'), 'utf8').match(/^APP_KEY=.*$/m)![0]
+    writeFileSync(join(directory, '.dev.vars'), `${key}\n`)
   }
   const git = (options.git ?? true) && commandExists('git', env)
   if (git) {
@@ -410,7 +411,7 @@ const STARTER_AGENTS =
   'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
   'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (sidebar or header; simple, card or split), so switching is one line. Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
-  'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`. ' +
+  'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password counts as confirming it). ' +
   'Browser tests sign up with `register(page)`, log out with `logOut(page, name)` and use passkeys through `virtualAuthenticator(context, page)` (Chrome\'s virtual authenticator), all from `tests/browser/helpers.ts`.'
 
 const TEAMS_AGENTS =
@@ -533,8 +534,7 @@ export default defineConfig({ test: { fileParallelism: false } })
  * GitHub Actions for a kit app: types, tests and browser tests on every push and pull request, with
  * the package manager the app was made with (and a Postgres service for Postgres apps).
  */
-function ciWorkflow(pm: PackageManager, database: Database, name: string, version: string | undefined): string {
-  const run = pm === 'npm' || pm === 'bun' ? `${pm} run` : pm
+function ciWorkflow(pm: PackageManager, run: string, database: Database, name: string, version: string | undefined): string {
   const install = { pnpm: 'pnpm install --frozen-lockfile', npm: 'npm ci', yarn: 'yarn install --frozen-lockfile', bun: 'bun install --frozen-lockfile' }[pm]
   const testDatabase = `${databaseName(name)}_test`
   const lines = [
@@ -542,7 +542,8 @@ function ciWorkflow(pm: PackageManager, database: Database, name: string, versio
     '',
     'on:',
     '  push:',
-    '    branches: [main]',
+    // `git init`'s default branch is either, depending on the machine.
+    '    branches: [main, master]',
     '  pull_request:',
     '',
     'jobs:',
@@ -571,7 +572,9 @@ function ciWorkflow(pm: PackageManager, database: Database, name: string, versio
     '      - uses: actions/setup-node@v5',
     '        with:',
     '          node-version: 24',
-    ...(pm === 'bun' ? [] : [`          cache: ${pm}`]),
+    // Yarn 2+ (package.json's packageManager) comes from corepack; the runner's global Yarn is 1.x.
+    ...(pm === 'bun' || pm === 'yarn' ? [] : [`          cache: ${pm}`]),
+    ...(pm === 'yarn' ? ['      - run: corepack enable'] : []),
     `      - run: ${install}`,
     `      - run: ${run} typecheck`,
     `      - run: ${run} test`,

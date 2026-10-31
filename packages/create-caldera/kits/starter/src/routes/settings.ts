@@ -46,19 +46,28 @@ export const settings = defineRoutes('settings', { prefix: '/settings', middlewa
   .patch('profile.update', '/profile', { request: Profile }, async (c) => {
     const { name, email } = c.req.valid('json')
     const user = c.var.user!
-    if (name !== user.name) await c.var.auth.api.updateUser({ body: { name }, headers: headers(c) })
-    if (email === user.email) return back(c).with('status', 'profile-updated')
-    // Better Auth changes an unverified address at once; a verified one only after the new address confirms.
-    const res = await c.var.auth.api.changeEmail({ body: { newEmail: email, callbackURL: '/settings/profile' }, headers: headers(c), asResponse: true })
-    if (!res.ok) throw new ValidationError({ email: ['That email address can’t be used.'] })
-    return withAuthCookies(c, res, back(c).with('status', user.emailVerified ? 'email-change-sent' : 'profile-updated'))
+    // The email first: if it's refused, nothing has been saved behind the error. (An address someone else
+    // has isn't refused: Better Auth answers as if it worked and changes nothing, so accounts can't be found.)
+    let response = back(c).with('status', 'profile-updated')
+    if (email !== user.email) {
+      // Better Auth changes an unverified address at once; a verified one only after the new address confirms.
+      const res = await c.var.auth.api.changeEmail({ body: { newEmail: email, callbackURL: '/settings/profile' }, headers: headers(c), asResponse: true })
+      if (!res.ok) throw new ValidationError({ email: ['That email address can’t be used.'] })
+      response = withAuthCookies(c, res, back(c).with('status', user.emailVerified ? 'email-change-sent' : 'profile-updated'))
+    }
+    if (name !== user.name) {
+      const res = await c.var.auth.api.updateUser({ body: { name }, headers: headers(c), asResponse: true })
+      if (!res.ok) throw new ValidationError({ name: ['Your name couldn’t be saved. Try again.'] })
+      withAuthCookies(c, res, response)
+    }
+    return response
   })
   .delete('profile.destroy', '/profile', { request: DeleteAccount }, async (c) => {
     const res = await c.var.auth.api.deleteUser({ body: { password: c.req.valid('json').password }, headers: headers(c), asResponse: true })
     if (!res.ok) throw new ValidationError({ password: ['That password is incorrect.'] })
     return withAuthCookies(c, res, redirect(c, '/'))
   })
-  .get('security', '/security', async (c) => {
+  .get('security', '/security', { middleware: [mw.passwordConfirmed()] }, async (c) => {
     const { twoFactor, passkeys } = c.var.config.auth
     const setup = c.var.session.get<Setup>(SETUP)
     const uri = setup && !c.var.user!.twoFactorEnabled ? setup.uri : null
@@ -109,7 +118,7 @@ export const settings = defineRoutes('settings', { prefix: '/settings', middlewa
   })
   // Passkeys are added in the browser (resources/components/passkeys.tsx talks to Better Auth's
   // WebAuthn endpoints under /api/auth); this removes one.
-  .delete('passkeys.destroy', '/passkeys/:id', { authorize: feature('passkeys') }, async (c) => {
+  .delete('passkeys.destroy', '/passkeys/:id', { middleware: [mw.passwordConfirmed()], authorize: feature('passkeys') }, async (c) => {
     // Ids are UUIDs (Postgres refuses anything else in the query).
     const id = c.req.param('id')
     if (!z.uuid().safeParse(id).success) throw new NotFoundError()

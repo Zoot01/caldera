@@ -19,6 +19,15 @@ it('updates the name and, for an unverified address, the email at once', async (
   expect(await User.find(user.id)).toMatchObject({ name: 'Ann Lee', email: 'ann.lee@example.test', emailVerified: false })
 })
 
+it('never takes someone else’s address, or says whose it is', async () => {
+  await createUser(t, { name: 'Bob', email: 'bob@example.test' })
+  const user = await createUser(t)
+  const client = await t.client(http).actingAs(user)
+  // Better Auth answers as if it worked, so the form can't be used to find accounts.
+  ;(await client.patch('/settings/profile', { json: { name: 'Ann Lee', email: 'bob@example.test' } })).assertRedirect()
+  expect(await User.find(user.id)).toMatchObject({ name: 'Ann Lee', email: 'ann@example.test' })
+})
+
 it('deletes the account with the right password', async () => {
   const user = await createUser(t)
   const client = await t.client(http).actingAs(user)

@@ -54,6 +54,10 @@ describe('askCreateOptions', () => {
     const options = await askCreateOptions(prompter, { directory: 'x', database: 'sqlite', target: 'node', packageManager: 'pnpm', install: false })
     expect(options).toMatchObject({ kit: 'starter', teams: true })
     expect(asked).toEqual(['Starter kit (starter)', 'Add teams support? (false)'])
+    // --teams with Blank is passed on (not dropped), so creating refuses it as it does without a terminal.
+    const blank = scripted(['blank'])
+    expect(await askCreateOptions(blank.prompter, { directory: 'x', teams: true, database: 'sqlite', target: 'node', packageManager: 'pnpm', install: false })).toMatchObject({ kit: 'blank', teams: true })
+    expect(blank.asked).toEqual(['Starter kit (starter)'])
   })
 
   it('offers only the targets that work with the answers so far', async () => {

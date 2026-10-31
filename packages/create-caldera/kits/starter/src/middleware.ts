@@ -23,10 +23,10 @@ export const mw = defineMiddleware({
     if (c.var.config.auth.mustVerifyEmail && c.var.user && !c.var.user.emailVerified) return redirect(c, '/verify-email')
     await next()
   },
-  // Asked for the password again within `passwordTimeoutSeconds` (sensitive settings).
+  // The password typed within `passwordTimeoutSeconds` (sensitive settings: Security). Otherwise
+  // /confirm-password first, then back here.
   passwordConfirmed: () => async (c: Context, next: Next) => {
-    const at = c.var.session.get<number>(PASSWORD_CONFIRMED_AT)
-    if (at === undefined || Date.now() - at > c.var.config.auth.passwordTimeoutSeconds * 1000) {
+    if (!passwordConfirmed(c)) {
       if (c.req.method === 'GET') c.var.session.put('url.intended', c.req.path)
       return redirect(c, '/confirm-password')
     }
@@ -34,7 +34,13 @@ export const mw = defineMiddleware({
   },
 })
 
-/** Records a fresh password confirmation (POST /confirm-password). */
+/** Records a fresh password confirmation: POST /confirm-password, and signing in with the password. */
 export function confirmPassword(c: Context) {
   c.var.session.put(PASSWORD_CONFIRMED_AT, Date.now())
+}
+
+/** Was the password typed within `passwordTimeoutSeconds`? */
+export function passwordConfirmed(c: Context) {
+  const at = c.var.session.get<number>(PASSWORD_CONFIRMED_AT)
+  return at !== undefined && Date.now() - at <= c.var.config.auth.passwordTimeoutSeconds * 1000
 }

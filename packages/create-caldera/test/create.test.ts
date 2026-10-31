@@ -214,6 +214,12 @@ describe('createProject', () => {
     expect(bunCi).toMatch(/- uses: oven-sh\/setup-bun@v2[\s\S]*- run: bun run test\n[\s\S]*- run: bun run test:browser/)
     expect(readFileSync(join(bun.directory, 'README.md'), 'utf8')).toContain('bun run test ')
     expect(bun.next.at(-1)).toBe('bun run dev')
+    // Yarn 2+ comes from corepack, not the runner's global Yarn 1.
+    const yarn = await createProject({ directory: join(base, 'browser-yarn'), ...offline, packageManager: 'yarn' })
+    const yarnCi = readFileSync(join(yarn.directory, '.github/workflows/ci.yml'), 'utf8')
+    expect(yarnCi).toMatch(/node-version: 24\n      - run: corepack enable\n      - run: yarn install/)
+    expect(yarnCi).not.toContain('cache: yarn')
+    expect(ci).toContain('branches: [main, master]')
 
     // Next.js apps have no browser tests or workflow yet.
     const next = await createProject({ directory: join(base, 'browser-next'), ...offline, frontend: 'next' })
@@ -276,6 +282,8 @@ describe('createProject', () => {
     const workers = await createProject({ directory: join(base, 'w'), ...offline, packageManager: 'pnpm', target: 'cloudflare' })
     expect(JSON.parse(readFileSync(join(workers.directory, 'package.json'), 'utf8')).devDependencies.wrangler).toBe('4.151.0')
     expect(readFileSync(join(workers.directory, '.gitignore'), 'utf8')).toContain('.dev.vars')
+    // With the setup step left for later too: `wrangler dev` gets the APP_KEY from .env.
+    expect(readFileSync(join(workers.directory, '.dev.vars'), 'utf8')).toBe(`${readFileSync(join(workers.directory, '.env'), 'utf8').match(/^APP_KEY=.*$/m)![0]}\n`)
     // Vercel builds Next.js apps itself: nothing to set up.
     const next = await createProject({ directory: join(base, 'nv'), ...offline, frontend: 'next', target: 'vercel' })
     expect(next.steps.map((s) => s.name)).not.toContain('target')

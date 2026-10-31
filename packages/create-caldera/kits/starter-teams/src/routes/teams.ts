@@ -40,6 +40,12 @@ async function switchToPersonal(c: Context) {
   return c.var.auth.api.setActiveOrganization({ body: { organizationId: personal?.id ?? null }, headers: headers(c), asResponse: true })
 }
 
+/** After deleting or leaving a team: back to the personal team if that was the current one, else stay put. */
+async function leftTeam(c: Context, teamId: string, response: Response) {
+  if (c.var.authSession?.activeOrganizationId !== teamId) return response
+  return withAuthCookies(c, await switchToPersonal(c), response)
+}
+
 export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.verified()] })
   // The team switcher in the sidebar.
   .post('switch', '/teams/switch', { request: Switch }, async (c) => {
@@ -89,11 +95,12 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
     if (!team) throw new NotFoundError()
     if (isPersonal(team)) throw new ForbiddenError('Your personal team can’t be deleted.')
     await check(await c.var.auth.api.deleteOrganization({ body: { organizationId: teamId }, headers: headers(c), asResponse: true }))
-    return withAuthCookies(c, await switchToPersonal(c), redirect(c, '/settings/teams').with('status', 'team-deleted'))
+    return leftTeam(c, teamId, redirect(c, '/settings/teams').with('status', 'team-deleted'))
   })
   .post('leave', '/settings/teams/:team/leave', async (c) => {
-    await check(await c.var.auth.api.leaveOrganization({ body: { organizationId: id(c, 'team') }, headers: headers(c), asResponse: true }))
-    return withAuthCookies(c, await switchToPersonal(c), redirect(c, '/settings/teams').with('status', 'team-left'))
+    const teamId = id(c, 'team')
+    await check(await c.var.auth.api.leaveOrganization({ body: { organizationId: teamId }, headers: headers(c), asResponse: true }))
+    return leftTeam(c, teamId, redirect(c, '/settings/teams').with('status', 'team-left'))
   })
 
   .post('invitations.store', '/settings/teams/:team/invitations', { request: Invite }, async (c) => {
