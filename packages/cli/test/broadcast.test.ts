@@ -119,11 +119,41 @@ it('cloudflare:setup adds the BroadcastHub Durable Object, and check refuses a l
   expect(issues.map((i) => i.code)).toEqual(['workers_broadcast_local'])
 })
 
-it('make:channel writes a private channel in src/channels', async () => {
+it('make:channel writes a channel nobody may join yet, or one bound to its model and checked by its policy', async () => {
   const dir = await fresh()
-  const result = await make(openProject(dir), 'channel', 'Orders')
-  expect(result.created).toEqual(['src/channels/orders.ts'])
+  const project = openProject(dir)
+  const read = (path: string) => readFileSync(join(dir, path), 'utf8')
+  // No Order model: denies everyone, with how to open it up; --presence shows who's there.
+  const orders = await make(project, 'channel', 'Order', { presence: true })
+  expect(orders.created).toEqual(['src/channels/order.ts'])
+  expect(orders.generate).toBe('ok')
+  expect(read('src/channels/order.ts')).toContain(
+    "export const OrderChannel = defineChannel('orders.{order}', {\n  type: 'presence',\n  authorize: () => false,\n  member: ({ user }) => ({ name: user.name }),\n})",
+  )
+  expect(read('src/channels/order.ts')).toContain("//   authorize: ({ gate, order }) => gate.can(Order, 'view', order),")
+  expect(orders.hints[0]).toContain("const { members } = usePresence('orders.{order}', { order: order.id }")
+  // A User model: bound, and its policy decides.
+  await make(project, 'channel', 'User')
+  expect(read('src/channels/user.ts')).toContain("import { User } from '../models/user.js'")
+  expect(read('src/channels/user.ts')).toContain(
+    "defineChannel('users.{user}', {\n  bind: { user: User },\n  authorize: ({ gate, user }) => gate.can(User, 'view', user),\n})",
+  )
+  expect(read('.caldera/broadcast.client.gen.ts')).toContain('"orders.{order}": "presence"')
+})
+
+it('make:event --channel writes an event browsers get on that channel, with a dotted name', async () => {
+  const dir = await fresh()
+  const project = openProject(dir)
+  await make(project, 'channel', 'Order')
+  const result = await make(project, 'event', 'OrderShipped', { channel: 'Order' })
+  const source = readFileSync(join(dir, 'src/events/order-shipped.ts'), 'utf8')
+  expect(source).toContain("import { OrderChannel } from '../channels/order.js'")
+  expect(source).toContain("name: 'order.shipped',")
+  expect(source).toContain('payload: z.object({ orderId: z.string() }),')
+  expect(source).toContain('on: (p) => OrderChannel.with({ order: p.orderId }),')
   expect(result.generate).toBe('ok')
-  expect(readFileSync(join(dir, 'src/channels/orders.ts'), 'utf8')).toContain("export const OrdersChannel = defineChannel('orders.{id}', {")
-  expect(readFileSync(join(dir, '.caldera/broadcast.client.gen.ts'), 'utf8')).toContain('"orders.{id}": "private"')
+  // Without --channel: in-process only, and the hint says how to broadcast.
+  const plain = await make(project, 'event', 'Ping')
+  expect(readFileSync(join(dir, 'src/events/ping.ts'), 'utf8')).toContain("name: 'ping',")
+  expect(plain.hints[0]).toContain('--channel <Channel>')
 })

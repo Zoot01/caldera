@@ -287,18 +287,46 @@ export const {{ name }} = defineSchedule('{{ kebab }}', {
 import { z } from 'zod'
 
 export const {{ Name }} = defineEvent({
-  name: '{{ kebab }}',
+  name: '{{ eventName }}',
   payload: z.object({ id: z.string() }),
+})
+`,
+  'event-broadcast': `import { defineEvent } from '@caldera/events'
+import { z } from 'zod'
+import { {{ Channel }}Channel } from '../channels/{{ channelKebab }}.js'
+
+export const {{ Name }} = defineEvent({
+  name: '{{ eventName }}',
+  payload: z.object({ {{ channelParam }}Id: z.string() }),
+  // Also sent to browsers on the channel, after the transaction commits (\`emit(..., { toOthers: true })\`
+  // skips the browser that made the request). \`with\` is what browsers get: never more than the
+  // channel's members may see. Pages listen with useChannel()/usePresence().
+  broadcast: {
+    on: (p) => {{ Channel }}Channel.with({ {{ channelParam }}: p.{{ channelParam }}Id }),
+    with: (p) => ({ {{ channelParam }}Id: p.{{ channelParam }}Id }),
+  },
 })
 `,
   channel: `import { defineChannel } from '@caldera/broadcast'
 
-// Private: browsers join through /_caldera/broadcast/auth, and only when authorize() says so.
-// Bind a parameter to load its row (\`bind: { post: Post }\` for \`posts.{post}\`), and check a policy:
-// \`authorize: ({ gate, post }) => gate.can(Post, 'view', post)\`.
-export const {{ Name }}Channel = defineChannel('{{ kebab }}.{id}', {
-  authorize: ({ user, params }) => user.id === params.id,
-})
+// {{ channelKind }}. Browsers join through /_caldera/broadcast/auth, only when authorize()
+// allows: nobody, yet. To let in whoever may see a row, load it and check its policy's \`view\`:
+//   bind: { {{ name }}: {{ Name }} },
+//   authorize: ({ gate, {{ name }} }) => gate.can({{ Name }}, 'view', {{ name }}),
+export const {{ Name }}Channel = defineChannel('{{ channelName }}.{{{ name }}}', {
+{{ presenceType }}  authorize: () => false,
+{{ presenceMember }}})
+`,
+  'channel-model': `import { defineChannel } from '@caldera/broadcast'
+import { {{ Name }} } from '../models/{{ kebab }}.js'
+
+// {{ channelKind }}. Browsers join through /_caldera/broadcast/auth, only when authorize()
+// allows: here, whoever {{ Name }}'s policy lets \`view\` the row (it needs that ability; a missing row
+// is refused).
+export const {{ Name }}Channel = defineChannel('{{ channelName }}.{{{ name }}}', {
+{{ presenceType }}  bind: { {{ name }}: {{ Name }} },
+  authorize: ({ gate, {{ name }} }) => gate.can({{ Name }}, 'view', {{ name }}),
+{{ presenceMember }}})
 `,
   listener: `import { listen } from '@caldera/events'
 import { {{ Event }} } from '../events/{{ eventKebab }}.js'

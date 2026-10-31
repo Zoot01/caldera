@@ -4,6 +4,7 @@ import { errorHandler, ForbiddenError, notFoundHandler, originCheck, securityHea
 import { mailPreviewRoutes } from '@caldera/mail'
 import { cronRoutes } from '@caldera/schedule'
 import { storageRoutes, uploadRoutes } from '@caldera/storage'
+import { errorPage } from '@caldera/inertia'
 import { Hono } from 'hono'
 import { router } from '../.caldera/routes.gen.js'
 import { app } from './app.js'
@@ -38,5 +39,6 @@ export const http = new Hono()
   // Better Auth's own endpoints: emailed links (verify email, reset password) land here.
   .route('/', authRoutes('/api/auth'))
   .route('/', router.app)
-  .onError(errorHandler({ loginUrl: '/login' }))
-  .notFound(notFoundHandler())
+  // People get resources/pages/Error.tsx (with the status); API clients get the JSON error.
+  .onError(errorHandler({ loginUrl: '/login', page: errorPage() }))
+  .notFound(notFoundHandler({ page: errorPage() }))

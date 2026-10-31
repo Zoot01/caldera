@@ -258,12 +258,14 @@ export function calderaTools({ root, allowWrites }: ToolOptions): ToolDefinition
         event: z.string().optional().describe('For listeners: the event'),
         job: z.string().optional().describe('For schedules: the job'),
         table: z.boolean().optional().describe('For models: also create the table (default true)'),
+        channel: z.string().optional().describe('For events: also broadcast it on this channel, e.g. Order'),
+        presence: z.boolean().optional().describe('For channels: a presence channel'),
         write: z.boolean().default(false),
       }),
       annotations: { readOnlyHint: !allowWrites, destructiveHint: false, openWorldHint: false },
-      handle: ({ kind, name, event, job, table, write }) =>
+      handle: ({ kind, name, event, job, table, channel, presence, write }) =>
         withProject(root, (project) =>
-          make(project, kind, name, { ...(event ? { event } : {}), ...(job ? { job } : {}), ...(table !== undefined ? { table } : {}), dryRun: !(allowWrites && write) }),
+          make(project, kind, name, { ...(event ? { event } : {}), ...(job ? { job } : {}), ...(table !== undefined ? { table } : {}), ...(channel ? { channel } : {}), ...(presence ? { presence } : {}), dryRun: !(allowWrites && write) }),
         ),
     }),
   ]

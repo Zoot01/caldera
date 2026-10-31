@@ -1,3 +1,4 @@
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { appendHeader, isSessionStarted, previousUrl, sessionOf } from '@caldera/http'
 import type { Context, MiddlewareHandler } from 'hono'
 import { always, isProp, propKind, type Prop, type PropsInput } from './props.js'
@@ -40,6 +41,8 @@ export interface RenderOptions {
   encryptHistory?: boolean
   /** `false`: render this page in the browser only (it uses browser-only code: maps, charts, editors). */
   ssr?: boolean
+  /** The response's status, e.g. 404 for an error page (default 200). */
+  status?: number
 }
 
 /**
@@ -113,6 +116,7 @@ export function defineInertia<S extends Record<string, unknown> = {}>(options: I
 }
 
 const RENDERED = Symbol.for('caldera.inertia.rendered')
+const RENDERER = Symbol.for('caldera.inertia.renderer')
 
 function inertiaMiddleware(options: InertiaOptions): MiddlewareHandler {
   const versionOf = async (): Promise<string | null> => {
@@ -135,6 +139,7 @@ function inertiaMiddleware(options: InertiaOptions): MiddlewareHandler {
 
     c.setRenderer((async (component: string, props: Record<string, unknown>, renderOptions: RenderOptions = {}) =>
       render(c, options, await versionOf(), component, props, renderOptions)) as never)
+    c.set(RENDERER as never, true as never)
 
     await next()
     appendVary(c)
@@ -191,13 +196,24 @@ async function render(c: Context, options: InertiaOptions, version: string | nul
   }
 
   if (c.req.header('x-inertia') === 'true') {
-    return c.json(page, 200, { 'x-inertia': 'true' })
+    return c.json(page, (renderOptions.status ?? 200) as ContentfulStatusCode, { 'x-inertia': 'true' })
   }
   const nonce = (c.var as { secureHeadersNonce?: string }).secureHeadersNonce
   const [assets, ssr] = await Promise.all([options.assets ? options.assets.tags(nonce) : '', options.ssr && renderOptions.ssr !== false ? renderOnServer(options.ssr, page) : null])
   const document = documentOf(options.document ?? [], c, nonce)
   const html = (options.rootView ?? defaultRootView(options.title))({ page, assets, nonce, c, ssr, document })
-  return c.html(html)
+  return c.html(html, (renderOptions.status ?? 200) as ContentfulStatusCode)
+}
+
+/**
+ * Error pages for people: `errorHandler({ page: errorPage() })` and `notFoundHandler({ page: errorPage() })`
+ * render `resources/pages/Error.tsx` with `{ status, message }` (and that status) for browser visits
+ * and Inertia requests, where the JSON error would show as raw text. API clients still get JSON.
+ */
+export function errorPage(component = 'Error') {
+  return (c: Context, error: { status: number; message: string }): Promise<Response> | undefined =>
+    // Errors thrown before inertia.middleware() ran have no renderer: those keep the JSON.
+    c.get(RENDERER as never) ? (c.render as (name: string, props: object, options: RenderOptions) => Promise<Response>)(component, { status: error.status, message: error.message }, { status: error.status }) : undefined
 }
 
 interface ResolveState {

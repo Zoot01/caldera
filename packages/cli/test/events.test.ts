@@ -37,6 +37,6 @@ it('make:event and make:listener, then generate registers the listener and lists
     `import * as listeners0 from '../src/listeners/greet-new-users.js'\nimport * as listeners1 from '../src/listeners/notify-admins.js'\n\nexport const listeners = [listeners0.greetNewUsers, listeners1.notifyAdmins] as const\n`,
   )
   const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
-  expect(agents).toContain('| `user-registered` | `greetNewUsers` | queued: job `fixture.greet` | src/listeners/greet-new-users.ts |')
-  expect(agents).toContain('| `user-registered` | `notifyAdmins` | in process | src/listeners/notify-admins.ts |')
+  expect(agents).toContain('| `user.registered` | `greetNewUsers` | queued: job `fixture.greet` | src/listeners/greet-new-users.ts |')
+  expect(agents).toContain('| `user.registered` | `notifyAdmins` | in process | src/listeners/notify-admins.ts |')
 })

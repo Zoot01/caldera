@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync, rmSync } from 'node:fs'
+import { serveBroadcast } from '@caldera/broadcast/server'
 import { migrateFresh, testDatabaseUrl } from '@caldera/testing/database'
 
 // The app Playwright drives (playwright.config.ts starts it once the build is done): src/server.ts on a
@@ -19,4 +20,6 @@ rmSync(process.env.STORAGE_ROOT, { recursive: true, force: true })
 const { app } = await import('../../src/app')
 await app.boot()
 await migrateFresh(app.services.db, 'drizzle', url)
+// The realtime server (on BROADCAST_PORT), so pages connect and live updates can be tested.
+await serveBroadcast(app)
 await import('../../src/server')

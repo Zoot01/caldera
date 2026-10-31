@@ -3,6 +3,7 @@ import { errorHandler, notFoundHandler, originCheck, securityHeaders, startSessi
 import { mailPreviewRoutes } from '@caldera/mail'
 import { cronRoutes } from '@caldera/schedule'
 import { storageRoutes, uploadRoutes } from '@caldera/storage'
+import { errorPage } from '@caldera/inertia'
 import { Hono } from 'hono'
 import { router } from '../.caldera/routes.gen.js'
 import { app } from './app.js'
@@ -26,5 +27,6 @@ export const http = new Hono()
   // Mail previews and the outbox, outside production only.
   .route('/', mailPreviewRoutes({ enabled: () => process.env.NODE_ENV !== 'production' }))
   .route('/', router.app)
-  .onError(errorHandler())
-  .notFound(notFoundHandler())
+  // People get resources/pages/Error.tsx (with the status); API clients get the JSON error.
+  .onError(errorHandler({ page: errorPage() }))
+  .notFound(notFoundHandler({ page: errorPage() }))

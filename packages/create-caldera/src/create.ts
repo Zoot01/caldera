@@ -401,7 +401,7 @@ function applyNext(directory: string) {
 
 const BROWSER_AGENTS =
   'Browser tests (`pnpm test:browser`, Playwright, `tests/browser/*.spec.ts`): Playwright builds the app and serves it on port 3100 (`tests/browser/server.ts`), on a database of its own that is emptied and migrated on every run (a SQLite file, or `DATABASE_TEST_URL` on Postgres). ' +
-  'Open pages with `visit(page, path)` from `tests/browser/helpers.ts`, which waits for React to take over before anything is clicked. Mail sent during a test is in the outbox: `page.request.get(\'/_caldera/mail/outbox\', { headers: { accept: \'application/json\' } })`. ' +
+  'Open pages with `visit(page, path)` from `tests/browser/helpers.ts`, which waits for React to take over before anything is clicked. Pages connect to a realtime server of the tests’ own (port 6101), so live updates can be tested with two browsers (`browser.newContext()`). Mail sent during a test is in the outbox: `page.request.get(\'/_caldera/mail/outbox\', { headers: { accept: \'application/json\' } })`. ' +
   'Once per machine: `npx playwright install chromium`. CI (`.github/workflows/ci.yml`) runs `typecheck`, `test` and `test:browser` on every push and pull request.'
 
 const STARTER_AGENTS =

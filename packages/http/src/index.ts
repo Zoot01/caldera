@@ -11,7 +11,7 @@ export {
   UnauthenticatedError,
   ValidationError,
 } from './errors.js'
-export type { ErrorBody, ErrorHandlerOptions } from './errors.js'
+export type { ErrorBody, ErrorHandlerOptions, ErrorPage } from './errors.js'
 export { DEFAULT_PRIORITY, defineMiddleware, sortByPriority } from './middleware.js'
 export type { MiddlewareRegistry, NamedMiddleware } from './middleware.js'
 export { defineRequest } from './request.js'

@@ -16,8 +16,8 @@ export default defineConfig({
     command: '{{ run }} build && node --import tsx tests/browser/server.ts',
     url,
     timeout: 180_000,
-    // Win over .env: this port, broadcasts only logged (no realtime server to reach), mail kept in the
-    // outbox at /_caldera/mail/outbox for tests to read.
-    env: { PORT: '3100', APP_URL: url, BROADCAST_CONNECTION: 'log', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' },
+    // Win over .env: this port, a realtime server of the tests' own (server.ts starts it), mail kept in
+    // the outbox at /_caldera/mail/outbox for tests to read.
+    env: { PORT: '3100', APP_URL: url, BROADCAST_CONNECTION: 'server', BROADCAST_PORT: '6101', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' },
   },
 })

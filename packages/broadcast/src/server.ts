@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { CalderaError } from '@caldera/core'
+import { resolveSecret } from './driver.js'
 import { createHub, newSocketId, type HubConnection } from './hub.js'
 import { redisCluster } from './redis.js'
 
@@ -96,5 +98,26 @@ async function toRequest(req: IncomingMessage, port: number): Promise<Request> {
     method: req.method ?? 'GET',
     headers: Object.entries(req.headers).flatMap(([k, v]) => (v === undefined ? [] : [[k, Array.isArray(v) ? v.join(', ') : v] as [string, string]])),
     ...(body.length && req.method !== 'GET' && req.method !== 'HEAD' ? { body } : {}),
+  })
+}
+
+/**
+ * Starts the realtime server a booted app's broadcasts go to (what `caldera dev` runs), from its own
+ * config: in browser tests, `await serveBroadcast(app)` after `app.boot()`, so pages connect and live
+ * updates can be tested. Undefined when the connection isn't a server to run (log, null, hosted Pusher).
+ */
+export async function serveBroadcast(app: { config: unknown }, options: { connection?: string } = {}): Promise<{ port: number; close(): Promise<void> } | undefined> {
+  const config = (app.config as { broadcast?: { default: string; connections: Record<string, Record<string, unknown> | undefined> } }).broadcast
+  if (!config) throw new CalderaError('no_broadcast_config', 'serveBroadcast needs a broadcast config (src/config/broadcast.ts).')
+  const name = options.connection ?? config.default
+  const connection = config.connections[name]
+  if (!connection || connection.driver !== 'pusher' || !connection.host) return undefined
+  const secret = await resolveSecret({ secret: connection.secret as string | undefined, appKey: connection.appKey as string | undefined }, `The "${name}" broadcast connection`)
+  return startBroadcastServer({
+    appId: String(connection.appId),
+    key: String(connection.key),
+    secret,
+    port: Number(connection.port ?? 6001),
+    ...(typeof connection.redis === 'string' && connection.redis ? { redis: connection.redis } : {}),
   })
 }

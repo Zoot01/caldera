@@ -19,6 +19,11 @@ it('paints the visitor’s light or dark choice on the first load (the appearanc
   ;(await t.client(http).withHeaders({ cookie: 'appearance=dark' }).visit('/')).assertInertia('Home', { appearance: 'dark' })
 })
 
+it('shows people an error page, and API clients the JSON error', async () => {
+  ;(await t.client(http).visit('/nope')).assertNotFound().assertInertia('Error', { status: 404, message: 'Not found.' })
+  ;(await t.client(http).get('/nope', { headers: { accept: 'application/json' } })).assertNotFound().assertJson({ error: { code: 'not_found' } })
+})
+
 it('lists users from the database', async () => {
   await User.create({ name: 'Ann', email: 'ann@example.test' })
   ;(await t.client(http).get('/users')).assertOk().assertJson({ users: [{ name: 'Ann', email: 'ann@example.test' }] })
