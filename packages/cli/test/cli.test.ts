@@ -202,10 +202,12 @@ describe('caldera model:show and db:schema', () => {
 
 describe('caldera db:generate / db:migrate / db:push', () => {
   it('generates SQL migrations with the project’s drizzle-kit', () => {
-    const { code, json } = cli('db:generate')
+    // --name names the migration (drizzle-kit's own flag, without needing `--` before it).
+    const { code, json } = cli('db:generate', '--name', 'create-users')
     expect(json.error).toBeUndefined()
     expect(code).toBe(0)
     const migrations = readdirSync(join(root, 'drizzle'), { recursive: true }) as string[]
+    expect(migrations.some((f) => /^\d{14}_create-users$/.test(f))).toBe(true)
     const sql = migrations.filter((f) => f.endsWith('.sql')).map((f) => readFileSync(join(root, 'drizzle', f), 'utf8')).join('\n')
     expect(sql).toMatch(/CREATE TABLE "users"/)
     expect(sql).toMatch(/"password_hash" text NOT NULL/)
