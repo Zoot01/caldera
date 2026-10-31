@@ -1,10 +1,12 @@
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineConfig, defineEnv } from '@caldera/core'
 import { createQueue, setDefaultQueue } from '@caldera/queue'
 import { createStorage, setDefaultStorage } from '@caldera/storage'
 import { AwsClient } from 'aws4fetch'
 import { Hono } from 'hono'
+import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMail, MailSendError, mailPreviewRoutes, mailProvider, renderMail, sendMailJobOf, type Message } from '../src/index.js'
+import { z } from 'zod'
+import { createMail, defineMail, MailSendError, mailPreviewRoutes, mailProvider, renderMail, sendMailJobOf, useApp, type MailConfig, type Message } from '../src/index.js'
 import { sesTransport } from '../src/ses.js'
 import { postmarkTransport, resendTransport } from '../src/transports.js'
 import { InvoiceEmail, WelcomeEmail } from './fixtures/welcome.js'
@@ -207,6 +209,34 @@ describe('provider requests (checked against each API’s documented contract)',
     } finally {
       listener.close()
     }
+  })
+})
+
+describe('the app name in mails', () => {
+  const Footer = () => {
+    const app = useApp()
+    return createElement('p', null, `Sent by ${app.name} (${app.url})`)
+  }
+  const Note = defineMail({ name: 'note', props: z.object({ to: z.string() }), subject: (p, { app }) => `${app.name}: hi ${p.to}`, component: Footer, preview: { to: 'Ann' } })
+
+  it('comes from config.app: in components, subjects, previews, and as the sender’s name', async () => {
+    // Config is frozen once resolved, as in an app.
+    const appConfig = defineConfig('app', () => ({ name: 'Tracker', url: 'https://tracker.test' }))
+    const mailConfig = defineConfig('mail', () => ({ default: 'm' as const, mailers: { m: { driver: 'memory' } }, from: 'hello@example.test' }))
+    const app = createApp({ env: defineEnv({}), config: [appConfig, mailConfig], providers: [mailProvider((a) => (a.config as unknown as { mail: MailConfig<'m'> }).mail, { mails: [Note] })] })
+    await app.boot({ env: {} })
+    const mail = app.services.mail
+    expect(mail.app).toEqual({ name: 'Tracker', url: 'https://tracker.test' })
+    await mail.to('ann@example.test').send(Note, { to: 'Ann' })
+    const [sent] = mail.outbox()!.messages
+    expect(sent).toMatchObject({ subject: 'Tracker: hi Ann', from: { name: 'Tracker', email: 'hello@example.test' } })
+    expect(sent!.html).toContain('Sent by Tracker (https://tracker.test)')
+    const preview = new Hono().use(app.middleware()).route('/', mailPreviewRoutes({ enabled: () => true }))
+    expect(await (await preview.request('/_caldera/mail/note?format=json')).json()).toMatchObject({ subject: 'Tracker: hi Ann' })
+    // A sender with its own name keeps it.
+    const named = createMail({ default: 'm', mailers: { m: { driver: 'memory' } }, from: 'Support <help@example.test>', app: { name: 'Tracker', url: '' } })
+    await named.to('ann@example.test').send(Note, { to: 'Ann' })
+    expect(named.outbox()!.messages[0]!.from).toEqual({ name: 'Support', email: 'help@example.test' })
   })
 })
 

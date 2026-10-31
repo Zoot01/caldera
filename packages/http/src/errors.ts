@@ -241,6 +241,10 @@ function toHttpError(error: unknown): HttpError | undefined {
     if (error.code === 'not_found') return new NotFoundError()
     if (error.code === 'forbidden') return new ForbiddenError(error.message)
     if (error.code === 'unauthenticated') return new UnauthenticatedError(error.message)
+    if (error.code === 'validation_failed') {
+      const fields = (error.details as { fields?: Record<string, string[]> } | undefined)?.fields
+      return new ValidationError(fields ?? { _: [error.message] })
+    }
     if (error.code === 'rate_limited') {
       const details = (error.details ?? {}) as { retryAfter?: number; headers?: Record<string, string> }
       return new TooManyRequestsError(error.message, details.retryAfter, details.headers)

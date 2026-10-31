@@ -1,21 +1,22 @@
 import { useCallback, useRef, useState } from 'react'
 import type { SignedUpload } from './driver.js'
-import type { SignedFileRef } from './uploads.js'
+import type { PendingUpload } from './uploads.js'
 
 export interface UploadState {
   status: 'idle' | 'uploading' | 'done' | 'error'
   /** 0 to 1 while the file goes up; null otherwise. */
   progress: number | null
   error: string | null
-  file: SignedFileRef | null
+  file: PendingUpload | null
 }
 
 class UploadError extends Error {}
 
 /**
  * Uploads straight to the bucket through `uploadRoutes()`: asks for a presigned URL, PUTs the file
- * with progress, then completes (the server checks the real bytes). Resolves with the stored file's
- * ref, signed: send it with a form and validate it with `zupload(name)` before storing it. Error messages are the server's (they say which rule failed).
+ * with progress, then completes (the server checks the real bytes). Resolves with the checked file,
+ * signed: send it with a form, validate it with `zupload(name)` and store it with `claimUpload(file)`.
+ * Error messages are the server's (they say which rule failed).
  */
 export function useUpload(upload: string, options: { endpoint?: string } = {}) {
   const endpoint = options.endpoint ?? '/_caldera/uploads'
@@ -45,12 +46,12 @@ export function useUpload(upload: string, options: { endpoint?: string } = {}) {
     })
 
   const start = useCallback(
-    async (file: File): Promise<SignedFileRef> => {
+    async (file: File): Promise<PendingUpload> => {
       setState({ status: 'uploading', progress: 0, error: null, file: null })
       try {
         const { upload: signed, token } = await post<{ upload: SignedUpload; token: string }>(endpoint, { upload, name: file.name, size: file.size, type: file.type || 'application/octet-stream' })
         await put(signed, file)
-        const { file: stored } = await post<{ file: SignedFileRef }>(`${endpoint}/complete`, { token })
+        const { file: stored } = await post<{ file: PendingUpload }>(`${endpoint}/complete`, { token })
         setState({ status: 'done', progress: 1, error: null, file: stored })
         return stored
       } catch (error) {

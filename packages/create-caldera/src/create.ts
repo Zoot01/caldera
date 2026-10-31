@@ -427,7 +427,7 @@ function applyTeams(directory: string, database: Database) {
   edit(directory, 'src/auth.ts', [
     ["import { User } from './models/user.js'\n", "import { User } from './models/user.js'\nimport { teamHooks, teamsPlugin } from './teams.js'\n"],
     ['      // Both are always installed', '      // A personal team for every account; new sessions start in their first team (src/teams.ts).\n      databaseHooks: teamHooks(db),\n      // Both are always installed'],
-    ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL, appName: config.app.name }),\n'],
+    ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL }),\n'],
   ])
   edit(directory, 'src/app.ts', [
     ["import { auth } from './auth.js'\n", "import { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],

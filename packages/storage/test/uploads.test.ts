@@ -10,7 +10,7 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
 import { Hono } from 'hono'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { cleanupFiles, createStorage, defineUpload, fileRef, fileResponse, pruneUploads, setDefaultStorage, storageProvider, storageRoutes, uploadRoutes, zupload, type FileRef, type SignedFileRef } from '../src/index.js'
+import { claimUpload, cleanupFiles, createStorage, defineUpload, fileRef, fileResponse, pruneUploads, setDefaultStorage, storageProvider, storageRoutes, uploadRoutes, zupload, type FileRef, type PendingUpload } from '../src/index.js'
 import { localStorageDriver } from '../src/local.js'
 import { s3StorageDriver } from '../src/s3.js'
 import { png } from './files.js'
@@ -65,20 +65,26 @@ describe('direct uploads on a local disk (signed PUT served by storageRoutes)', 
     return { app, http, put }
   }
 
-  it('uploads, checks the real bytes, and moves the file into place', async () => {
+  it('uploads, checks the real bytes, and moves the file into place when a form claims it', async () => {
     const { app, http, put } = setup()
     await app.boot({ env: {} })
     const result = await uploadThrough(http, png(64, 32), { type: 'image/png', name: 'Me at the beach.png' }, put)
     expect(result.status).toBe(200)
-    const { file, detected } = result.body as { file: FileRef; detected: unknown }
-    expect(fileRef.parse(file)).toMatchObject({ disk: 'files', mime: 'image/png', name: 'Me at the beach.png' })
-    expect(file.key).toMatch(/^avatars\/[0-9a-f]{40}\.png$/)
+    const { file: pending, detected } = result.body as { file: PendingUpload; detected: unknown }
+    expect(pending).toMatchObject({ upload: 'avatar', disk: 'files', directory: 'avatars', mime: 'image/png', name: 'Me at the beach.png', pending: expect.stringMatching(/^tmp\/uploads\/[0-9a-f]{40}\.png$/) })
     expect(detected).toEqual({ mime: 'image/png', ext: 'png', width: 64, height: 32 })
-    expect(await app.services.storage.exists(file.key)).toBe(true)
-    expect((await app.services.storage.list('tmp/uploads')).files).toEqual([])
     // A token works once.
     const again = await http.request('http://localhost/_caldera/uploads/complete', json({ token: result.token }))
     expect(again.status).toBe(400)
+
+    const file = await claimUpload(pending, { storage: app.services.storage })
+    expect(fileRef.parse(file)).toEqual({ disk: 'files', key: expect.stringMatching(/^avatars\/[0-9a-f]{40}\.png$/), size: pending.size, mime: 'image/png', name: 'Me at the beach.png' })
+    expect(await app.services.storage.exists(file.key)).toBe(true)
+    expect((await app.services.storage.list('tmp/uploads')).files).toEqual([])
+    // Claimed once: sending the same upload again never gives a second row the same file.
+    const second = await claimUpload(pending, { storage: app.services.storage }).catch((e: unknown) => e)
+    expect(second).toMatchObject({ code: 'validation_failed', details: { fields: { avatar: ['This upload was already used or has expired. Upload the file again.'] } } })
+    await expect(claimUpload(pending, { field: 'photo', storage: app.services.storage })).rejects.toMatchObject({ details: { fields: { photo: [expect.any(String)] } } })
   })
 
   it('refuses before uploading: too large, not allowed, unknown kind', async () => {
@@ -113,33 +119,40 @@ describe('direct uploads on a local disk (signed PUT served by storageRoutes)', 
     expect((await http.request('http://localhost/_caldera/uploads/complete', json({ token }))).status).toBe(200)
   })
 
-  it('signs the completed ref, and zupload() accepts only an untouched one of its kind', async () => {
+  it('signs the completed upload, and zupload() and claimUpload() accept only an untouched one of its kind', async () => {
     const { app, http, put } = setup()
     await app.boot({ env: {} })
     const result = await uploadThrough(http, png(8, 8), { type: 'image/png', name: 'me.png' }, put)
-    const signed = (result.body as { file: SignedFileRef }).file
+    const signed = (result.body as { file: PendingUpload }).file
     expect(signed).toMatchObject({ upload: 'avatar', signature: expect.any(String), exp: expect.any(Number) })
 
     const schema = zupload(avatar)
     const parsed = await schema.safeParseAsync(signed)
-    // What's stored is the plain ref, with nothing of the signature.
-    expect(parsed.data).toEqual({ disk: 'files', key: signed.key, size: signed.size, mime: 'image/png', name: 'me.png' })
-    expect((await schema.safeParseAsync(JSON.stringify(signed))).data).toEqual(parsed.data)
+    expect(parsed.data).toEqual(signed)
+    expect((await schema.safeParseAsync(JSON.stringify(signed))).data).toEqual(signed)
+    // Checking has no side effects: a form refused for another field can be sent again.
+    expect((await schema.safeParseAsync(signed)).success).toBe(true)
 
-    // Someone else's file (a key seen in a URL), another disk, another kind, an old ref: all refused.
-    const refused = async (value: unknown, s = schema) => expect((await s.safeParseAsync(value)).success).toBe(false)
-    await refused({ ...signed, key: 'avatars/someone-elses.png' })
+    // Someone else's file (a key seen in a URL), another directory, disk or kind, an old ref: all refused.
+    const refused = async (value: unknown, s = schema) => {
+      expect((await s.safeParseAsync(value)).success).toBe(false)
+      if (s === schema && typeof value === 'object' && value && 'pending' in value) await expect(claimUpload(value as PendingUpload, { storage: app.services.storage })).rejects.toMatchObject({ code: 'validation_failed' })
+    }
+    await refused({ ...signed, pending: 'avatars/someone-elses.png' })
+    await refused({ ...signed, directory: 'public' })
     await refused({ ...signed, disk: 'public' })
     await refused({ ...signed, size: 1 })
-    await refused({ disk: 'files', key: signed.key, size: signed.size, mime: 'image/png', name: 'me.png' })
+    await refused({ disk: 'files', key: signed.pending, size: signed.size, mime: 'image/png', name: 'me.png' })
     await refused(signed, zupload('attachment'))
     await refused({ ...signed, signature: 'not base64!' })
-    vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000)
+    vi.setSystemTime(Date.now() + 13 * 60 * 60 * 1000)
     try {
       await refused(signed)
     } finally {
       vi.useRealTimers()
     }
+    // Nothing above moved it.
+    expect(await app.services.storage.exists(signed.pending)).toBe(true)
   })
 
   it('pruneUploads removes uploads never completed', async () => {
@@ -161,12 +174,12 @@ describe.runIf(hasDocker)('direct uploads to real S3 (SeaweedFS)', () => {
     await server?.stop()
   })
 
-  it('the browser PUTs straight to the bucket; completion checks and moves it', async () => {
+  it('the browser PUTs straight to the bucket; completion checks it and claiming moves it', async () => {
     const { app, http } = makeHttp({ driver: 's3', bucket: 'uploads', endpoint: server.endpoint, ...S3_CREDENTIALS }, [s3StorageDriver as never])
     await app.boot({ env: {} })
     const result = await uploadThrough(http, png(40, 40), { type: 'image/png' }, (url, init) => fetch(url, init))
     expect(result.status).toBe(200)
-    const file = (result.body as { file: FileRef }).file
+    const file = await claimUpload((result.body as { file: PendingUpload }).file, { storage: app.services.storage })
     expect(await app.services.storage.exists(file.key)).toBe(true)
     // Declaring a smaller size than the real file: the bucket refuses the PUT itself.
     const lying = await uploadThrough(http, png(40, 40), { type: 'image/png', size: 10 }, (url, init) => fetch(url, init))

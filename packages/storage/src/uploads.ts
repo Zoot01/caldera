@@ -1,7 +1,8 @@
 import { CalderaError, parseDuration, type Duration } from '@caldera/core'
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
-import type { Disk } from './disk.js'
+import { type Disk, FileNotFoundError } from './disk.js'
+import { defaultStorage } from './files.js'
 import type { SignedUpload } from './driver.js'
 import { inspectFile, INSPECT_BYTES, parseSize, type ZFileOptions } from './zfile.js'
 
@@ -17,10 +18,24 @@ export const fileRef = z.object({
 export type FileRef = z.infer<typeof fileRef>
 
 /**
- * A FileRef as `/_caldera/uploads/complete` answers it: signed with the app's key, so the server that
- * stores it can tell it came from a completed upload of that kind (`zupload('avatar')` checks).
+ * A checked direct upload, as `/_caldera/uploads/complete` answers it: the file waits under
+ * `tmp/uploads/`, and the ref is signed with the app's key. A form sends it back, `zupload(name)`
+ * checks it, and `claimUpload(file)` moves the file into place (once) and gives the FileRef to store.
+ * It has no `key`, so it can't be stored by mistake before it's claimed.
  */
-export type SignedFileRef = FileRef & { upload: string; exp: number; signature: string }
+export interface PendingUpload {
+  upload: string
+  disk: string
+  /** Where the file waits until it's claimed (under `tmp/uploads/`). */
+  pending: string
+  /** Where claiming puts it: the upload's directory. */
+  directory: string
+  size: number
+  mime: string
+  name: string
+  exp: number
+  signature: string
+}
 
 export interface UploadDefinition {
   readonly kind: 'caldera.upload'
@@ -86,28 +101,47 @@ function refKey(secret: string) {
   if (!key) refKeys.set(secret, (key = hmacKey(secret, 'caldera:uploads:ref:v1')))
   return key
 }
-const refMessage = (ref: Omit<SignedFileRef, 'signature'>) => encoder.encode(JSON.stringify([ref.upload, ref.exp, ref.disk, ref.key, ref.size, ref.mime, ref.name]))
+const refMessage = (ref: Omit<PendingUpload, 'signature'>) => encoder.encode(JSON.stringify([ref.upload, ref.exp, ref.disk, ref.pending, ref.directory, ref.size, ref.mime, ref.name]))
 
-/** How long a completed upload's ref can be submitted with a form. */
-const REF_LIFETIME = 24 * 60 * 60
+/** How long a completed upload can be submitted with a form (well under pruneUploads' default day). */
+const REF_LIFETIME = 12 * 60 * 60
 
-async function signRef(secret: string, upload: string, ref: FileRef): Promise<SignedFileRef> {
-  const unsigned = { ...ref, upload, exp: Math.floor(Date.now() / 1000) + REF_LIFETIME }
+async function signRef(secret: string, ref: Omit<PendingUpload, 'exp' | 'signature'>): Promise<PendingUpload> {
+  const unsigned = { ...ref, exp: Math.floor(Date.now() / 1000) + REF_LIFETIME }
   const signature = b64(new Uint8Array(await crypto.subtle.sign('HMAC', await refKey(secret), refMessage(unsigned))))
   return { ...unsigned, signature }
 }
 
-const signedRefSchema = z.object({ ...fileRef.shape, upload: z.string(), exp: z.number(), signature: z.string() }, { error: 'Upload a file.' })
+/** Whether a pending upload is one this app signed, of the kind `upload`, and still fresh. */
+async function verifyRef(ref: PendingUpload, upload: string): Promise<boolean> {
+  const secret = registry[SECRET]
+  if (!secret) throw new CalderaError('upload_secret_missing', 'Direct uploads need storage.uploadSecret (env.APP_KEY) in the storage config.')
+  const { signature, ...unsigned } = ref
+  let bytes: Uint8Array
+  try {
+    bytes = unb64(signature)
+  } catch {
+    return false
+  }
+  const valid = await crypto.subtle.verify('HMAC', await refKey(secret), bytes as Uint8Array<ArrayBuffer>, refMessage(unsigned))
+  return valid && ref.upload === upload && ref.exp >= Date.now() / 1000 && ref.pending.startsWith('tmp/uploads/')
+}
+
+const pendingSchema = z.object(
+  { upload: z.string(), disk: z.string(), pending: z.string(), directory: z.string(), size: z.number(), mime: z.string(), name: z.string(), exp: z.number(), signature: z.string() },
+  { error: 'Upload a file.' },
+)
+const INVALID = 'This upload is invalid or has expired. Upload the file again.'
 
 /**
  * A Zod schema for a file uploaded with `useUpload(name)`: checks the ref's signature, that it was
- * an upload of this kind, and that it hasn't expired, then gives the plain FileRef to store. Never
- * accept a FileRef from the browser any other way: its disk and key would be whatever was sent.
+ * an upload of this kind, and that it hasn't expired. It has no side effects, so a form that fails
+ * on another field can be sent again with the same file. Store the file with `claimUpload(file)`.
+ * Never accept a FileRef from the browser instead: its disk and key would be whatever was sent.
  * Takes the ref as an object (a JSON body) or a JSON string (a multipart form). Async, like zfile().
  */
-export function zupload(upload: string | UploadDefinition): z.ZodType<FileRef, unknown> {
+export function zupload(upload: string | UploadDefinition): z.ZodType<PendingUpload, unknown> {
   const name = typeof upload === 'string' ? upload : upload.name
-  const invalid = 'This upload is invalid or has expired. Upload the file again.'
   return z
     .preprocess((value) => {
       if (typeof value !== 'string') return value
@@ -116,22 +150,33 @@ export function zupload(upload: string | UploadDefinition): z.ZodType<FileRef, u
       } catch {
         return value
       }
-    }, signedRefSchema)
+    }, pendingSchema)
     .superRefine(async (ref, ctx) => {
-      const secret = registry[SECRET]
-      if (!secret) throw new CalderaError('upload_secret_missing', 'zupload() needs storage.uploadSecret (env.APP_KEY) in the storage config.')
-      const { signature, ...unsigned } = ref
-      let bytes: Uint8Array
-      try {
-        bytes = unb64(signature)
-      } catch {
-        return void ctx.addIssue({ code: 'custom', message: invalid })
-      }
-      const valid = await crypto.subtle.verify('HMAC', await refKey(secret), bytes as Uint8Array<ArrayBuffer>, refMessage(unsigned))
-      if (!valid || ref.upload !== name || ref.exp < Date.now() / 1000) ctx.addIssue({ code: 'custom', message: invalid })
-    })
-    .transform(({ disk, key, size, mime, name: fileName }): FileRef => ({ disk, key, size, mime, name: fileName })) as unknown as z.ZodType<FileRef, unknown>
+      if (!(await verifyRef(ref, name))) ctx.addIssue({ code: 'custom', message: INVALID })
+    }) as unknown as z.ZodType<PendingUpload, unknown>
 }
+
+/**
+ * Moves a pending upload (from `zupload`) into its directory under a new random name, and returns
+ * the FileRef to store: `avatar: await claimUpload(form.avatar)`. Each upload is claimed once, so
+ * two rows never share a file (deleting one would delete the other's). Claiming it again, or after
+ * it expired, throws a validation error on `field` (default: the upload's name).
+ */
+export async function claimUpload(file: PendingUpload, options: { field?: string; storage?: { disk(name: string): Disk } } = {}): Promise<FileRef> {
+  const refused = () => new CalderaError('validation_failed', USED, { fields: { [options.field ?? file.upload]: [USED] } })
+  if (!(await verifyRef(file, file.upload))) throw refused()
+  const disk = (options.storage ?? defaultStorage()).disk(file.disk)
+  const key = `${file.directory.replace(/\/$/, '')}/${randomName()}${/\.[a-z0-9]+$/i.exec(file.pending)?.[0] ?? ''}`
+  try {
+    await disk.move(file.pending, key)
+  } catch (error) {
+    // Claimed already (or pruned): the pending file is gone.
+    if (error instanceof FileNotFoundError) throw refused()
+    throw error
+  }
+  return { disk: file.disk, key, size: file.size, mime: file.mime, name: file.name }
+}
+const USED = 'This upload was already used or has expired. Upload the file again.'
 
 const startSchema = z.object({ upload: z.string(), name: z.string().min(1).max(255), size: z.number().int().positive(), type: z.string().min(1).max(255) })
 const completeSchema = z.object({ token: z.string().min(1) })
@@ -142,11 +187,11 @@ const completeSchema = z.object({ token: z.string().min(1) })
  *    upload's rules and `authorize`, and answers a presigned PUT (type and size signed in) for a
  *    `tmp/uploads/` key, plus a token signed with your key (bound to the user, the key and the size).
  * 2. The browser PUTs the file straight to the bucket.
- * 3. POST `/_caldera/uploads/complete` `{ token }`: checks the stored size, sniffs the real bytes with
- *    the same rules, and moves the file to its directory under a random name. Answers the FileRef,
- *    signed: the form that stores it validates it with `zupload(name)`.
- * A refused file is deleted. `pruneUploads()` removes ones never completed. The secret defaults to
- * the storage config's `uploadSecret`.
+ * 3. POST `/_caldera/uploads/complete` `{ token }`: checks the stored size and sniffs the real bytes
+ *    with the same rules. Answers a signed `PendingUpload`: the form that stores it validates it with
+ *    `zupload(name)` and moves it into the upload's directory with `claimUpload(file)`.
+ * A refused file is deleted. `pruneUploads()` removes ones never completed or never claimed. The
+ * secret defaults to the storage config's `uploadSecret`.
  */
 export function uploadRoutes(options: { uploads: readonly UploadDefinition[]; secret?: (c: Context) => string; path?: string }): Hono {
   const base = options.path ?? '/_caldera/uploads'
@@ -222,15 +267,16 @@ export function uploadRoutes(options: { uploads: readonly UploadDefinition[]; se
       const head = new Uint8Array(await new Response(await disk.getStream(claims.key, { start: 0, end: Math.min(info.size, INSPECT_BYTES) - 1 })).arrayBuffer())
       const result = await inspectFile(head, info.size, upload.rules)
       if (!result.ok) return reject(result.message)
-      const finalKey = `${upload.directory.replace(/\/$/, '')}/${randomName()}.${result.detected.ext}`
-      await disk.move(claims.key, finalKey)
-      const ref: FileRef = { disk: disk.name, key: finalKey, size: info.size, mime: result.detected.mime, name: claims.name }
+      // Checked: it waits under a new name until a form claims it (unclaimed ones are pruned).
+      const pending = `tmp/uploads/${randomName()}.${result.detected.ext}`
+      await disk.move(claims.key, pending)
+      const ref = { upload: upload.name, disk: disk.name, pending, directory: upload.directory.replace(/\/$/, ''), size: info.size, mime: result.detected.mime, name: claims.name }
       // Signed with the key zupload() checks: the storage config's, even when `secret` is given.
-      return c.json({ file: await signRef(registry[SECRET] ?? secretOf(c), upload.name, ref), detected: result.detected })
+      return c.json({ file: await signRef(registry[SECRET] ?? secretOf(c), ref), detected: result.detected })
     })
 }
 
-/** Deletes uploads that were never completed (older than `olderThan` under `tmp/uploads/`). Schedule it daily. */
+/** Deletes uploads never completed or never claimed (older than `olderThan` under `tmp/uploads/`). Schedule it daily. */
 export async function pruneUploads(disk: Disk, options: { olderThan?: Duration } = {}): Promise<number> {
   const cutoff = Date.now() - parseDuration(options.olderThan ?? '1d') * 1000
   let removed = 0
