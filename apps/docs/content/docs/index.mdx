@@ -1,0 +1,31 @@
+---
+title: Introduction
+description: What Caldera is, what comes with it, and how it's put together.
+---
+
+Caldera is a TypeScript framework for web apps, in the spirit of Laravel: everything a real app needs is part of the framework, there's one obvious way to do each thing, and the app you create on day one already has sign-up, settings, tests and a deploy target.
+
+## What you get
+
+- **Routes and pages.** Routes are [Hono](https://hono.dev); pages are React components rendered with [Inertia](https://inertiajs.com). A page gets its props straight from its route, so there's no API layer to write, and the props are type-checked end to end.
+- **A database.** Tables are [Drizzle](https://orm.drizzle.team) schemas, with models, migrations, factories and seeders on top. SQLite (a local file, Turso or D1) or Postgres.
+- **Auth.** Sign-up, login, email verification, password reset, passkeys and two-factor, with [Better Auth](https://better-auth.com). Policies decide who may do what; teams with roles are one flag away.
+- **Background work.** Queued jobs (Redis, a database table, or a platform queue), events and listeners, and cron schedules.
+- **Mail and notifications.** Mails are [React Email](https://react.email) components; notifications go out by mail, to an inbox in your database, or both.
+- **Realtime.** Broadcast events to private and presence channels, from Caldera's own server, Pusher, or Cloudflare.
+- **The rest.** File storage and uploads, caching and rate limits, translations, and a test client for every one of these.
+
+It runs on a Node server, on Vercel, or on Cloudflare Workers, and there's a Next.js variant for apps that would rather render with Next.
+
+## Made to be read by agents
+
+Every Caldera app explains itself. `AGENTS.md` at its root says where each kind of code goes and lists your routes, models, jobs and channels, regenerated as you work. `caldera mcp` serves the running app to coding agents: its routes, its schema, recent errors and logs, and read-only SQL. Coding agents pick it up from `.mcp.json`.
+
+## Next
+
+<Cards>
+  <Card title="Installation" href="/docs/installation" description="Create an app and start it." />
+  <Card title="Your first app" href="/docs/first-app" description="A model, a page, a form and a test, in ten minutes." />
+  <Card title="Directory structure" href="/docs/structure" description="Where each kind of code goes." />
+  <Card title="The CLI" href="/docs/cli" description="Every caldera command." />
+</Cards>

@@ -1,5 +1,7 @@
 packages:
   - packages/*
+  # The docs site (Next.js + Fumadocs): `pnpm --filter @caldera/docs dev`.
+  - apps/*
 allowBuilds:
   esbuild: true
   # Its install script only compiles when no prebuilt binary exists; the prebuilt one is installed.

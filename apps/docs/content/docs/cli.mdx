@@ -1,0 +1,81 @@
+---
+title: The CLI
+description: Every caldera command, by what it's for.
+---
+
+Each app has the `caldera` command as a dependency. Run it through your package manager (`pnpm exec caldera …`, `npx caldera …`) or the app's scripts (`pnpm dev`, `pnpm test`). Every command takes `--help`, and `--json` for machine-readable output (the default when its output isn't a terminal).
+
+## While you work
+
+| Command | What it does |
+| --- | --- |
+| `caldera dev` | Runs the app and Vite, and keeps the generated types current as you edit. |
+| `caldera generate` | Writes the typed registries in `.caldera/` (routes, pages, config, models…) and the lists in `AGENTS.md`. |
+| `caldera check` | Fails if generated files or the auth schema are out of date, or the app is misconfigured for its target. Run it in CI. |
+| `caldera mcp` | Serves the app to coding agents over MCP: introspection, logs, recent errors, read-only SQL. |
+
+## Generators
+
+Each writes a file where it belongs, then regenerates the types. `--force` replaces an existing file; `caldera stub:eject <name>` copies a generator's template into `stubs/` so it uses yours.
+
+| Command | Makes |
+| --- | --- |
+| `make:model <Name>` | A model and its table (`--no-table` for an existing one). |
+| `make:routes <name>` | A route group in `src/routes/`. |
+| `make:page <Path/Name>` | A page in `resources/pages/`, e.g. `Posts/Index`. |
+| `make:policy <Name>` | A policy, denying everything until you allow it. |
+| `make:job <Name>` | A queued job. |
+| `make:event <Name>` | An event (`--channel <Name>` also sends it to browsers on that channel). |
+| `make:listener <Name> --event <Event>` | A listener for an event. |
+| `make:schedule <Name> --job <Job>` | A schedule that dispatches a job. |
+| `make:mail <Name>` | A mail (React Email). |
+| `make:notification <Name>` | A notification and its mail; `billing.InvoicePaid` gives it the id `billing.invoice-paid`. |
+| `make:channel <Name>` | A realtime channel (`--presence` for one that knows who's on it). |
+| `make:config`, `make:provider`, `make:factory`, `make:seeder` | A config file, a provider, a factory or a seeder. |
+
+## The database
+
+| Command | What it does |
+| --- | --- |
+| `db:generate` | Writes a migration for what changed in your tables (`--name add-notes` names it). |
+| `db:migrate` | Applies pending migrations. |
+| `db:push` | Pushes the schema straight to the database, for prototyping. |
+| `db:seed` | Runs the seeders, dependencies first, in one transaction. |
+| `db:schema` | Describes every table: columns, relations and models. |
+| `model:show <Name>` | Shows a model: columns, relations, scopes, hooks. |
+| `auth:schema` | Rewrites the auth tables after you change Better Auth's plugins. |
+| `queue:table`, `cache:table`, `notifications:table` | Add the tables for the database queue, cache store and notification inbox. |
+
+Commands that change a database refuse to run against production without `--force`.
+
+## Inspecting the app
+
+| Command | What it shows |
+| --- | --- |
+| `describe` | The env schema, config (secrets redacted), providers and services. |
+| `route:list` | Every route: its name, middleware and input schemas. |
+| `abilities` | Every policy ability, and the routes each one guards. |
+| `broadcast:list` | Realtime channels (who may join) and the events sent on them. |
+| `broadcast:authorize <channel> --user <id>` | Whether someone may join a channel, and why. |
+| `schedule:list` | Schedules and their next run. |
+| `i18n:missing` | Missing, extra and mismatched translations, and unused keys. |
+
+## Running in production
+
+| Command | What it does |
+| --- | --- |
+| `queue:work` | Processes queued jobs until stopped (`pnpm worker`). |
+| `queue:failed`, `queue:retry`, `queue:forget` | Lists, retries or deletes failed jobs (database queue). |
+| `schedule:work` | Dispatches due schedules every minute (`pnpm scheduler`). |
+| `schedule:run` | Dispatches this minute's schedules once, for an OS crontab. |
+| `schedule:sync` | Writes the platform's cron config (Vercel or Cloudflare) from your schedules. |
+| `broadcast:serve` | Runs the realtime server (`pnpm realtime`). |
+
+## Deploying
+
+| Command | What it does |
+| --- | --- |
+| `vercel:setup` | Adds `vercel.json` and the function entry point. |
+| `vercel:build` | Generates, then bundles the app for Vercel (its build command). |
+| `cloudflare:setup` | Adds `wrangler.json` and the Worker entry point (D1, R2, Queues, Email, Cron). |
+| `d1:migrations` | Copies migrations to `migrations/` for `wrangler d1 migrations apply`. |

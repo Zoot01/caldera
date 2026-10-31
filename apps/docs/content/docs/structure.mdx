@@ -1,0 +1,81 @@
+---
+title: Directory structure
+description: Where each kind of code goes in a Caldera app.
+---
+
+A new starter app looks like this. Every folder has one job, and the generators (`caldera make:*`) put files where they belong.
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config" />
+    <Folder name="db" />
+    <Folder name="models" />
+    <Folder name="routes" />
+    <Folder name="mail" />
+    <Folder name="notifications" />
+    <Folder name="channels" />
+    <File name="app.ts" />
+    <File name="auth.ts" />
+    <File name="env.ts" />
+    <File name="http.ts" />
+    <File name="inertia.ts" />
+    <File name="middleware.ts" />
+    <File name="server.ts" />
+  </Folder>
+  <Folder name="resources" defaultOpen>
+    <Folder name="pages" />
+    <Folder name="components" />
+    <Folder name="layouts" />
+    <File name="app.tsx" />
+    <File name="app.css" />
+  </Folder>
+  <Folder name="lang" />
+  <Folder name="drizzle" />
+  <Folder name="tests" />
+  <Folder name="public" />
+  <File name="AGENTS.md" />
+  <File name=".env" />
+</Files>
+
+## The server: `src/`
+
+| What | Where | Generator |
+| --- | --- | --- |
+| Environment variables, validated with Zod | `src/env.ts` | |
+| Config: the only place `env` is read | `src/config/*.ts` | `make:config` |
+| Tables | `src/db/tables/*.ts` (and `src/db/schema.ts`) | `make:model` |
+| Relations: every table is registered here | `src/db/relations.ts` | |
+| Models | `src/models/*.ts` | `make:model` |
+| Policies: who may do what | `src/policies/*.ts` | `make:policy` |
+| Routes | `src/routes/*.ts` | `make:routes` |
+| Middleware, by name (`mw.auth()`) | `src/middleware.ts` | |
+| Queued jobs | `src/jobs/*.ts` | `make:job` |
+| Events and listeners | `src/events/*.ts`, `src/listeners/*.ts` | `make:event`, `make:listener` |
+| Schedules | `src/schedules/*.ts` | `make:schedule` |
+| Mails (React Email) | `src/mail/*.tsx` | `make:mail` |
+| Notifications | `src/notifications/*.ts` | `make:notification` |
+| Realtime channels | `src/channels/*.ts` | `make:channel` |
+| Factories and seeders | `src/db/factories/`, `src/db/seeders/` | `make:factory`, `make:seeder` |
+
+`src/app.ts` puts the app together from its providers (database, auth, queue, mail…), `src/http.ts` is the HTTP stack (security headers, the session, pages, your routes, error pages), and `src/server.ts` starts it on Node. Routes, policies, jobs, mails and channels are found by `caldera generate`: there's no list to keep up to date.
+
+## The pages: `resources/`
+
+| What | Where |
+| --- | --- |
+| Pages, rendered with `c.render('Posts/Index', props)` | `resources/pages/**/*.tsx` (`make:page`) |
+| Layouts, picked per page | `resources/layout.ts`, `resources/layouts/` |
+| UI components ([coss ui](https://coss.com/ui): Base UI and Tailwind) | `resources/components/ui/` |
+| The theme: colours, fonts, radius | `resources/app.css` |
+| Navigation | `resources/components/navigation.ts` |
+
+The components are your own code, copied into the app. Add more with `npx shadcn add @coss/<name>`.
+
+## Everything else
+
+- **`lang/`**: translations, one folder per locale (`lang/en` is the reference).
+- **`drizzle/`**: migrations, committed with the code (`caldera db:generate`).
+- **`tests/`**: Vitest tests, and Playwright browser tests in `tests/browser/`.
+- **`public/`**: files served as they are, including the production build of the pages.
+- **`.caldera/`**: generated types and registries. Don't edit them; `caldera dev` and `caldera generate` rewrite them.
+- **`AGENTS.md`**: how the app is laid out and what's in it, for people and coding agents. Its lists of routes, models, jobs and channels are regenerated as you work.
