@@ -34,8 +34,8 @@ const posts = defineRoutes('posts', { prefix: '/posts' })
     {
       middleware: [mw.auth()],
       request: defineRequest({ authorize: () => (order.push('authorize'), true) }),
-      // A scoped binding: only posts in the caller's team are visible.
-      bind: { post: async (slug: string) => rows.find((r) => r.slug === slug && r.teamId === 1) },
+      // A scoped binding: only posts in the caller's team are visible (it gets the request's c).
+      bind: { post: async (slug: string, c: RouteContext) => rows.find((r) => r.slug === slug && r.teamId === Number(c.req.header('x-team') ?? 1)) },
     },
     (c) => {
       order.push('handler')
@@ -70,6 +70,8 @@ describe('route model binding', () => {
 
     expect((await app.request('/posts/hello', { method: 'PUT' })).status).toBe(200)
     expect((await app.request('/posts/secret', { method: 'PUT' })).status).toBe(404)
+    // The binding reads the request: team 2 sees its own post.
+    expect((await app.request('/posts/secret', { method: 'PUT', headers: { 'x-team': '2' } })).status).toBe(200)
   })
 
   it('appears in the manifest and rejects bindings without a matching parameter', () => {
