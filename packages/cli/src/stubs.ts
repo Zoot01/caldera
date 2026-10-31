@@ -34,9 +34,11 @@ export const {{ Name }} = defineModel({{ plural }}, {
   policy: `import { definePolicy } from '@caldera/auth'
 import { {{ Name }} } from '../models/{{ kebab }}.js'
 
+// Everything is denied until you allow it, and signed-out visitors are denied unless an ability
+// opts in with \`{ guest: true, check }\`. For example: \`update: (user, row) => row.userId === user.id\`.
 export const {{ Name }}Policy = definePolicy({{ Name }}, {
-  viewAny: { guest: true, check: () => true },
-  view: { guest: true, check: () => true },
+  viewAny: () => false,
+  view: () => false,
   create: () => false,
   update: () => false,
   delete: () => false,

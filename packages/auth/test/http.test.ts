@@ -3,8 +3,8 @@ import type { Row } from '@caldera/db'
 import { createRouter, defineMiddleware, defineRoutes, errorHandler, type ErrorBody } from '@caldera/http'
 import { Hono } from 'hono'
 import { beforeEach, expect, it } from 'vitest'
-import { allows, authorizationProvider } from '../src/index.js'
-import { Post, setup, User } from './fixtures.js'
+import { allows, authorizationProvider, definePolicy } from '../src/index.js'
+import { Post, PostPolicy, setup, User } from './fixtures.js'
 
 let s: Awaited<ReturnType<typeof setup>>
 beforeEach(async () => {
@@ -42,4 +42,13 @@ it('authorizes routes against policies after binding, with standard error respon
   expect((await call('DELETE', '/posts/draft', s.bob)).body?.error).toMatchObject({ code: 'not_found', status: 404 })
   expect((await call('DELETE', '/posts/draft', s.ann)).status).toBe(204)
   expect(await Post.find(s.draft.id)).toBeUndefined()
+})
+
+it('registers the policies it is given, so they apply even if nothing else imported them', async () => {
+  // Another policy for posts took over the registry (a stale module, say); the app's list wins.
+  definePolicy(Post, { view: () => false })
+  const app = createApp({ env: defineEnv({}), providers: [authorizationProvider({ policies: [PostPolicy] })] })
+  const routes = defineRoutes('posts', { prefix: '/posts', middleware: [mw.auth()] }).get('show', '/:post', { bind: { post: Post }, authorize: allows(Post, 'view', 'post') }, (c) => c.json({ slug: c.var.post.slug }))
+  const http = new Hono<HonoEnvOf<typeof app>>().use(app.middleware()).route('/', createRouter(routes).app).onError(errorHandler())
+  expect((await http.request('/posts/live', {}, {})).status).toBe(200)
 })

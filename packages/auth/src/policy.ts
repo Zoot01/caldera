@@ -62,8 +62,13 @@ const policies = new Map<string, Policy<AnyModel, Record<string, unknown>>>()
 /** The authorization rules for one model. Keep one per file in `src/policies/`. */
 export function definePolicy<M extends AnyModel, P>(model: M, definition: PolicyShape<M, P>): Policy<M, P> {
   const policy: Policy<M, P> = { kind: 'caldera.policy', model, definition: definition as P }
-  policies.set(model.name, policy as never)
+  registerPolicy(policy)
   return policy
+}
+
+/** Makes a policy the one checks use for its model (`authorizationProvider({ policies })` does this). */
+export function registerPolicy(policy: Policy<AnyModel, unknown>): void {
+  policies.set(policy.model.name, policy as never)
 }
 
 export function policyFor(model: AnyModel): Policy<AnyModel, Record<string, unknown>> | undefined {

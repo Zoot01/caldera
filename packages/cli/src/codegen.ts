@@ -149,6 +149,21 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     })
   }
 
+  // Passed to authorizationProvider({ policies }) in app.ts. Policies register when they're loaded,
+  // and this list is what loads them: without it, a policy nothing else imports never applies.
+  const { policies } = await loadPolicies(project)
+  if (policies.length > 0 || usesPackage(project, '@caldera/auth')) {
+    const used = [...new Set(policies.map((p) => p.file))]
+    const alias = (file: string) => `policies${used.indexOf(file)}`
+    generated.push({
+      path: `${dir}/policies.gen.ts`,
+      contents:
+        HEADER +
+        used.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+        `${used.length ? '\n' : ''}export const policies = [${policies.map((p) => `${alias(p.file)}.${p.exportName}`).join(', ')}] as const\n`,
+    })
+  }
+
   // Passed to mailProvider({ mails }) in app.ts (previews, and workers sending queued mail).
   const mails = await loadMails(project)
   if (mails.length > 0 || usesPackage(project, '@caldera/mail')) {

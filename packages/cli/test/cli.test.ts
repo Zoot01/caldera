@@ -42,6 +42,7 @@ describe('caldera generate', () => {
       ['.caldera/config.gen.ts', 'created'],
       ['.caldera/register.d.ts', 'created'],
       ['.caldera/routes.gen.ts', 'created'],
+      ['.caldera/policies.gen.ts', 'created'],
       ['.caldera/.gitignore', 'created'],
       ['AGENTS.md', 'updated'],
     ])
@@ -331,7 +332,7 @@ describe('AGENTS.md and caldera check', () => {
   })
 
   it('passes when everything is generated, and reports what drifted', async () => {
-    expect((await check(openProject(root))).issues.map((i) => i.file)).toEqual(['.caldera/config.gen.ts', '.caldera/register.d.ts', '.caldera/routes.gen.ts', '.caldera/.gitignore', 'AGENTS.md'])
+    expect((await check(openProject(root))).issues.map((i) => i.file)).toEqual(['.caldera/config.gen.ts', '.caldera/register.d.ts', '.caldera/routes.gen.ts', '.caldera/policies.gen.ts', '.caldera/.gitignore', 'AGENTS.md'])
     await generate(openProject(root))
     expect(await check(openProject(root))).toEqual({ schemaVersion: 1, ok: true, issues: [] })
 
