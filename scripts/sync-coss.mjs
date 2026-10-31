@@ -22,8 +22,20 @@ const KIT = join(KITS, 'blank')
 // (blank, then starter, then starter-teams), so it only gets components they don't have.
 const USES = {
   blank: ['card', 'toggle-group'],
-  starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner', 'command'],
-  'starter-teams': ['badge'],
+  starter: ['alert', 'alert-dialog', 'avatar', 'badge', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner', 'command', 'toast'],
+  'starter-teams': [],
+}
+// The kit's changes to coss's components, applied on every sync. Each must find its text, like the
+// CSS edits below. Dialogs: titles in medium weight, a size down, and a footer without coss's band.
+const COMPONENT_EDITS = {
+  dialog: [
+    ['"font-bold font-heading text-xl leading-none"', '"font-heading font-medium text-lg leading-snug"'],
+    ['variant === "default" && "border-t bg-muted/72 py-4",', 'variant === "default" && "pt-2 pb-6",'],
+  ],
+  'alert-dialog': [
+    ['"font-bold font-heading text-xl leading-none"', '"font-heading font-medium text-lg leading-snug"'],
+    ['variant === "default" && "border-t bg-muted/72 py-4",', 'variant === "default" && "pt-2 pb-6",'],
+  ],
 }
 
 const scratch = mkdtempSync(join(tmpdir(), 'caldera-coss-'))
@@ -60,7 +72,7 @@ try {
     if (!names.length) continue
     mkdirSync(ui, { recursive: true })
     for (const name of names) {
-      writeFileSync(join(ui, `${name}.tsx`), clean(source(name)))
+      writeFileSync(join(ui, `${name}.tsx`), edited(name, clean(source(name))))
       vendored.add(name)
     }
     copied[kit] = names
@@ -98,6 +110,15 @@ function closure(names, source) {
   }
   names.forEach(visit)
   return [...seen].sort()
+}
+
+/** A component with the kit's edits (COMPONENT_EDITS); each must find its text. */
+function edited(name, source) {
+  for (const [from, to] of COMPONENT_EDITS[name] ?? []) {
+    if (!source.includes(from)) throw new Error(`coss's ${name} changed: can't find ${from}. Update COMPONENT_EDITS in scripts/sync-coss.mjs.`)
+    source = source.replace(from, to)
+  }
+  return source
 }
 
 /** Vite apps have no React Server Components: the directive only makes Rollup warn. */
