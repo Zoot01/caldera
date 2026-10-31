@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import { register, uniqueEmail, visit } from './helpers'
 
-const switcher = (page: Page) => page.locator('[data-slot=sidebar-header]')
+// The team switcher: next to the logo in the header layout, at the top of the sidebar in the other.
+const switcher = (page: Page) => page.getByRole('button', { name: /^Team:/ })
 
 test('everyone starts in a personal team', async ({ page }) => {
   await register(page, { name: 'Ann Lee' })
@@ -10,7 +11,7 @@ test('everyone starts in a personal team', async ({ page }) => {
 
 test('creates a team, invites someone by email, and they join it', async ({ browser, page }) => {
   await register(page, { name: 'Ann Lee' })
-  await switcher(page).getByRole('button').first().click()
+  await switcher(page).click()
   await page.getByRole('menuitem', { name: 'New team' }).click()
   await page.getByLabel('Team name').fill('Acme')
   await page.getByRole('button', { name: 'Create team' }).click()
@@ -40,7 +41,7 @@ test('creates a team, invites someone by email, and they join it', async ({ brow
   await expect(switcher(bob)).toContainText('Acme')
 
   // Back to his own team from the switcher.
-  await switcher(bob).getByRole('button').first().click()
+  await switcher(bob).click()
   await bob.getByRole('menuitem', { name: /Bob's Team/ }).click()
   await expect(switcher(bob)).toContainText("Bob's Team")
 

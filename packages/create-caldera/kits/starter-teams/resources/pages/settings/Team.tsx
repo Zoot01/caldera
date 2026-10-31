@@ -2,7 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react'
 import { MoreHorizontal } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { FormField } from '@/components/form-field'
-import { Heading } from '@/components/heading'
+import { Section } from '@/components/section'
 import {
   AlertDialog,
   AlertDialogClose,
@@ -45,10 +45,13 @@ export default function Team({ team, members, invitations, can }: Props) {
   return (
     <>
       <Head title={team.name} />
-      <div className="space-y-6">
-        <Heading size="small" title={team.name} description={team.personal ? 'Your personal team. Others can’t be invited to it; make a new team to work together.' : 'Team settings and members'} />
-        {status && <p className="text-muted-foreground text-sm">{status}</p>}
-        {can.update && (
+      <div className="space-y-1">
+        <h2 className="font-medium text-lg">{team.name}</h2>
+        <p className="text-muted-foreground text-sm">{team.personal ? 'Your personal team. Others can’t be invited to it; make a new team to work together.' : 'Team settings and members'}</p>
+        {status && <p className="pt-2 text-sm text-success-foreground">{status}</p>}
+      </div>
+      {can.update && (
+        <Section title="General" description="The team's name, as everyone in it sees it.">
           <form
             onSubmit={(event: FormEvent) => {
               event.preventDefault()
@@ -65,12 +68,11 @@ export default function Team({ team, members, invitations, can }: Props) {
               Save
             </Button>
           </form>
-        )}
-      </div>
+        </Section>
+      )}
 
-      <div className="space-y-4">
-        <Heading size="small" title="Members" />
-        <ul className="divide-y rounded-xl border">
+      <Section title="Members" description="Everyone in the team, and what they can do.">
+        <ul className="divide-y rounded-lg border">
           {members.map((member) => (
             <li key={member.id} className="flex items-center gap-3 px-4 py-3 text-sm">
               <div className="min-w-0 flex-1">
@@ -117,11 +119,10 @@ export default function Team({ team, members, invitations, can }: Props) {
             </AlertDialogFooter>
           </AlertDialogPopup>
         </AlertDialog>
-      </div>
+      </Section>
 
       {can.invite && (
-        <div className="space-y-4">
-          <Heading size="small" title="Invite someone" description="They'll get an email with a link to join." />
+        <Section title="Invite someone" description="They'll get an email with a link to join.">
           <form
             onSubmit={(event: FormEvent) => {
               event.preventDefault()
@@ -144,7 +145,7 @@ export default function Team({ team, members, invitations, can }: Props) {
             </div>
           </form>
           {invitations.length > 0 && (
-            <ul className="divide-y rounded-xl border">
+            <ul className="divide-y rounded-lg border">
               {invitations.map((invitation) => (
                 <li key={invitation.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                   <span className="flex-1 truncate">{invitation.email}</span>
@@ -156,14 +157,13 @@ export default function Team({ team, members, invitations, can }: Props) {
               ))}
             </ul>
           )}
-        </div>
+        </Section>
       )}
 
       {(can.leave || can.delete) && (
-        <div className="space-y-4">
-          <Heading size="small" title={can.delete ? 'Delete team' : 'Leave team'} description={can.delete ? 'Delete the team for everyone in it. This can’t be undone.' : 'You’ll lose access until someone invites you again.'} />
+        <Section title={can.delete ? 'Delete team' : 'Leave team'} description={can.delete ? 'Delete the team for everyone in it. This can’t be undone.' : 'You’ll lose access until someone invites you again.'} tone="danger">
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="destructive" />}>{can.delete ? 'Delete team' : 'Leave team'}</AlertDialogTrigger>
+            <AlertDialogTrigger render={<Button variant="destructive-outline" />}>{can.delete ? 'Delete team' : 'Leave team'}</AlertDialogTrigger>
             <AlertDialogPopup>
               <AlertDialogHeader>
                 <AlertDialogTitle>{can.delete ? `Delete ${team.name}?` : `Leave ${team.name}?`}</AlertDialogTitle>
@@ -177,7 +177,7 @@ export default function Team({ team, members, invitations, can }: Props) {
               </AlertDialogFooter>
             </AlertDialogPopup>
           </AlertDialog>
-        </div>
+        </Section>
       )}
     </>
   )

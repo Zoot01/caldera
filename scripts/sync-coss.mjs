@@ -77,9 +77,9 @@ try {
   // An app gets the base template's and the kit's.
   const app = [join(KIT, 'package.json'), join(KIT, '../../template/package.json')].map((file) => JSON.parse(readFileSync(file, 'utf8')))
   const has = (name) => app.some((manifest) => manifest.dependencies?.[name] || manifest.devDependencies?.[name])
-  // `geist` is replaced by Fontsource (appCss()); `cn` is an unrelated package coss's registry lists
-  // by mistake (lib/utils.ts defines cn); tw-animate-css isn't used by any component.
-  const ignored = new Set(['cn', 'geist', 'tw-animate-css'])
+  // `geist` is replaced by Fontsource and Inter by Instrument Sans (appCss()); `cn` is an unrelated
+  // package coss's registry lists by mistake (lib/utils.ts defines cn); tw-animate-css isn't used by any component.
+  const ignored = new Set(['cn', 'geist', '@fontsource-variable/inter', 'tw-animate-css'])
   const missing = Object.keys({ ...added.dependencies, ...added.devDependencies }).filter((name) => !ignored.has(name) && !has(name))
   for (const [kit, names] of Object.entries(copied)) console.log(`kits/${kit}: ${names.join(', ')}`)
   console.log('Also lib/utils.ts, hooks/use-media-query.ts and app.css (kits/blank).')
@@ -108,15 +108,17 @@ function clean(source) {
 /**
  * coss's theme as app.css, adjusted for Vite (coss assumes Next.js): fonts from Fontsource instead
  * of `geist` (a next/font package) with their family names, `html` in the sans font (coss applies
- * both font-sans and font-mono, so the mono one wins), and the root setup Base UI's portals need.
+ * both font-sans and font-mono, so the mono one wins), Instrument Sans for text, the kit's look
+ * over coss's tokens (scripts/coss-theme.css), and the root setup Base UI's portals need.
  * Each edit must find its text: a changed theme fails here instead of shipping half-edited.
  */
 function appCss(css) {
   const edits = [
+    ['@import "@fontsource-variable/inter";', '@import "@fontsource-variable/instrument-sans";'],
     ['@import "geist";', '@import "@fontsource-variable/geist-mono";'],
-    ["--font-heading: 'Inter', sans-serif;", "--font-heading: 'Inter Variable', sans-serif;"],
+    ["--font-heading: 'Inter', sans-serif;", "--font-heading: 'Instrument Sans Variable', sans-serif;"],
     ["--font-mono: 'Geist Mono', monospace;", "--font-mono: 'Geist Mono Variable', monospace;"],
-    ["--font-sans: 'Inter', sans-serif;", "--font-sans: 'Inter Variable', sans-serif;"],
+    ["--font-sans: 'Inter', sans-serif;", "--font-sans: 'Instrument Sans Variable', sans-serif;"],
     [/(html \{\s*@apply font-sans) font-mono;/, '$1;'],
   ]
   for (const [pattern, replacement] of edits) {
@@ -127,6 +129,8 @@ function appCss(css) {
   return `/* Tailwind CSS v4 and the coss ui theme (light in :root, dark in .dark). Colors, radius and fonts
    are CSS variables: change them here. Refreshed in Caldera with \`pnpm sync:coss\`. */
 ${css.trimEnd()}
+
+${readFileSync(new URL('./coss-theme.css', import.meta.url), 'utf8').trimEnd()}
 
 /* Base UI renders dialogs, menus and toasts at the end of <body>: isolating the app keeps them
    above it, and \`relative\` on body is for iOS Safari 26. */

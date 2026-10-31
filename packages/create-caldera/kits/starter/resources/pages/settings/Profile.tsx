@@ -2,7 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react'
 import type { FormEvent } from 'react'
 import { DeleteUser } from '@/components/delete-user'
 import { FormField } from '@/components/form-field'
-import { Heading } from '@/components/heading'
+import { Section } from '@/components/section'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -24,8 +24,7 @@ export default function Profile({ mustVerifyEmail }: { mustVerifyEmail: boolean 
   return (
     <>
       <Head title="Profile settings" />
-      <div className="space-y-6">
-        <Heading size="small" title="Profile" description="Update your name and email address" />
+      <Section title="Profile" description="Update your name and email address">
         <form onSubmit={submit} className="space-y-6">
           <FormField label="Name" error={form.errors.name}>
             <Input autoComplete="name" required value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} />
@@ -48,7 +47,7 @@ export default function Profile({ mustVerifyEmail }: { mustVerifyEmail: boolean 
             {status && <p className="text-muted-foreground text-sm">{status}</p>}
           </div>
         </form>
-      </div>
+      </Section>
       <DeleteUser />
     </>
   )

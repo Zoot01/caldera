@@ -1,13 +1,20 @@
 import type { ReactNode } from 'react'
+import { AppFooter } from '@/components/app-footer'
 import { AppHeader } from '@/components/app-header'
 import type { LayoutProps } from '@/types'
 
-/** The other app layout: navigation across the top. Use it from layouts/app-layout.tsx. */
-export default function AppHeaderLayout({ breadcrumbs = [], children }: LayoutProps & { children: ReactNode }) {
+/**
+ * The default app layout: the header and its tabs on white, and the page in a panel below. Pages put
+ * white cards on the panel (`bg-card`, or Section from resources/components/section.tsx).
+ */
+export default function AppHeaderLayout({ children }: LayoutProps & { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh w-full flex-col">
-      <AppHeader breadcrumbs={breadcrumbs} />
-      <main className="mx-auto flex w-full flex-1 flex-col gap-4 p-4 md:max-w-7xl">{children}</main>
+    <div className="flex min-h-svh w-full flex-col bg-background">
+      <AppHeader />
+      <main className="mx-1 mb-1 flex flex-1 flex-col rounded-lg border bg-surface md:mx-2 md:mb-2">
+        <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 md:px-8">{children}</div>
+        <AppFooter />
+      </main>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { Head, useForm, usePage } from '@inertiajs/react'
 import type { FormEvent } from 'react'
 import { FormField } from '@/components/form-field'
-import { Heading } from '@/components/heading'
+import { Section } from '@/components/section'
 import { type PasskeySummary, Passkeys } from '@/components/passkeys'
 import { TwoFactor, type TwoFactorState } from '@/components/two-factor'
 import { Button } from '@/components/ui/button'
@@ -25,8 +25,7 @@ export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactor
   return (
     <>
       <Head title="Security settings" />
-      <div className="space-y-6">
-        <Heading size="small" title="Update password" description="Use a long, random password to stay secure. Other devices are signed out when it changes." />
+      <Section title="Update password" description="Use a long, random password to stay secure. Other devices are signed out when it changes.">
         <form onSubmit={submit} className="space-y-6">
           <FormField label="Current password" error={form.errors.currentPassword}>
             <Input type="password" autoComplete="current-password" value={form.data.currentPassword} onChange={(e) => form.setData('currentPassword', e.target.value)} />
@@ -44,7 +43,7 @@ export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactor
             {status === 'password-updated' && <p className="text-muted-foreground text-sm">Saved.</p>}
           </div>
         </form>
-      </div>
+      </Section>
       {twoFactor && <TwoFactor state={twoFactor} />}
       {passkeys && <Passkeys passkeys={passkeys} />}
     </>
