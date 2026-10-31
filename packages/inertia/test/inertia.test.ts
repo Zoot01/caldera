@@ -65,6 +65,9 @@ describe('rendering', () => {
     expect(res.headers.get('vary')).toContain('X-Inertia')
     expect(html).toContain('<title>Blog</title>')
     expect(html).toContain('<div id="app"></div>')
+    // Or from the request (the kits read config.app.name), escaped like any attribute.
+    const named = await (await makeHttp({ title: (c) => `${new URL(c.req.url).hostname} & co` }).request('/posts')).text()
+    expect(named).toContain('<title>localhost &amp; co</title>')
     expect(html).not.toContain('</script><script>alert(1)')
     const json = html.match(/<script data-page="app" type="application\/json">(.*?)<\/script>/s)![1]!
     const page = JSON.parse(json) as PageObject

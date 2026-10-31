@@ -12,10 +12,10 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { Miniflare } from 'miniflare'
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { databaseChannel } from '../src/database.js'
-import { createNotifications, defineNotification, inbox, NotificationFailedError, notificationsProvider, notify, route, SEND_NOTIFICATION_JOB, setDefaultNotifications, type Notifications } from '../src/index.js'
+import { createNotifications, defineNotification, inbox, NotificationFailedError, notificationsProvider, notify, route, SEND_NOTIFICATION_JOB, setDefaultNotifications, type Notifications, type StoredNotification } from '../src/index.js'
 import { InvoicePaid, InvoicePaidEmail, QueuedInvoicePaid, Sms, sms, smsFailures, Users, type User } from './fixtures/notifications.js'
 import { hasPostgres, startPostgres } from './postgres-server.js'
 
@@ -131,6 +131,10 @@ describe.each(backends)('notifications on $name', (backend) => {
     expect(await bobInbox.delete([annRow!.id])).toBe(0)
     expect(await notifications.inbox(ann).unreadCount()).toBe(1)
     expect(await bobInbox.unreadCount()).toBe(1)
+    // find() is scoped the same way.
+    expect(await notifications.inbox(ann).find(annRow!.id)).toMatchObject({ id: annRow!.id, type: 'billing.invoice-paid', data: { number: 'INV-7' } })
+    expect(await bobInbox.find(annRow!.id)).toBeUndefined()
+    expect(await bobInbox.find('nope')).toBeUndefined()
   })
 
   it('marks read and unread, counts unread, and pages newest first', async () => {
@@ -350,4 +354,18 @@ describe('types', () => {
     }
     expect(check).toBeTypeOf('function')
   })
+})
+
+// What `caldera generate` writes into register.d.ts.
+declare module '../src/index.js' {
+  interface NotificationRegistry {
+    'billing.invoice-paid': typeof InvoicePaid
+    'billing.invoice-paid-queued': typeof QueuedInvoicePaid
+  }
+}
+
+it('types a stored notification’s data by its name', () => {
+  expectTypeOf<StoredNotification['type']>().toEqualTypeOf<'billing.invoice-paid' | 'billing.invoice-paid-queued'>()
+  const narrow = (n: StoredNotification) => (n.type === 'billing.invoice-paid' ? n.data : undefined)
+  expectTypeOf(narrow).returns.toEqualTypeOf<{ number: string; amount: number } | undefined>()
 })

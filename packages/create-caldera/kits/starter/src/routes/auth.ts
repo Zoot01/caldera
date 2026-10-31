@@ -1,8 +1,11 @@
 import { withAuthCookies } from '@caldera/auth'
 import { defineLimiter, ipOf, perMinute } from '@caldera/cache'
 import { back, defineRequest, defineRoutes, intended, redirect, ValidationError } from '@caldera/http'
+import { notify } from '@caldera/notifications'
 import { z } from 'zod'
 import { confirmPassword, mw } from '../middleware.js'
+import { User } from '../models/user.js'
+import { Welcome } from '../notifications/welcome.js'
 
 // Sign-up, sign-in, passwords and email verification. The pages are in resources/pages/auth; each
 // form posts here, and these call Better Auth on the server (`c.var.auth.api`, configured in src/auth.ts).
@@ -48,6 +51,9 @@ export const auth = defineRoutes('auth')
     const { name, email, password } = c.req.valid('json')
     const res = await c.var.auth.api.signUpEmail({ body: { name, email, password }, headers: headers(c), asResponse: true })
     if (!res.ok) throw new ValidationError({ email: ['This email address is already registered.'] })
+    // A welcome mail and inbox entry (src/notifications/welcome.ts), queued once this request's work commits.
+    const user = await User.findFirst({ where: { email } })
+    if (user) await notify(user, Welcome, { name, url: new URL(c.var.config.auth.home, c.var.config.app.url).toString() })
     // With mustVerifyEmail, Better Auth signs people in only once they've clicked the link.
     if (c.var.config.auth.mustVerifyEmail) return redirect(c, '/login').with('status', 'Check your inbox: click the link we sent to confirm your email, then sign in.')
     confirmPassword(c)

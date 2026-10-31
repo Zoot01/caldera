@@ -74,8 +74,8 @@ export interface InertiaOptions<S extends Record<string, unknown> = Record<strin
   version?: string | null | (() => string | null | Promise<string | null>)
   /** The HTML document for first visits. Must contain `page` as `<script data-page="app" type="application/json">`. */
   rootView?: (context: RootViewContext) => string
-  /** Document `<title>` for the default root view. */
-  title?: string
+  /** Document `<title>` for the default root view, or a function of the request: `(c) => c.var.config.app.name`. */
+  title?: string | ((c: Context) => string)
   /** Attributes and inline head tags for every first visit, e.g. `[appearance()]`. */
   document?: DocumentPart[]
   /**
@@ -308,8 +308,9 @@ function documentOf(parts: DocumentPart[], c: Context, nonce: string | undefined
   }
 }
 
-function defaultRootView(title = 'Caldera') {
+function defaultRootView(titleOf: string | ((c: Context) => string) = 'Caldera') {
   return ({ page, assets, c, nonce, ssr, document }: RootViewContext) => {
+    const title = typeof titleOf === 'function' ? titleOf(c as Context) : titleOf
     // Scripts a page put in its <Head> run under the strict CSP only with this request's nonce.
     const head = (ssr?.head ?? []).map((tag) => (nonce && tag.startsWith('<script') && !tag.includes(' nonce=') ? tag.replace('<script', `<script nonce="${escapeAttribute(nonce)}"`) : tag))
     const hasTitle = head.some((tag) => tag.startsWith('<title'))

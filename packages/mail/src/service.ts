@@ -1,6 +1,6 @@
 import { CalderaError, CapabilityError, createManager, defineProvider, type Duration, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
 import { z } from 'zod'
-import { renderMail, type AnyMail, type AttachmentSource, type MailProps, type Rendered } from './mail.js'
+import { renderMail, type AnyMail, type AttachmentSource, type MailApp, type MailProps, type Rendered } from './mail.js'
 import { formatAddress, messageSize, parseAddress, type Address, type AddressInput, type Attachment, type Message } from './message.js'
 import { cloudflareMailDriver } from './cloudflare.js'
 import { failoverDriver, logDriver, memoryDriver, postmarkDriver, resendDriver, roundrobinDriver, type MailCapabilities, type MailTransport, type Outbox, type SendResult } from './transports.js'
@@ -8,8 +8,10 @@ import { failoverDriver, logDriver, memoryDriver, postmarkDriver, resendDriver, 
 export interface MailConfig<N extends string = string> {
   default: NoInfer<N>
   mailers: { [K in N]?: { driver: string; [option: string]: unknown } | undefined }
-  /** Sender when a mail doesn't set one. */
+  /** Sender when a mail doesn't set one. Without a name (`hello@example.com`), it's sent as the app's name. */
   from: AddressInput
+  /** The app mails see (`useApp()`, `subject: (p, { app }) => …`). mailProvider takes it from `config.app`. */
+  app?: MailApp
   replyTo?: AddressInput
   /** Development: every message goes here instead (the real recipients are kept in X-Original-To). */
   redirectTo?: AddressInput
@@ -59,6 +61,8 @@ export interface MailFake {
 export interface MailService<N extends string = string> extends PendingMail<N> {
   register(...mails: AnyMail[]): void
   find(name: string): AnyMail | undefined
+  /** The app mails are sent from, as `useApp()` gives it. */
+  readonly app: MailApp
   /** Every registered mail, for previews and introspection. */
   readonly mails: readonly AnyMail[]
   /** A mailer's outbox, for `log` and `memory` mailers (dev preview, tests). */
@@ -113,7 +117,9 @@ export function createMail<const N extends string>(
   options: { drivers?: readonly DriverDefinition<MailTransport, MailCapabilities>[]; queue?: () => QueueLike | undefined; storage?: () => StorageLike | undefined } = {},
 ): MailService<N> {
   const manager = createManager({ kind: 'mail', drivers: [...MAIL_DRIVERS, ...(options.drivers ?? [])], config: { default: config.default, instances: config.mailers }, hints: HINTS })
-  const from = parseAddress(config.from)
+  const app: MailApp = { name: config.app?.name ?? '', url: config.app?.url ?? '' }
+  const sender = parseAddress(config.from)
+  const from = sender.name || !app.name ? sender : { ...sender, name: app.name }
   const replyTo = config.replyTo ? [parseAddress(config.replyTo)] : []
   const redirectTo = config.redirectTo ? parseAddress(config.redirectTo) : undefined
   const registry = new Map<string, AnyMail>()
@@ -146,7 +152,7 @@ export function createMail<const N extends string>(
   const deliver = async (mail: AnyMail, input: unknown, envelope: Envelope, mailer: N = config.default): Promise<SendResult> => {
     remember(mail)
     if (envelope.to.length + envelope.cc.length + envelope.bcc.length === 0) throw new CalderaError('mail_no_recipients', `Mail "${mail.name}" has no recipients: call .to(...) first.`)
-    const rendered = await renderMail(mail, input as never)
+    const rendered = await renderMail(mail, input as never, { app })
     const props = rendered.props as never
     const headers: Record<string, string> = {}
     let target = envelope
@@ -248,6 +254,7 @@ export function createMail<const N extends string>(
       for (const mail of mails) register(mail)
     },
     find: (name) => registry.get(name),
+    app,
     get mails() {
       return [...registry.values()]
     },
@@ -338,7 +345,11 @@ export function mailProvider<const N extends string>(
   return defineProvider({
     name: 'mail',
     register: (app) => {
-      const service = createMail(resolve(app), { ...(options.drivers ? { drivers: options.drivers } : {}), queue: () => services.queue, storage: () => services.storage })
+      // Mails read the app's name and URL (useApp()) from config.app unless the mail config sets them.
+      const fromApp = (app.config as { app?: { name?: unknown; url?: unknown } }).app
+      const resolved = resolve(app)
+      const config = resolved.app || typeof fromApp?.name !== 'string' ? resolved : { ...resolved, app: { name: fromApp.name, url: typeof fromApp.url === 'string' ? fromApp.url : '' } }
+      const service = createMail(config, { ...(options.drivers ? { drivers: options.drivers } : {}), queue: () => services.queue, storage: () => services.storage })
       service.register(...(options.mails ?? []))
       setDefaultMail(service)
       return { mail: service }

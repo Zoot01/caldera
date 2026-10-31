@@ -1,5 +1,5 @@
-export { attach, defineMail, renderMail } from './mail.js'
-export type { AnyMail, AttachmentSource, MailDefinition, MailOptions, MailProps, Rendered } from './mail.js'
+export { attach, defineMail, renderMail, useApp } from './mail.js'
+export type { AnyMail, AttachmentSource, MailApp, MailContext, MailDefinition, MailOptions, MailProps, Rendered } from './mail.js'
 export { formatAddress, messageSize, parseAddress } from './message.js'
 export type { Address, AddressInput, Attachment, Message } from './message.js'
 export { cloudflareMailDriver, cloudflareTransport } from './cloudflare.js'

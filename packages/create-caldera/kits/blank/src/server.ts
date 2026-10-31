@@ -12,7 +12,7 @@ await app.boot()
 // Files in public/ (including the Vite build in public/build) are served as they are.
 const server = new Hono().use(serveStatic({ root: './public' })).route('/', http)
 serve({ fetch: server.fetch, port: app.config.app.port }, (info) => {
-  console.log(`{{ name }} is running on http://localhost:${info.port}`)
+  console.log(`${app.config.app.name} is running on http://localhost:${info.port}`)
 })
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

@@ -1,6 +1,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { createRouter, defineMiddleware, defineRequest, defineRoutes, errorHandler } from '../src/index.js'
+import { z } from 'zod'
+import { createRouter, defineMiddleware, defineRequest, defineRoutes, errorHandler, type RouteContext } from '../src/index.js'
 
 interface Post {
   id: number
@@ -77,4 +78,17 @@ describe('route model binding', () => {
     expect(show.middleware.map((m) => m.name)).toEqual(['bind'])
     expect(() => defineRoutes('bad').get('x', '/things/:id', { bind: { post: PostModel } }, (c) => c.text(''))).toThrow(/no :post parameter/)
   })
+})
+
+it('types a helper that takes a route’s c (RouteContext)', async () => {
+  const slugOf = (c: RouteContext<{ post: typeof PostModel }>) => `${c.var.post.slug}:${c.req.param('post')}`
+  const group = defineRoutes('typed', { prefix: '/typed' }).put(
+    'update',
+    '/:post/:other',
+    { bind: { post: PostModel, other: PostModel }, request: defineRequest({ body: z.object({ title: z.string() }) }) },
+    // A route with more bindings and a request body still passes its c.
+    (c) => c.text(slugOf(c)),
+  )
+  const res = await group.app.request('/typed/hello/secret', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'x' }) })
+  expect(await res.text()).toBe('hello:hello')
 })

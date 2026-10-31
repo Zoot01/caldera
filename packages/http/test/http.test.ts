@@ -107,6 +107,13 @@ describe('routes and requests', () => {
       })
       .onError(errorHandler())
     expect(await (await modelMissing.request('/')).json()).toMatchObject({ error: { code: 'not_found', status: 404, message: 'Not found.' } })
+    // Other packages refuse input the same way (e.g. claimUpload on a used upload).
+    const refused = new Hono()
+      .get('/', () => {
+        throw new CalderaError('validation_failed', 'Already used.', { fields: { avatar: ['Already used.'] } })
+      })
+      .onError(errorHandler())
+    expect(await (await refused.request('/')).json()).toMatchObject({ error: { code: 'validation_failed', status: 422, fields: { avatar: ['Already used.'] } } })
 
     const badJson = await server().request('/posts', { ...json({}), body: '{oops' })
     expect(await badJson.json()).toMatchObject({ error: { code: 'bad_request', status: 400 } })

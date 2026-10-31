@@ -4,7 +4,8 @@ import { WelcomeEmail } from '../mail/welcome.js'
 
 /**
  * `await notify(user, Welcome, { name: user.name, url })`: an email, and an entry in the user's inbox
- * (`await inbox(user).list()`). Queued: one job per channel, once the transaction commits.
+ * (`await inbox(user).list()`). Queued: one job per channel, once the transaction commits. The
+ * starter kit sends it on sign-up (src/routes/auth.ts).
  */
 export const Welcome = defineNotification({
   name: 'users.welcome',

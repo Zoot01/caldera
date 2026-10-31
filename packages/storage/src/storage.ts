@@ -1,6 +1,7 @@
 import { CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
 import { createDisk, type Disk } from './disk.js'
 import { setDefaultStorage } from './files.js'
+import { setUploadSecret } from './uploads.js'
 import type { StorageCapabilities, StorageDriver } from './driver.js'
 import { memoryStorage, memoryStorageDriver } from './memory.js'
 import { r2StorageDriver } from './r2.js'
@@ -9,6 +10,8 @@ export interface StorageConfig<N extends string = string> {
   default: NoInfer<N>
   /** Optional entries are allowed, for disks that only exist when their env is set. */
   disks: { [K in N]?: { driver: string; [option: string]: unknown } | undefined }
+  /** Signs direct-upload tokens and the refs they complete with (`uploadRoutes`, `zupload`). Use APP_KEY. */
+  uploadSecret?: string
 }
 
 export interface FakeDisk extends Disk {
@@ -100,8 +103,10 @@ export function storageProvider<const N extends string>(
   return defineProvider({
     name: 'storage',
     register: (app) => {
-      const storage = createStorage(resolve(app), options)
+      const config = resolve(app)
+      const storage = createStorage(config, options)
       setDefaultStorage(storage)
+      setUploadSecret(config.uploadSecret)
       return { storage }
     },
     shutdown: async ({ services }) => {

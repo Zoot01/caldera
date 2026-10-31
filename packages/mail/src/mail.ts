@@ -7,15 +7,27 @@ import type { AddressInput, Attachment } from './message.js'
 /** An attachment to resolve at send time: bytes now, or a file on a disk (`attach.fromStorage`). */
 export type AttachmentSource = Attachment | { kind: 'storage'; disk?: string; key: string; filename?: string }
 
+/** The app a mail is sent from (its config's `app.name` and `url`): `useApp()` in a mail component. */
+export interface MailApp {
+  name: string
+  url: string
+}
+
+/** What a mail's `subject` and `text` functions get besides its props. */
+export interface MailContext {
+  app: MailApp
+}
+
 export interface MailOptions<P extends z.ZodType> {
   /** Stable id, e.g. `users.welcome`: queued mail carries it, so renaming orphans queued jobs. */
   name: string
   props: P
-  subject: string | ((props: z.output<P>) => string)
+  /** `(props, { app }) => …`: `app.name` is the app's name, so mails never copy it. */
+  subject: string | ((props: z.output<P>, context: MailContext) => string)
   /** A React Email component. Its `PreviewProps` (or `preview`) are what the preview page renders. */
   component: ComponentType<z.output<P>>
   /** Plain text: `auto` derives it from the HTML (default); a function writes it; false sends none. */
-  text?: 'auto' | false | ((props: z.output<P>) => string)
+  text?: 'auto' | false | ((props: z.output<P>, context: MailContext) => string)
   from?: AddressInput
   replyTo?: AddressInput
   attachments?: (props: z.output<P>) => AttachmentSource[] | Promise<AttachmentSource[]>
@@ -46,22 +58,49 @@ export interface Rendered {
   text: string | undefined
 }
 
+// Not a React context: createContext doesn't exist in React's server-component build, which Next.js
+// loads for anything app/ imports (src/app.ts imports this package).
+let rendering: MailApp | undefined
+const DEFAULT_MAIL = Symbol.for('caldera.mail.default')
+
+/** The app of the configured mail service, outside a render (e.g. a mail rendered by a test). */
+function registeredApp(): MailApp {
+  return (globalThis as { [DEFAULT_MAIL]?: { app?: MailApp } })[DEFAULT_MAIL]?.app ?? { name: '', url: '' }
+}
+
+/** Runs a render with `app` as what useApp() gives (one app per process, so overlapping renders agree). */
+async function within<T>(app: MailApp, run: () => Promise<T>): Promise<T> {
+  const previous = rendering
+  rendering = app
+  try {
+    return await run()
+  } finally {
+    rendering = previous
+  }
+}
+
+/** In a mail component: the app it's sent from, `{ name, url }` (from `config.app`). */
+export function useApp(): MailApp {
+  return rendering ?? registeredApp()
+}
+
 /**
  * Renders a mail with its props (validated first). Uses React Email's render, whose package exports
  * pick the edge build on Workers. Never pretty-printed: that loads prettier.
  */
-export async function renderMail<M extends AnyMail>(mail: M, input: MailProps<M>): Promise<Rendered & { props: unknown }> {
+export async function renderMail<M extends AnyMail>(mail: M, input: MailProps<M>, context: { app?: MailApp } = {}): Promise<Rendered & { props: unknown }> {
   const parsed = mail.props.safeParse(input)
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.') || '(props)'}: ${i.message}`).join('; ')
     throw new CalderaError('mail_props_invalid', `Mail "${mail.name}" got props that don't match its schema: ${issues}.`, { issues: parsed.error.issues })
   }
   const props = parsed.data
+  const app = context.app ?? registeredApp()
   const element = createElement(mail.options.component, props)
-  const html = await render(element)
+  const html = await within(app, () => render(element))
   const textOption = mail.options.text ?? 'auto'
-  const text = textOption === false ? undefined : typeof textOption === 'function' ? textOption(props) : await render(element, { plainText: true })
-  const subject = typeof mail.options.subject === 'function' ? mail.options.subject(props) : mail.options.subject
+  const text = textOption === false ? undefined : typeof textOption === 'function' ? textOption(props, { app }) : await within(app, () => render(element, { plainText: true }))
+  const subject = typeof mail.options.subject === 'function' ? mail.options.subject(props, { app }) : mail.options.subject
   return { subject, html, text, props }
 }
 

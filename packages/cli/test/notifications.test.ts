@@ -15,18 +15,32 @@ const fresh = () => {
   return dir
 }
 
-it('make:notification creates one in src/notifications; generate registers it and lists it in AGENTS.md', async () => {
+it('make:notification creates one in src/notifications, with its mail; generate registers both and lists it in AGENTS.md', async () => {
   const dir = fresh()
   writeFileSync(join(dir, 'AGENTS.md'), '# App\n\n<!-- caldera:generated:start -->\n<!-- caldera:generated:end -->\n')
-  const result = await make(openProject(dir), 'notification', 'InvoicePaid')
-  expect(result.created).toEqual(['src/notifications/invoice-paid.ts'])
+  const result = await make(openProject(dir), 'notification', 'billing.InvoicePaid')
+  expect(result.created).toEqual(['src/notifications/invoice-paid.ts', 'src/mail/invoice-paid.tsx'])
   expect(result.generate).toBe('ok')
   expect(result.hints[0]).toContain('await notify(user, InvoicePaid, { id })')
-  expect(readFileSync(join(dir, 'src/notifications/invoice-paid.ts'), 'utf8')).toContain(`export const InvoicePaid = defineNotification({\n  name: 'invoice-paid',`)
+  const notification = readFileSync(join(dir, 'src/notifications/invoice-paid.ts'), 'utf8')
+  expect(notification).toContain(`export const InvoicePaid = defineNotification({`)
+  expect(notification).toContain(`  name: 'billing.invoice-paid',`)
+  expect(notification).toContain(`mail: (_to, { url }) => ({ mail: InvoicePaidEmail, props: { url } }),`)
+  expect(readFileSync(join(dir, 'src/mail/invoice-paid.tsx'), 'utf8')).toContain(`  name: 'billing.invoice-paid',`)
   expect(readFileSync(join(dir, '.caldera/notifications.gen.ts'), 'utf8')).toContain(
     `import * as notifications0 from '../src/notifications/invoice-paid.js'\n\nexport const notifications = [notifications0.InvoicePaid] as const\n`,
   )
-  expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toMatch(/\| `invoice-paid` \| `InvoicePaid` \| database \| no \| src\/notifications\/invoice-paid.ts \|/)
+  // Registered by name, so inbox rows' data is typed by the notification's database schema.
+  const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
+  expect(register).toContain("import type * as notifications0 from '../src/notifications/invoice-paid.js'")
+  expect(register).toContain(`declare module '@caldera/notifications' {\n  interface NotificationRegistry {\n    "billing.invoice-paid": typeof notifications0.InvoicePaid\n  }\n}`)
+  expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toMatch(/\| `billing.invoice-paid` \| `InvoicePaid` \| mail, database \| yes \| src\/notifications\/invoice-paid.ts \|/)
+
+  // A mail that's already there is used as it is, even with --force.
+  writeFileSync(join(dir, 'src/mail/invoice-paid.tsx'), readFileSync(join(dir, 'src/mail/invoice-paid.tsx'), 'utf8').replace('Open it', 'See the invoice'))
+  const again = await make(openProject(dir), 'notification', 'billing.InvoicePaid', { force: true })
+  expect(again.created).toEqual(['src/notifications/invoice-paid.ts'])
+  expect(readFileSync(join(dir, 'src/mail/invoice-paid.tsx'), 'utf8')).toContain('See the invoice')
 })
 
 it('notifications:table writes the table for the app’s dialect, and refuses to overwrite it', async () => {

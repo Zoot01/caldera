@@ -19,15 +19,18 @@ type FollowRedirect = (location: string) => Promise<TestResponse>
 export class TestResponse {
   readonly status: number
   readonly headers: Headers
+  /** The body as text (UTF-8). For files, `bytes()`. */
   readonly body: string
   readonly request: { method: string; path: string }
+  readonly #bytes: Uint8Array
   readonly #follow: FollowRedirect
   #followed: Promise<TestResponse> | undefined
 
-  constructor(response: { status: number; headers: Headers; body: string }, request: { method: string; path: string }, follow: FollowRedirect) {
+  constructor(response: { status: number; headers: Headers; bytes: Uint8Array }, request: { method: string; path: string }, follow: FollowRedirect) {
     this.status = response.status
     this.headers = response.headers
-    this.body = response.body
+    this.#bytes = response.bytes
+    this.body = new TextDecoder().decode(response.bytes)
     this.request = request
     this.#follow = follow
   }
@@ -43,6 +46,11 @@ export class TestResponse {
 
   text(): string {
     return this.body
+  }
+
+  /** The body's exact bytes: a download, an image. */
+  bytes(): Uint8Array {
+    return this.#bytes
   }
 
   /** The Inertia page, from a visit's JSON or a first load's HTML. */
@@ -105,6 +113,19 @@ export class TestResponse {
       const location = this.headers.get('location') ?? ''
       const path = location.startsWith('http') && to.startsWith('/') ? new URL(location).pathname + new URL(location).search : location
       if (path !== to) throw this.#fail(`expected a redirect to ${to}, got one to ${location || '(no location)'}`)
+    }
+    return this
+  }
+
+  /** A file download (`content-disposition: attachment`), optionally with this filename. */
+  assertDownload(filename?: string): this {
+    const disposition = this.headers.get('content-disposition') ?? ''
+    if (!/^attachment\b/i.test(disposition)) throw this.#fail(`expected a download (content-disposition: attachment), got ${disposition || 'none'}`)
+    if (filename !== undefined) {
+      const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+      const plain = /filename="((?:[^"\\]|\\.)*)"/i.exec(disposition)
+      const actual = star ? decodeURIComponent(star[1]!) : plain ? plain[1]!.replace(/\\(.)/g, '$1') : undefined
+      if (actual !== filename) throw this.#fail(`expected the download to be named "${filename}", got ${actual === undefined ? 'no name' : `"${actual}"`}`)
     }
     return this
   }

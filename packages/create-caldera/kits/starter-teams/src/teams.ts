@@ -32,7 +32,7 @@ export const isPersonal = (team: { metadata?: unknown }) => {
 }
 
 /** The organization plugin, as src/auth.ts installs it. */
-export function teamsPlugin(options: { appUrl: string; appName: string }) {
+export function teamsPlugin(options: { appUrl: string }) {
   return organization({
     ac,
     roles,
@@ -40,7 +40,7 @@ export function teamsPlugin(options: { appUrl: string; appName: string }) {
     invitationExpiresIn: 7 * 24 * 60 * 60,
     cancelPendingInvitationsOnReInvite: true,
     sendInvitationEmail: async ({ id, email, organization, inviter }) => {
-      await mail.to(email).send(TeamInvitationEmail, { team: organization.name, inviter: inviter.user.name, url: `${options.appUrl}/invitations/${id}`, app: options.appName })
+      await mail.to(email).send(TeamInvitationEmail, { team: organization.name, inviter: inviter.user.name, url: `${options.appUrl}/invitations/${id}` })
     },
   })
 }
