@@ -49,7 +49,7 @@ export function NewTeamDialog() {
             </FormField>
           </DialogPanel>
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button type="submit" loading={form.processing}>
               Create team
             </Button>

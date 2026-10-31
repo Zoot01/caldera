@@ -5,6 +5,8 @@ import { NewTeamDialog, openNewTeamDialog } from '@/components/new-team-dialog'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from '@/components/ui/menu'
 import { SidebarMenuButton, useSidebar } from '@/components/ui/sidebar'
+import { avatarColor } from '@/lib/avatar-color'
+import { cn } from '@/lib/utils'
 
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
@@ -19,8 +21,8 @@ function TeamMenuItems({ teams, current }: { teams: Teams; current: Team }) {
         <MenuGroupLabel>Teams</MenuGroupLabel>
         {teams.all.map((team) => (
           <MenuItem key={team.id} onClick={() => team.id !== current.id && router.post('/teams/switch', { teamId: team.id })}>
-            <div className="flex size-6 items-center justify-center rounded-sm border text-xs">{initial(team.name)}</div>
-            <span className="truncate">{team.name}</span>
+            <div className={cn('flex size-6 items-center justify-center rounded-sm border font-medium text-xs', avatarColor(team.name))}>{initial(team.name)}</div>
+            <span className="flex-1 truncate">{team.name}</span>
             {team.id === current.id && <Check className="ms-auto" />}
           </MenuItem>
         ))}
@@ -48,7 +50,7 @@ export function TeamSwitcher() {
     <>
       <Menu>
         <MenuTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" aria-label={`Team: ${current.name}`} />}>
-          <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary font-semibold text-primary-foreground text-sm">{initial(current.name)}</div>
+          <div className={cn('flex aspect-square size-8 items-center justify-center rounded-md border font-medium text-sm', avatarColor(current.name))}>{initial(current.name)}</div>
           <div className="grid flex-1 text-start text-sm leading-tight">
             <span className="truncate font-semibold">{current.name}</span>
             <span className="truncate text-muted-foreground text-xs">{current.personal ? 'Personal team' : 'Team'}</span>
@@ -71,14 +73,11 @@ export function HeaderTeamSwitcher() {
   const current = teams.current
   return (
     <>
-      <span className="text-muted-foreground/50" aria-hidden="true">
-        /
-      </span>
       <Menu>
-        <MenuTrigger render={<Button variant="ghost" className="h-9 gap-2 px-2" aria-label={`Team: ${current.name}`} />}>
-          <div className="flex size-6 items-center justify-center rounded-sm bg-primary font-semibold text-primary-foreground text-xs">{initial(current.name)}</div>
+        <MenuTrigger render={<Button variant="ghost" className="h-10 gap-2.5 px-2" aria-label={`Team: ${current.name}`} />}>
+          <div className={cn('flex size-7 items-center justify-center rounded-md border font-medium text-sm', avatarColor(current.name))}>{initial(current.name)}</div>
           <span className="max-w-40 truncate font-medium text-sm">{current.name}</span>
-          <ChevronsUpDown className="size-4 text-muted-foreground" />
+          <ChevronsUpDown className="ms-1 size-4 text-muted-foreground" />
         </MenuTrigger>
         <MenuPopup className="w-60" align="start">
           <TeamMenuItems teams={teams} current={current} />

@@ -1,13 +1,13 @@
 import { setupApp } from '@caldera/testing'
 import { expect, it } from 'vitest'
-import { app } from '../src/app.js'
-import { http } from '../src/http.js'
-import { createUser } from './helpers.js'
+import { app } from '../src/app'
+import { http } from '../src/http'
+import { createUser } from './helpers'
 
 const t = setupApp(app)
 
 it('renders the welcome page for guests and signed-in users', async () => {
-  ;(await t.client(http).visit('/')).assertOk().assertInertia('Home', { message: 'Your app is running.', appName: '{{ name }}', auth: { user: null } })
+  ;(await t.client(http).visit('/')).assertOk().assertInertia('Home', { appName: '{{ name }}', auth: { user: null } })
   const client = await t.client(http).actingAs(await createUser(t))
   ;(await client.visit('/')).assertInertia('Home', (props) => expect(props.auth).toMatchObject({ user: { email: 'ann@example.test' } }))
 })

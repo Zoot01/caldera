@@ -1,5 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react'
-import { KeyRound } from 'lucide-react'
+import { Fingerprint } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { FormField } from '@/components/form-field'
 import { TextLink } from '@/components/text-link'
@@ -71,9 +71,9 @@ export default function Login({ canResetPassword, canRegister, passkeys }: { can
             or
             <Separator className="flex-1" />
           </div>
-          <Button variant="outline" className="w-full" onClick={() => signInWithPasskey(false)}>
-            <KeyRound />
-            Sign in with a passkey
+          <Button variant="secondary" className="w-full" onClick={() => signInWithPasskey(false)}>
+            <Fingerprint className="text-muted-foreground" />
+            Continue with a passkey
           </Button>
           {passkeyError && <p className="text-center text-destructive-foreground text-sm">{passkeyError}</p>}
         </div>

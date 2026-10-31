@@ -1,11 +1,11 @@
 import { defaultDatabase } from '@caldera/db'
 import { mail } from '@caldera/mail'
 import { organization } from 'better-auth/plugins'
-import { asc, eq } from 'drizzle-orm'
+import { asc, count, eq, inArray } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { member, organization as teams, users } from './db/schema.js'
-import { TeamInvitationEmail } from './mail/team-invitation.js'
-import { ac, roles } from './roles.js'
+import { member, organization as teams, users } from './db/schema'
+import { TeamInvitationEmail } from './mail/team-invitation'
+import { ac, roles } from './roles'
 
 // Teams are Better Auth organizations (https://better-auth.com/docs/plugins/organization). Everyone
 // gets a personal team when they register; the team they're working in is their session's active
@@ -98,4 +98,19 @@ export async function teamsFor(c: Context) {
   const summary = (team: (typeof all)[number]) => ({ id: team.id, name: team.name, personal: isPersonal(team) })
   const current = all.find((team) => team.id === vars.authSession?.activeOrganizationId)
   return { current: current ? summary(current) : null, all: all.map(summary) }
+}
+
+/** The Teams settings page's list: each team the user is in, with their role and how many are in it. */
+export async function teamListFor(userId: string) {
+  const db = defaultDatabase().current()
+  const mine: { id: string; name: string; metadata: unknown; role: string }[] = await db
+    .select({ id: teams.id, name: teams.name, metadata: teams.metadata, role: member.role })
+    .from(member)
+    .innerJoin(teams, eq(member.organizationId, teams.id))
+    .where(eq(member.userId, userId))
+    .orderBy(asc(member.createdAt))
+  const sizes: { id: string; members: number }[] = mine.length
+    ? await db.select({ id: member.organizationId, members: count() }).from(member).where(inArray(member.organizationId, mine.map((team) => team.id))).groupBy(member.organizationId)
+    : []
+  return mine.map((team) => ({ id: team.id, name: team.name, personal: isPersonal(team), role: team.role, members: sizes.find((size) => size.id === team.id)?.members ?? 1 }))
 }

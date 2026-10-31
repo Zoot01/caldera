@@ -30,12 +30,12 @@ export default function TwoFactorChallenge() {
             <Input autoComplete="off" autoFocus placeholder="abcde-fghij" value={form.data.recoveryCode} onChange={(e) => form.setData('recoveryCode', e.target.value)} />
           </FormField>
         ) : (
-          <div className="flex flex-col items-center gap-2">
-            <OneTimeCode value={form.data.code} onChange={(code) => form.setData('code', code)} onComplete={() => submit()} invalid={Boolean(form.errors.code)} autoFocus />
+          <div className="flex flex-col gap-2">
+            <OneTimeCode fill value={form.data.code} onChange={(code) => form.setData('code', code)} onComplete={() => submit()} invalid={Boolean(form.errors.code)} autoFocus />
             {form.errors.code && <p className="text-destructive-foreground text-sm">{form.errors.code}</p>}
           </div>
         )}
-        <Label className="flex items-center gap-3">
+        <Label className="flex items-center gap-3 font-normal text-muted-foreground">
           <Checkbox checked={form.data.remember} onCheckedChange={(checked) => form.setData('remember', checked === true)} />
           Don't ask again on this device for 30 days
         </Label>
@@ -44,10 +44,10 @@ export default function TwoFactorChallenge() {
         </Button>
       </form>
       <p className="text-center text-muted-foreground text-sm">
-        {recovery ? 'Or, ' : 'Lost your device? '}
-        <Button variant="link" className="h-auto p-0" onClick={toggle}>
-          {recovery ? 'use a code from your app' : 'use a recovery code'}
-        </Button>
+        {recovery ? 'Have your phone? ' : 'Lost your device? '}
+        <button type="button" onClick={toggle} className="font-medium text-link underline-offset-4 hover:underline">
+          {recovery ? 'Use a code from your app' : 'Use a recovery code'}
+        </button>
       </p>
     </>
   )

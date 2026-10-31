@@ -1,4 +1,4 @@
-import { Head, useForm, usePage } from '@inertiajs/react'
+import { Head, useForm } from '@inertiajs/react'
 import type { FormEvent } from 'react'
 import { FormField } from '@/components/form-field'
 import { Section } from '@/components/section'
@@ -6,10 +6,11 @@ import { type PasskeySummary, Passkeys } from '@/components/passkeys'
 import { TwoFactor, type TwoFactorState } from '@/components/two-factor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useStatusToast } from '@/components/flash-toasts'
 
 // twoFactor and passkeys are null when turned off in src/config/auth.ts.
 export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactorState | null; passkeys: PasskeySummary[] | null }) {
-  const status = usePage().flash.status
+  useStatusToast({ 'password-updated': 'Password updated.' })
   const form = useForm({ currentPassword: '', password: '', passwordConfirmation: '' })
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -40,7 +41,6 @@ export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactor
             <Button type="submit" loading={form.processing}>
               Save password
             </Button>
-            {status === 'password-updated' && <p className="text-muted-foreground text-sm">Saved.</p>}
           </div>
         </form>
       </Section>

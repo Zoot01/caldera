@@ -1,0 +1,11 @@
+{
+  "title": "Welcome",
+  "start": "Let’s get started",
+  "intro": "Caldera has what an app needs built in. We suggest starting with the following.",
+  "docs": "Read the <link>documentation</link>",
+  "edit": "Make this page yours in <code>pages/Home.tsx</code>",
+  "dashboard": "Go to your dashboard",
+  "register": "Create an account",
+  "login": "Log in",
+  "signup": "Register"
+}

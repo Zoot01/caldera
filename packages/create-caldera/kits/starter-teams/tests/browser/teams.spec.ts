@@ -22,7 +22,7 @@ test('creates a team, invites someone by email, and they join it', async ({ brow
   const bobEmail = uniqueEmail('bob')
   await page.waitForLoadState('networkidle')
   await page.getByLabel('Email address').fill(bobEmail)
-  await page.getByRole('button', { name: 'Invite', exact: true }).click()
+  await page.getByRole('button', { name: 'Send invite' }).click()
   await expect(page.getByText(bobEmail)).toBeVisible()
 
   // The invitation email, from the outbox the log mailer keeps.

@@ -6,9 +6,9 @@ test('adds a passkey, then signs in with it', async ({ context, page }) => {
   const authenticator = await virtualAuthenticator(context, page)
   const { name } = await register(page)
   await visit(page, '/settings/security')
-  await page.getByLabel('Passkey name').fill('Test laptop')
   await page.getByRole('button', { name: 'Add a passkey' }).click()
-  await expect(page.getByText('Test laptop')).toBeVisible()
+  // Named after the browser and system, with nothing to type.
+  await expect(page.getByText(/^Chrome on (Mac|Windows|Linux)$/)).toBeVisible()
   expect(await authenticator.credentials()).toHaveLength(1)
 
   await logOut(page, name)
@@ -17,7 +17,7 @@ test('adds a passkey, then signs in with it', async ({ context, page }) => {
     if (window.PublicKeyCredential) PublicKeyCredential.isConditionalMediationAvailable = async () => false
   })
   await visit(page, '/login')
-  await page.getByRole('button', { name: 'Sign in with a passkey' }).click()
+  await page.getByRole('button', { name: 'Continue with a passkey' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
   // Signing in with a passkey counts as confirming: Security opens without the password.
   await visit(page, '/settings/security')
@@ -30,7 +30,7 @@ test('adds a passkey, then signs in with it', async ({ context, page }) => {
   await expect(page).toHaveURL(/\/confirm-password$/)
   await page.getByRole('button', { name: 'Use a passkey' }).click()
   await expect(page).toHaveURL(/\/settings\/security$/)
-  await expect(page.getByText('Test laptop')).toBeVisible()
+  await expect(page.getByText(/^Chrome on /)).toBeVisible()
 })
 
 test('turns on two-factor authentication, then asks for a code at sign-in', async ({ page }) => {

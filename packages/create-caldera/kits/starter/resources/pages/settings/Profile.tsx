@@ -5,9 +5,10 @@ import { FormField } from '@/components/form-field'
 import { Section } from '@/components/section'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useStatusToast } from '@/components/flash-toasts'
 
 const saved: Record<string, string> = {
-  'profile-updated': 'Saved.',
+  'profile-updated': 'Profile saved.',
   'email-change-sent': 'Check your new address: the change takes effect once you click the link we sent there.',
   'verification-link-sent': 'A new verification link has been sent to your email address.',
 }
@@ -15,7 +16,7 @@ const saved: Record<string, string> = {
 export default function Profile({ mustVerifyEmail }: { mustVerifyEmail: boolean }) {
   const page = usePage()
   const user = page.props.auth.user!
-  const status = saved[String(page.flash.status ?? '')]
+  useStatusToast(saved)
   const form = useForm({ name: user.name, email: user.email })
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -44,7 +45,6 @@ export default function Profile({ mustVerifyEmail }: { mustVerifyEmail: boolean 
             <Button type="submit" loading={form.processing}>
               Save
             </Button>
-            {status && <p className="text-muted-foreground text-sm">{status}</p>}
           </div>
         </form>
       </Section>
