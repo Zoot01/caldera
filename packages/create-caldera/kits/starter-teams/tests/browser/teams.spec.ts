@@ -13,8 +13,9 @@ test('creates a team, invites someone by email, and they join it', async ({ brow
   await register(page, { name: 'Ann Lee' })
   await switcher(page).click()
   await page.getByRole('menuitem', { name: 'New team' }).click()
-  await page.getByLabel('Team name').fill('Acme')
-  await page.getByRole('button', { name: 'Create team' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Team name').fill('Acme')
+  await dialog.getByRole('button', { name: 'Create team' }).click()
   await expect(page).toHaveURL(/\/settings\/teams\/[0-9a-f-]{36}$/)
   await expect(switcher(page)).toContainText('Acme')
 
@@ -44,6 +45,11 @@ test('creates a team, invites someone by email, and they join it', async ({ brow
   await switcher(bob).click()
   await bob.getByRole('menuitem', { name: /Bob's Team/ }).click()
   await expect(switcher(bob)).toContainText("Bob's Team")
+  // And back to Acme from the command menu.
+  await bob.keyboard.press('ControlOrMeta+K')
+  await bob.getByPlaceholder('Search pages and commands…').fill('acme')
+  await bob.keyboard.press('Enter')
+  await expect(switcher(bob)).toContainText('Acme')
 
   // Ann sees him in the team.
   await page.reload()

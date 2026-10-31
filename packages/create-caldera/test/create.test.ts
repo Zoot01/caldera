@@ -167,7 +167,9 @@ describe('createProject', () => {
     expect(read('resources/components/app-sidebar.tsx')).not.toContain('AppLogo')
     // The header layout has one too, next to the logo.
     expect(read('resources/components/app-header.tsx')).toContain('<AppLogo />\n        </Link>\n        <HeaderTeamSwitcher />\n')
-    expect(read('resources/layouts/settings-layout.tsx')).toContain("{ title: 'Teams', href: '/settings/teams' }")
+    expect(read('resources/components/navigation.ts')).toContain("{ title: 'Teams', href: '/settings/teams' }")
+    // The command menu (⌘K) lists the teams to switch to.
+    expect(read('resources/components/command-menu.tsx')).toMatch(/const teams = useTeamCommands\(\)[\s\S]*\{ value: 'Pages', .*\n.*\n    teams,\n/)
     expect(read('src/db/auth-schema.ts')).toContain("snakeCase.table('organization'")
     expect(read('AGENTS.md')).toContain('Teams (Better Auth organizations')
     // On Postgres, the Postgres tables.
@@ -368,8 +370,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     // The starter's auth tables are what `caldera auth:schema` generates from its Better Auth config.
     const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
     expect(JSON.parse(schema.stdout).status, schema.stdout + schema.stderr).toBe('unchanged')
-    // Sign-up, two-factor and passkeys (Chrome's virtual authenticator) and light/dark, in Chromium.
-    expect(runsBrowserTests(dir)).toMatch(/\b8 passed\b/)
+    // Sign-up, two-factor and passkeys (Chrome's virtual authenticator), light/dark and ⌘K, in Chromium.
+    expect(runsBrowserTests(dir)).toMatch(/\b10 passed\b/)
 
     const { spawn } = await import('node:child_process')
     const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
@@ -432,7 +434,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
   }, 300_000)
   it.each([
     { name: 'the blank kit', options: { kit: 'blank' as const }, browserTests: 3 },
-    { name: 'the starter kit with teams', options: { teams: true }, browserTests: 10 },
+    { name: 'the starter kit with teams', options: { teams: true }, browserTests: 12 },
   ])('creates $name on SQLite: it type-checks and passes its tests and browser tests', async ({ options, browserTests }) => {
     const result = await createProject({ directory: join(base, 'e2e-kit'), packageManager: 'pnpm', link: repo, git: false, ...options })
     const dir = result.directory
@@ -629,7 +631,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
       expect(JSON.parse(schema.stdout), schema.stdout + schema.stderr).toMatchObject({ status: 'unchanged', dialect: 'pg' })
       // On DATABASE_TEST_URL, which the browser tests' server resets as Vitest does.
-      expect(runsBrowserTests(dir)).toMatch(/\b10 passed\b/)
+      expect(runsBrowserTests(dir)).toMatch(/\b12 passed\b/)
       const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465', APP_URL: 'http://localhost:3465' }, detached: true })
       try {
         for (let i = 0; i < 60 && !(await fetch('http://localhost:3465/login').then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 500))
