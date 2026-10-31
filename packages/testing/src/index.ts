@@ -1,4 +1,5 @@
-export { migrateFresh, setupApp, testDatabaseUrl } from './app.js'
+export { setupApp } from './app.js'
+export { migrateFresh, testDatabaseUrl } from './database.js'
 export type { SetupAppOptions, TestApp } from './app.js'
 export { TestClient } from './client.js'
 export type { RequestOptions, Requestable, TestClientOptions } from './client.js'

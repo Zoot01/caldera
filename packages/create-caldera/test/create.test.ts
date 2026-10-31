@@ -35,6 +35,19 @@ async function registersAndSignsIn(base: string) {
   expect((await fetch(`${base}/dashboard`, { redirect: 'manual', headers: { accept: 'text/html' } })).headers.get('location')).toBe('/login')
 }
 
+/**
+ * The app's own browser tests (`test:browser`: Playwright against its build), as a developer runs
+ * them, so without this runner's VITEST variables (they'd mark the app's test server as a test run).
+ */
+function runsBrowserTests(dir: string) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('VITEST')))
+  const install = spawnSync('pnpm', ['exec', 'playwright', 'install', 'chromium'], { cwd: dir, encoding: 'utf8', env })
+  expect(install.status, install.stdout + install.stderr).toBe(0)
+  const browser = spawnSync('pnpm', ['test:browser'], { cwd: dir, encoding: 'utf8', env })
+  expect(browser.status, browser.stdout + browser.stderr).toBe(0)
+  return browser.stdout
+}
+
 describe('createProject', () => {
   it('writes the bundled template with the name filled in and a fresh APP_KEY', async () => {
     const result = await createProject({ directory: join(base, 'My App'), ...offline, packageManager: 'pnpm' })
@@ -162,6 +175,50 @@ describe('createProject', () => {
     const plain = await createProject({ directory: join(base, 'no-teams'), ...offline })
     expect(plain.teams).toBe(false)
     expect(existsSync(join(plain.directory, 'src/teams.ts'))).toBe(false)
+  })
+
+  it('ships browser tests (Playwright) and a CI workflow for the app’s package manager and database', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'browser'), ...offline, packageManager: 'pnpm', teams: true })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    for (const file of ['playwright.config.ts', 'tests/browser/server.ts', 'tests/browser/appearance.spec.ts', 'tests/browser/auth.spec.ts', 'tests/browser/security.spec.ts', 'tests/browser/teams.spec.ts', 'tests/totp.ts']) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    const manifest = JSON.parse(read('package.json'))
+    expect(manifest.scripts['test:browser']).toBe('playwright test')
+    expect(manifest.devDependencies['@playwright/test']).toBeDefined()
+    expect(read('playwright.config.ts')).toContain("command: 'pnpm build && node --import tsx tests/browser/server.ts'")
+    // Vitest leaves Playwright's files alone.
+    expect(read('vitest.config.ts')).toContain("'tests/browser/**'")
+    expect(read('.gitignore')).toContain('playwright-report/')
+    expect(read('AGENTS.md')).toContain('Browser tests (`pnpm test:browser`')
+    expect(read('README.md')).toContain('pnpm test:browser  # browser tests')
+    const ci = read('.github/workflows/ci.yml')
+    expect(ci).toContain('- uses: pnpm/action-setup@v4')
+    expect(ci).toContain('- run: pnpm install --frozen-lockfile')
+    expect(ci).toMatch(/run: pnpm typecheck\n.*run: pnpm test\n.*playwright install --with-deps chromium\n.*run: pnpm test:browser/)
+    expect(ci).not.toContain('postgres')
+
+    // npm on Postgres: npm's commands, and a Postgres service whose database the tests reset.
+    const pg = await createProject({ directory: join(base, 'browser-pg'), ...offline, packageManager: 'npm', kit: 'blank', database: 'postgres' })
+    const pgCi = readFileSync(join(pg.directory, '.github/workflows/ci.yml'), 'utf8')
+    expect(pgCi).toContain('- run: npm ci')
+    expect(pgCi).toContain('- run: npm run test:browser')
+    expect(pgCi).toContain('cache: npm')
+    expect(pgCi).not.toContain('pnpm')
+    expect(pgCi).toMatch(/image: postgres:17[\s\S]*POSTGRES_DB: browser_pg_test[\s\S]*DATABASE_TEST_URL: postgres:\/\/postgres:postgres@localhost:5432\/browser_pg_test/)
+    // Both test runners reset that database: Vitest one file at a time, and still without Playwright's files.
+    expect(readFileSync(join(pg.directory, 'vitest.config.ts'), 'utf8')).toContain("test: { fileParallelism: false, exclude: [...configDefaults.exclude, 'tests/browser/**'] }")
+    // Bun: `bun run test`, since `bun test` is Bun's own test runner.
+    const bun = await createProject({ directory: join(base, 'browser-bun'), ...offline, packageManager: 'bun' })
+    const bunCi = readFileSync(join(bun.directory, '.github/workflows/ci.yml'), 'utf8')
+    expect(bunCi).toMatch(/- uses: oven-sh\/setup-bun@v2[\s\S]*- run: bun run test\n[\s\S]*- run: bun run test:browser/)
+    expect(readFileSync(join(bun.directory, 'README.md'), 'utf8')).toContain('bun run test ')
+    expect(bun.next.at(-1)).toBe('bun run dev')
+
+    // Next.js apps have no browser tests or workflow yet.
+    const next = await createProject({ directory: join(base, 'browser-next'), ...offline, frontend: 'next' })
+    expect(existsSync(join(next.directory, 'playwright.config.ts'))).toBe(false)
+    expect(existsSync(join(next.directory, '.github'))).toBe(false)
   })
 
   it('gives a starter app on Postgres the Postgres auth tables and adapter', async () => {
@@ -300,6 +357,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     // The starter's auth tables are what `caldera auth:schema` generates from its Better Auth config.
     const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
     expect(JSON.parse(schema.stdout).status, schema.stdout + schema.stderr).toBe('unchanged')
+    // Sign-up, two-factor and passkeys (Chrome's virtual authenticator) and light/dark, in Chromium.
+    expect(runsBrowserTests(dir)).toMatch(/\b8 passed\b/)
 
     const { spawn } = await import('node:child_process')
     const poll = async <T>(read: () => Promise<T | undefined>): Promise<T | undefined> => {
@@ -359,6 +418,19 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     } finally {
       process.kill(-start.pid!, 'SIGTERM')
     }
+  }, 300_000)
+  it.each([
+    { name: 'the blank kit', options: { kit: 'blank' as const }, browserTests: 3 },
+    { name: 'the starter kit with teams', options: { teams: true }, browserTests: 10 },
+  ])('creates $name on SQLite: it type-checks and passes its tests and browser tests', async ({ options, browserTests }) => {
+    const result = await createProject({ directory: join(base, 'e2e-kit'), packageManager: 'pnpm', link: repo, git: false, ...options })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('typecheck'))
+    ok(run('test'))
+    expect(runsBrowserTests(dir)).toMatch(new RegExp(`\\b${browserTests} passed\\b`))
   }, 300_000)
   it('creates a Next.js app that type-checks, tests, builds and serves pages and the API', async () => {
     const result = await createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
@@ -508,7 +580,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       process.kill(-turso.pid!, 'SIGTERM')
     }
   }, 600_000)
-  it.runIf(hasPostgres)('creates a Postgres app that migrates, type-checks, tests (DATABASE_TEST_URL from .env) and serves', async () => {
+  it.runIf(hasPostgres)('creates Postgres apps that migrate, type-check, test and browser-test (DATABASE_TEST_URL from .env) and serve', async () => {
     // With teams: the riskiest combination (the organization plugin's tables and hooks on Postgres).
     const result = await createProject({ directory: join(base, 'e2e-pg'), packageManager: 'pnpm', link: repo, git: false, database: 'postgres', teams: true })
     const dir = result.directory
@@ -530,6 +602,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       ok(run('test'))
       const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
       expect(JSON.parse(schema.stdout), schema.stdout + schema.stderr).toMatchObject({ status: 'unchanged', dialect: 'pg' })
+      // On DATABASE_TEST_URL, which the browser tests' server resets as Vitest does.
+      expect(runsBrowserTests(dir)).toMatch(/\b10 passed\b/)
       const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465', APP_URL: 'http://localhost:3465' }, detached: true })
       try {
         for (let i = 0; i < 60 && !(await fetch('http://localhost:3465/login').then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 500))
@@ -537,8 +611,18 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       } finally {
         process.kill(-dev.pid!, 'SIGTERM')
       }
+
+      // The blank kit on Postgres too.
+      const blank = await createProject({ directory: join(base, 'e2e-pg-blank'), packageManager: 'pnpm', link: repo, git: false, database: 'postgres', kit: 'blank' })
+      expect(blank.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(blank.log, 'utf8').slice(-3000)).toEqual([])
+      expect(spawnSync('psql', [server.url, '-c', 'create database e2e_pg_blank_test']).status).toBe(0)
+      writeFileSync(join(blank.directory, '.env'), readFileSync(join(blank.directory, '.env'), 'utf8').replace(/^DATABASE_TEST_URL=.*$/m, `DATABASE_TEST_URL=${server.url.replace(/\/postgres$/, '/e2e_pg_blank_test')}`))
+      const runBlank = (...args: string[]) => spawnSync('pnpm', args, { cwd: blank.directory, encoding: 'utf8' })
+      ok(runBlank('typecheck'))
+      ok(runBlank('test'))
+      expect(runsBrowserTests(blank.directory)).toMatch(/\b3 passed\b/)
     } finally {
       await server.stop()
     }
-  }, 300_000)
+  }, 600_000)
 })

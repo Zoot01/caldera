@@ -20,7 +20,7 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 
 - `pnpm test`: build every package, then run all tests.
 - `pnpm typecheck`: build, then type-check every package (tests included).
-- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs `pnpm dev` with Vite and a production build. Slow; run it before committing template changes.
+- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs the app's own browser tests (Playwright, `pnpm test:browser`), `pnpm dev` with Vite and a production build, across Starter/Blank, teams and SQLite/Postgres. Slow; run it before committing template changes.
 - One package: `pnpm vitest run packages/<name>`. Packages import each other through `dist/`, so rebuild a dependency (`pnpm -s build` in it) after changing it.
 
 ## Tests against real backends

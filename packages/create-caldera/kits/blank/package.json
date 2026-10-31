@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@inertiajs/vite": "^3.9.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",
@@ -22,6 +23,7 @@
   },
   "scripts": {
     "build": "vite build && vite build --ssr",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "test:browser": "playwright test"
   }
 }

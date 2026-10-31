@@ -1,13 +1,11 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { parseEnv } from 'node:util'
 import { CalderaError } from '@caldera/core'
-import { sql } from 'drizzle-orm'
-import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { TestClient, type Requestable, type TestClientOptions } from './client.js'
+import { isPostgres, migrateFresh, testDatabaseUrl, type DatabaseLike } from './database.js'
 
 /** The parts of a Caldera app the helpers use (structural: the app's own @caldera/core copy fits). */
 interface AppLike {
@@ -15,13 +13,6 @@ interface AppLike {
   readonly services: object
   boot(options?: { env?: Record<string, unknown> }): Promise<unknown>
   shutdown(): Promise<void>
-}
-
-interface DatabaseLike {
-  readonly driver: string
-  readonly client: { execute?(query: unknown): Promise<unknown>; run?(query: unknown): unknown; all?(query: unknown): unknown }
-  readonly capabilities: { interactiveTransactions: boolean }
-  beginTestTransaction(): Promise<{ rollback(): Promise<void> }>
 }
 
 type Faked<S> = { [K in keyof S]: S[K] extends { fake(...args: infer A): infer R } ? { args: A; result: R } : never }
@@ -144,38 +135,6 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
     },
     client: (http, clientOptions) => new TestClient(http, { services: app.services, ...clientOptions }),
   }
-}
-
-/** DATABASE_TEST_URL from the environment, else from the project's `.env` (Vitest doesn't load it). */
-export function testDatabaseUrl(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string | undefined {
-  if (env.DATABASE_TEST_URL) return env.DATABASE_TEST_URL
-  const file = join(cwd, '.env')
-  return (existsSync(file) && parseEnv(readFileSync(file, 'utf8')).DATABASE_TEST_URL) || undefined
-}
-
-const isPostgres = (db: DatabaseLike) => db.driver === 'postgres' || db.driver === 'neon-http'
-
-/**
- * Runs every migration in `folder` against a fresh database. SQLite (a new file) starts empty;
- * Postgres is reset first, but only a database whose name contains "test", so a misconfigured
- * DATABASE_TEST_URL can never wipe real data.
- */
-export async function migrateFresh(db: DatabaseLike, folder: string, url: string) {
-  if (!existsSync(folder)) {
-    throw new CalderaError('no_migrations', `No migrations in ${folder}: run \`caldera db:generate\` (tests build the database from your migrations), or pass setupApp(app, { database: false }).`)
-  }
-  const migrations = readMigrationFiles({ migrationsFolder: folder })
-  const postgres = isPostgres(db)
-  const run = (statement: string) => (postgres ? db.client.execute!(sql.raw(statement)) : db.client.run!(sql.raw(statement)))
-  if (postgres) {
-    const name = /\/([^/?]+)(?:\?|$)/.exec(url)?.[1] ?? ''
-    if (!/test/i.test(name)) {
-      throw new CalderaError('unsafe_test_database', `Refusing to reset the Postgres database "${name || url}" for tests: its name must contain "test" (set DATABASE_TEST_URL).`)
-    }
-    await run('drop schema if exists public cascade')
-    await run('create schema public')
-  }
-  for (const migration of migrations) for (const statement of migration.sql) if (statement.trim()) await run(statement)
 }
 
 async function seed(db: DatabaseLike, seeders: readonly unknown[]) {
