@@ -1,6 +1,6 @@
 export { AuthorizationError, createGate } from './gate.js'
 export type { CreateGateOptions, Gate, Inspection } from './gate.js'
-export { allow, defineAbility, definePolicy, deny, denyAsNotFound, policyFor } from './policy.js'
+export { allow, defineAbility, definePolicy, deny, denyAsNotFound, policyFor, registerPolicy } from './policy.js'
 export type {
   Ability,
   AbilityOf,

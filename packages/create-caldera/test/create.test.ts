@@ -138,6 +138,9 @@ describe('createProject', () => {
       expect(existsSync(join(dir, file)), file).toBe(true)
     }
     expect(read('src/app.ts')).toMatch(/import \{ auth \} from '\.\/auth'[\s\S]*providers: \[\n[^\n]*\n    auth,/)
+    // Every policy in src/policies applies: codegen lists them, and the gate registers the list.
+    expect(read('src/app.ts')).toContain("import { policies } from '../.caldera/policies.gen'")
+    expect(read('src/app.ts')).toContain('    authorizationProvider({ policies }),\n')
     expect(read('src/auth.ts')).toContain("provider: 'sqlite'")
     // Two-factor and passkeys are on, and their tables are in the schema.
     expect(read('src/auth.ts')).toMatch(/twoFactor\(\{[\s\S]*passkey\(\{/)
@@ -161,7 +164,8 @@ describe('createProject', () => {
     expect(result.teams).toBe(true)
     for (const file of ['src/teams.ts', 'src/roles.ts', 'src/routes/teams.ts', 'resources/components/team-switcher.tsx', 'resources/pages/settings/Team.tsx', 'tests/teams/teams.test.ts']) expect(existsSync(join(result.directory, file)), file).toBe(true)
     expect(read('src/auth.ts')).toMatch(/databaseHooks: teamHooks\(db\)[\s\S]*plugins: \[\n[^\n]*\n        teamsPlugin\(/)
-    expect(read('src/app.ts')).toContain('authorizationProvider({ extend: organizationGate({ roles }) })')
+    expect(read('src/app.ts')).toContain('authorizationProvider({ policies, extend: organizationGate({ roles }) })')
+    expect(read('src/app.ts').match(/authorizationProvider\(/g)).toHaveLength(1)
     expect(read('src/inertia.ts')).toContain('teams: () => teamsFor(c)')
     expect(read('resources/components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
     expect(read('resources/components/app-sidebar.tsx')).not.toContain('AppLogo')

@@ -411,6 +411,7 @@ const STARTER_AGENTS =
   'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
   'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (header with tabs, the default, or sidebar; split, the default, simple or card), so switching is one line. Pages sit in a gray panel (`bg-surface`) as white cards; settings use `Section` (`resources/components/section.tsx`). Colors are CSS variables in `resources/app.css` (the kit\'s look is the last `:root`/`.dark` block: blue `--ring`/`--link`, `--surface`). Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts` (`mainNavItems`, the tabs; `settingsNavItems`, the settings pages); the command menu (`resources/components/command-menu.tsx`, ⌘K or Ctrl+K, and the search button in the header) lists them, with appearance and log out: add entries to its `sections`. ' +
+  'Authorization: `c.var.gate` checks the policies in `src/policies` (`caldera make:policy <Model>`; everything is denied until you allow it). `caldera generate` lists them in `.caldera/policies.gen.ts`, which `src/app.ts` passes to `authorizationProvider({ policies })`. On a route: `authorize: allows(Post, \'update\', \'post\')` (after `bind: { post: Post }`); in a handler: `await c.var.gate.authorize(Post, \'create\')` or `c.var.gate.can(...)`; for pages, `c.var.gate.annotate(Post, rows, [\'update\'])` adds `can` booleans to each row. ' +
   'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password, or using a passkey, counts as confirming it, and /confirm-password offers the person\'s passkey). ' +
   'Browser tests sign up with `register(page)`, log out with `logOut(page, name)` and use passkeys through `virtualAuthenticator(context, page)` (Chrome\'s virtual authenticator), all from `tests/browser/helpers.ts`.'
 
@@ -429,8 +430,11 @@ function applyTeams(directory: string, database: Database) {
     ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL, appName: config.app.name }),\n'],
   ])
   edit(directory, 'src/app.ts', [
-    ["import { auth } from './auth.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
-    ['    auth,\n', '    auth,\n    // c.var.gate for policies, with g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ extend: organizationGate({ roles }) }),\n'],
+    ["import { auth } from './auth.js'\n", "import { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
+    [
+      '    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`).\n    authorizationProvider({ policies }),\n',
+      '    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`), with\n    // g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ policies, extend: organizationGate({ roles }) }),\n',
+    ],
   ])
   edit(directory, 'src/inertia.ts', [
     ["import { getCookie } from 'hono/cookie'\n", "import { getCookie } from 'hono/cookie'\nimport { teamsFor } from './teams.js'\n"],
@@ -457,8 +461,12 @@ function applyTeams(directory: string, database: Database) {
 /** The starter kit's sign-in (src/auth.ts) as a provider of the app, and its tables for Postgres. */
 function applyStarter(directory: string, database: Database) {
   edit(directory, 'src/app.ts', [
-    ["import { env } from './env.js'\n", "import { auth } from './auth.js'\nimport { env } from './env.js'\n"],
-    ['  providers: [\n', '  providers: [\n    // Sign-in, sessions and passwords (Better Auth): c.var.auth, and c.var.user on every request.\n    auth,\n'],
+    ["import { env } from './env.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { auth } from './auth.js'\nimport { env } from './env.js'\n"],
+    ["import { notifications } from '../.caldera/notifications.gen.js'\n", "import { notifications } from '../.caldera/notifications.gen.js'\nimport { policies } from '../.caldera/policies.gen.js'\n"],
+    [
+      '  providers: [\n',
+      '  providers: [\n    // Sign-in, sessions and passwords (Better Auth): c.var.auth, and c.var.user on every request.\n    auth,\n    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`).\n    authorizationProvider({ policies }),\n',
+    ],
   ])
   edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${STARTER_AGENTS}\n\nTests (\`pnpm test\``]])
   if (database === 'postgres') {

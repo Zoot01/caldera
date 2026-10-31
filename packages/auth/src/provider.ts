@@ -2,9 +2,15 @@ import { defineProvider } from '@caldera/core'
 import type { AnyModel } from '@caldera/db'
 import type { Context } from 'hono'
 import { createGate, type Gate } from './gate.js'
-import type { AbilityOf, AuthUser, GateExtensions, PolicyArgs } from './policy.js'
+import { registerPolicy, type AbilityOf, type AuthUser, type GateExtensions, type Policy, type PolicyArgs } from './policy.js'
 
 export interface AuthorizationOptions {
+  /**
+   * Every policy in the app: `policies` from `.caldera/policies.gen.ts`, which `caldera generate`
+   * writes from `src/policies`. A policy nothing imports is never registered, and checks against
+   * its model are refused.
+   */
+  policies?: readonly Policy<AnyModel, unknown>[]
   /** How to find the current user. Defaults to `c.var.user`, which the auth middleware sets. */
   user?: (c: Context) => AuthUser | null
   /** Adds fields to `g` in policies, e.g. `organizationGate({ roles })` from `@caldera/auth/organization`. */
@@ -16,6 +22,7 @@ export interface AuthorizationOptions {
  * check, so authentication middleware that runs later in the request has already set it.
  */
 export function authorizationProvider(options: AuthorizationOptions = {}) {
+  for (const policy of options.policies ?? []) registerPolicy(policy)
   const userOf = options.user ?? ((c: Context) => ((c.var as { user?: AuthUser | null }).user ?? null))
   return defineProvider({
     name: 'authorization',

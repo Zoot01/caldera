@@ -56,6 +56,14 @@ describe('make:*', () => {
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
     expect(register).toContain('comments: typeof models0.Comment')
     expect(register).toContain('comment: typeof policies0.CommentPolicy')
+    // The list the app passes to authorizationProvider({ policies }): what makes them apply.
+    expect(readFileSync(join(root, '.caldera/policies.gen.ts'), 'utf8')).toContain(
+      `import * as policies0 from '../src/policies/comment.js'\nimport * as policies1 from '../src/policies/post.js'\n\nexport const policies = [policies0.CommentPolicy, policies1.PostPolicy] as const\n`,
+    )
+    // A new policy denies everything (guests included) until the developer allows it.
+    const policy = readFileSync(join(root, 'src/policies/comment.ts'), 'utf8')
+    for (const ability of ['viewAny', 'view', 'create', 'update', 'delete']) expect(policy).toContain(`  ${ability}: () => false,\n`)
+    expect(policy).not.toMatch(/^  \w+: \{ guest: true/m)
     const result = spawnSync(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')], { encoding: 'utf8' })
     expect(result.stdout + result.stderr).toBe('')
   }, 60_000)
