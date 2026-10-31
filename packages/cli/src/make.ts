@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { CalderaError } from '@caldera/core'
 import { generate } from './codegen.js'
-import { names, render, type Names } from './names.js'
+import { names, render, singularize, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
 import { STUBS, type StubName } from './stubs.js'
 
@@ -31,7 +31,7 @@ function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: 
     case 'seeder':
       return [{ path: `${CONVENTIONS.seedersDir}/${n.kebab}.ts`, stub: 'seeder' }]
     case 'routes':
-      return [{ path: `${CONVENTIONS.routesDir}/${n.kebab}.ts`, stub: 'routes' }]
+      return [{ path: `${CONVENTIONS.routesDir}/${channelName(n)}.ts`, stub: 'routes' }]
     case 'config':
       return [{ path: `${CONVENTIONS.configDir}/${n.kebab}.ts`, stub: 'config' }]
     case 'provider':
@@ -142,7 +142,9 @@ export async function make(
     // Mails and notifications take a namespace for their stable id: `billing.InvoicePaid` → `billing.invoice-paid`.
     const dot = kind === 'mail' || kind === 'notification' ? rawName.lastIndexOf('.') : -1
     const namespace = dot > 0 ? names(rawName.slice(0, dot)).kebab : undefined
-    const base = names(kind === 'page' ? (segments.at(-1) ?? '') : dot > 0 ? rawName.slice(dot + 1) : rawName)
+    // Routes are for a resource: `notes` and `Note` both make src/routes/notes.ts, at /notes.
+    const raw = kind === 'routes' ? names(rawName).kebab.replace(/[^-]+$/, singularize) : rawName
+    const base = names(kind === 'page' ? (segments.at(-1) ?? '') : dot > 0 ? raw.slice(dot + 1) : raw)
     n = { ...base, page: segments.join('/'), id: namespace ? `${namespace}.${base.kebab}` : base.kebab }
   } catch (error) {
     throw new CalderaError('invalid_name', (error as Error).message)
@@ -167,6 +169,7 @@ export async function make(
     ...n,
     eventName: eventName(n),
     channelName: channelName(n),
+    pluralKebab: channelName(n),
     channelKind: flags.presence ? 'A presence channel: members see who else is on it' : 'A private channel',
     presenceType: flags.presence ? "  type: 'presence',\n" : '',
     // What other members see about someone: no secrets, every member gets it.

@@ -71,6 +71,11 @@ describe('make:*', () => {
   it('refuses to overwrite without --force', async () => {
     const project = openProject(root)
     await make(project, 'routes', 'comments')
+    expect(readFileSync(join(root, 'src/routes/comments.ts'), 'utf8')).toContain("export const comments = defineRoutes('comments', { prefix: '/comments' })")
+    // A singular name means the same resource; the file, group and URL are plural either way.
+    await make(project, 'routes', 'BlogPost')
+    expect(readFileSync(join(root, 'src/routes/blog-posts.ts'), 'utf8')).toContain("export const blogPosts = defineRoutes('blogPosts', { prefix: '/blog-posts' })")
+    await expect(make(project, 'routes', 'Comment')).rejects.toMatchObject({ code: 'file_exists', details: { files: ['src/routes/comments.ts'] } })
     await expect(make(project, 'routes', 'comments')).rejects.toMatchObject({ code: 'file_exists', details: { files: ['src/routes/comments.ts'] } })
     await expect(make(project, 'routes', 'comments', { force: true })).resolves.toMatchObject({ created: ['src/routes/comments.ts'] })
   })

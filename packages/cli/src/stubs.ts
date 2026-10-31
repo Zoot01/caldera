@@ -65,7 +65,7 @@ export const {{ name }}Seeder = defineSeeder({
 `,
   routes: `import { defineRoutes } from '@caldera/http'
 
-export const {{ plural }} = defineRoutes('{{ plural }}', { prefix: '/{{ kebab }}' })
+export const {{ plural }} = defineRoutes('{{ plural }}', { prefix: '/{{ pluralKebab }}' })
   .get('index', '/', (c) => c.json({ data: [] }))
 `,
   config: `import { defineConfig } from '@caldera/core'
