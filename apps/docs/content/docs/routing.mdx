@@ -42,7 +42,8 @@ To narrow the lookup, bind a function instead. It gets the parameter and the req
 ```ts
 import type { RouteContext } from '@caldera/http'
 
-const ownNote = (id: string, c: RouteContext) => Note.findFirst({ where: { id, userId: c.var.user!.id } })
+const ownNote = (id: string, c: RouteContext) =>
+  Note.findFirst({ where: { id, userId: c.var.user!.id } })
 
 .get('mine', '/mine/:note', { bind: { note: ownNote } }, (c) => c.json({ title: c.var.note.title }))
 ```

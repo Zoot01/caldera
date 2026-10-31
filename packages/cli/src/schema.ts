@@ -1,6 +1,7 @@
 import { CalderaError } from '@caldera/core'
 import { relative } from 'node:path'
 import { loadModels } from './models.js'
+import { names } from './names.js'
 import type { Project } from './project.js'
 
 // Drizzle keeps table metadata under global symbols, so the CLI can read any app's tables
@@ -69,7 +70,9 @@ export async function describeSchema(project: Project): Promise<{ schemaVersion:
 /** One model's definition plus its table, relations and source file, for `caldera model:show`. */
 export async function describeModel(project: Project, nameOrKey: string) {
   const { relations, models } = await loadModels(project)
-  const found = models.find((m) => m.model.name === nameOrKey || m.key === nameOrKey)
+  // `Note`, `note` and `notes` all find it: make:model takes the class-style name.
+  const wanted = names(nameOrKey).name
+  const found = models.find((m) => m.model.name === nameOrKey || m.key === nameOrKey || m.model.name === wanted)
   if (!found || !relations) {
     throw new CalderaError('unknown_model', `No model named "${nameOrKey}". Known models: ${models.map((m) => m.model.name).join(', ') || 'none'}.`, {
       known: models.map((m) => m.model.name),

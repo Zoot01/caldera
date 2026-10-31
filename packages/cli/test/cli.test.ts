@@ -179,6 +179,8 @@ describe('caldera model:show and db:schema', () => {
     expect(user.columns.find((c) => c.name === 'id')).toMatchObject({ primary: true, type: 'uuid', hasDefault: true })
     expect(user.relations).toEqual([{ name: 'posts', type: 'many', target: 'posts', model: 'post' }])
 
+    // The class-style name make:model takes finds it too.
+    expect((await describeModel(openProject(root), 'User')).name).toBe('user')
     const post = await describeModel(openProject(root), 'posts')
     expect(post).toMatchObject({ name: 'post', routeKey: 'slug', appends: ['url'] })
   })

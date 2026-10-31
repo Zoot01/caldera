@@ -45,16 +45,18 @@ export interface FactoryDefinition<M extends AnyModel, St> {
  * Describes how to build fake rows for a model. Keep factories in `src/db/factories/`: they import
  * faker, so they must never be imported by production code.
  */
-export function defineFactory<M extends AnyModel, St extends Record<string, (attrs: Attrs<M>) => Attrs<M>> = {}>(
+// Only the state names are inferred, and A is a defaulted parameter so it's resolved before the
+// states are typed: otherwise `role: 'admin'` widens to string and fails an enum column.
+export function defineFactory<M extends AnyModel, const StateName extends string = never, A = Attrs<M>>(
   model: M,
   definition: {
     definition: (ctx: FactoryContext) => Attrs<M>
     /** Named variations, returned as partial attributes: `admin: () => ({ role: 'admin' })`. */
-    states?: St
+    states?: Record<StateName, (attrs: A) => A>
     afterCreating?: (row: Row<M>, ctx: FactoryContext) => unknown
   },
-): FactoryDefinition<M, St> {
-  return { kind: 'caldera.factory', model, states: (definition.states ?? {}) as St, ...definition }
+): FactoryDefinition<M, Record<StateName, (attrs: Attrs<M>) => Attrs<M>>> {
+  return { kind: 'caldera.factory', model, ...definition, states: (definition.states ?? {}) as Record<StateName, (attrs: Attrs<M>) => Attrs<M>> }
 }
 
 type RelationName<M extends AnyModel> = keyof RelationsOf<M['~key']> & string

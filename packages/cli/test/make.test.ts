@@ -51,7 +51,10 @@ describe('make:*', () => {
     )
     // Each CLI command opens a fresh project (module graph); do the same after editing files.
     expect((await make(openProject(root), 'policy', 'comment')).generate).toBe('ok')
-    expect((await make(openProject(root), 'factory', 'comment')).created).toEqual(['src/db/factories/comment.ts'])
+    const factoryResult = await make(openProject(root), 'factory', 'comment')
+    expect(factoryResult.created).toEqual(['src/db/factories/comment.ts'])
+    // Faker is an optional peer: the app is told to install it until it has.
+    expect(factoryResult.hints).toEqual(['Factories use faker: `pnpm add -D @faker-js/faker`.'])
 
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
     expect(register).toContain('comments: typeof models0.Comment')

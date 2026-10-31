@@ -46,7 +46,9 @@ describe('reads', () => {
     const nested = await Post.findFirst({ with: { author: true } })
     expect(nested!.author).not.toHaveProperty('passwordHash')
     expect(nested).not.toHaveProperty('internalNotes')
-    expect((await User.withHidden().find(ann.id)) as Record<string, unknown>).toMatchObject({ passwordHash: 'secret-hash' })
+    // Typed with the hidden column too, here and on loaded relations.
+    expect((await User.withHidden().find(ann.id))!.passwordHash).toBe('secret-hash')
+    expect((await Post.withHidden().findFirst({ with: { author: true } }))!.author.passwordHash).toBe('secret-hash')
   })
 
   it('finds by route key and fails with a not_found error', async () => {
@@ -62,6 +64,9 @@ describe('reads', () => {
     await seed()
     expect((await Post.published().findMany()).map((p) => p.title)).toEqual(['Hello World'])
     expect(await Post.titled('Draft').findMany({ where: { body: 'nope' } })).toEqual([])
+    // Scopes chain.
+    expect((await Post.published().titled('Hello World').findMany()).map((p) => p.title)).toEqual(['Hello World'])
+    expect(await Post.titled('Draft').published().findMany()).toEqual([])
   })
 
   it('paginates with a total that respects filters and soft deletes', async () => {
@@ -83,6 +88,15 @@ describe('writes', () => {
     expect(created.role).toBe('member')
     // @ts-expect-error role is guarded
     void (() => User.create({ name: 'C', email: 'c@example.test', passwordHash: 'x', role: 'admin' }))
+  })
+
+  it('treats an update with nothing left to write as a no-op', async () => {
+    const { post } = await seed()
+    events.length = 0
+    // Only a guarded column: stripped, so there's nothing to set (Drizzle would throw).
+    expect((await Post.update(post, { ...({ authorId: crypto.randomUUID() } as object) })).authorId).toBe(post.authorId)
+    expect(await Post.update(post, {})).toMatchObject({ id: post.id, title: post.title })
+    expect(events).toEqual([])
   })
 
   it('runs -ing hooks before the write and -ed hooks after commit only', async () => {

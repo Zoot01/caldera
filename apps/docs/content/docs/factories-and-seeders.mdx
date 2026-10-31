@@ -1,0 +1,137 @@
+---
+title: Factories and seeders
+description: Fake rows for tests and local data, and filling the database.
+---
+
+A factory makes fake rows for a model: in tests, so each one creates exactly the data it needs, and in seeders, which fill your local database.
+
+## Factories
+
+Factories use [Faker](https://fakerjs.dev), which apps add when they need it:
+
+```bash
+pnpm add -D @faker-js/faker
+pnpm exec caldera make:factory User
+```
+
+```ts title="src/db/factories/user.ts"
+import { defineFactory } from '@caldera/db/factories'
+import { User } from '../../models/user'
+
+export const UserFactory = defineFactory(User, {
+  definition: ({ faker, seq }) => ({
+    name: faker.person.fullName(),
+    email: `user${seq}@example.test`,
+    emailVerified: true,
+  }),
+  states: {
+    admin: () => ({ role: 'admin' }),
+  },
+})
+```
+
+`definition` returns one row's values. `seq` counts up (1, 2, 3…) per factory: use it for columns that must be unique. States are named variations.
+
+Keep factories in `src/db/factories/`. They import Faker, so production code must never import them.
+
+### Making rows
+
+```ts
+import { factory } from '@caldera/db/factories'
+
+const user = await factory(UserFactory).create()
+const admins = await factory(UserFactory).admin().count(3).create()
+const ann = await factory(UserFactory).with({ name: 'Ann' }).create()
+```
+
+`create` inserts through the model, so hooks run, and the whole graph is one transaction. Factories may set guarded columns, like `role` above.
+
+| Method | |
+| --- | --- |
+| `.count(n)` | `n` rows; `create()` returns a list. |
+| `.with({ … })` | Fixed values, applied last. |
+| `.sequence({ … }, { … })` | One set of values per row, in turn. |
+| `.admin()` | A state, by name. |
+| `.for('author', parent)` | Sets a belongs-to: `parent` is a row or another factory. |
+| `.has('comments', children)` | Creates children for each row, returned on it. |
+| `.recycle(User, users)` | `for` picks one of these rows instead of creating one. |
+| `.make()` | Builds rows with fake ids, without the database. |
+| `.raw()` | Just the values. |
+
+Related rows, in one go:
+
+```ts
+const note = await factory(NoteFactory)
+  .for('author', factory(UserFactory))
+  .has('comments', factory(CommentFactory).count(2).for('author', ann))
+  .create()
+
+note.comments // two comments, by Ann
+```
+
+### Reproducing a run
+
+Faker is seeded once per process, so the same seed makes the same data. `CALDERA_SEED=1234 pnpm test` replays a run; `factorySeed()` tells you the current seed.
+
+## Seeders
+
+A seeder fills the database. `caldera make:seeder Users` writes one to `src/db/seeders/`:
+
+```ts title="src/db/seeders/users.ts"
+import { factory } from '@caldera/db/factories'
+import { defineSeeder } from '@caldera/db/seeders'
+import { UserFactory } from '../factories/user'
+
+export const usersSeeder = defineSeeder({
+  name: 'users',
+  environments: ['local', 'test'],
+  run: async ({ log }) => {
+    await factory(UserFactory)
+      .admin()
+      .with({ name: 'Ada Admin', email: 'admin@example.test' })
+      .create()
+    await factory(UserFactory).count(5).create()
+    log('6 users')
+  },
+})
+```
+
+One seeder can depend on another, which then runs first:
+
+```ts title="src/db/seeders/notes.ts"
+export const notesSeeder = defineSeeder({
+  name: 'notes',
+  environments: ['local', 'test'],
+  dependsOn: [usersSeeder],
+  run: async ({ log }) => {
+    const users = await User.findMany()
+    for (const user of users) {
+      await factory(NoteFactory)
+        .count(3)
+        .with({ userId: user.id })
+        .has(
+          'comments',
+          factory(CommentFactory).count(2).for('author', factory(UserFactory)).recycle(User, users),
+        )
+        .create()
+    }
+    log(`${users.length * 3} notes`)
+  },
+})
+```
+
+Each comment's author is one of the existing users, picked by `recycle`, rather than a new one.
+
+### Running them
+
+```bash
+pnpm exec caldera db:seed
+pnpm exec caldera db:seed --only notes
+pnpm exec caldera db:seed --seed 1234
+```
+
+Seeders run dependencies first, each once, in one transaction: if one fails, nothing is kept. `--only` runs the ones named, with their dependencies. Every run prints its Faker seed; pass it back with `--seed` for the same data.
+
+Seeders add rows to what's there, so running them twice can collide on unique columns. To start over with SQLite, delete `local.db` and run `db:migrate` again.
+
+The environment is `CALDERA_ENV`, else `NODE_ENV`, else `local`. A seeder with `environments` runs only in those. In production, `db:seed` refuses unless you pass `--force`, and even then only seeders marked `production: true` run, which is for data the app needs, like a list of countries.

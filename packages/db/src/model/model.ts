@@ -27,17 +27,22 @@ export interface Page<T> {
 }
 
 /** Reads. Every method applies the model's defaults: hidden columns excluded, soft-deleted rows filtered. */
-export interface QueryApi<K extends TableKey> {
-  findMany<C extends ManyConfig<K>>(config?: ManyConfig<K> extends C ? C : ManyConfig<K>): Promise<ModelResult<K, C>[]>
-  findFirst<C extends OneConfig<K>>(config?: OneConfig<K> extends C ? C : OneConfig<K>): Promise<ModelResult<K, C> | undefined>
-  find(id: string | number): Promise<ModelResult<K, true> | undefined>
+export interface QueryApi<K extends TableKey, Reveal extends boolean = false> {
+  findMany<C extends ManyConfig<K>>(config?: ManyConfig<K> extends C ? C : ManyConfig<K>): Promise<ModelResult<K, C, Reveal>[]>
+  findFirst<C extends OneConfig<K>>(config?: OneConfig<K> extends C ? C : OneConfig<K>): Promise<ModelResult<K, C, Reveal> | undefined>
+  find(id: string | number): Promise<ModelResult<K, true, Reveal> | undefined>
   /** Throws `ModelNotFoundError`, which `@caldera/http` renders as a 404. */
-  findOrFail(id: string | number): Promise<ModelResult<K, true>>
+  findOrFail(id: string | number): Promise<ModelResult<K, true, Reveal>>
   /** Looks up by the model's `routeKey` (or primary key). Used by route model binding. */
-  findByRouteKey(value: string | number): Promise<ModelResult<K, true> | undefined>
+  findByRouteKey(value: string | number): Promise<ModelResult<K, true, Reveal> | undefined>
   paginate<C extends ManyConfig<K>>(
     config: (ManyConfig<K> extends C ? C : ManyConfig<K>) & { page?: number; perPage?: number },
-  ): Promise<Page<ModelResult<K, C>>>
+  ): Promise<Page<ModelResult<K, C, Reveal>>>
+}
+
+/** What a scope returns: the reads, and the other scopes to narrow further. */
+export type Scoped<K extends TableKey, Sc> = QueryApi<K> & {
+  [N in keyof Sc]: Sc[N] extends (...args: infer P) => any ? (...args: P) => Scoped<K, Sc> : never
 }
 
 export type RowOf<K extends TableKey, H> = OmitKeys<Select<K>, H>
@@ -102,7 +107,7 @@ export type Model<K extends TableKey, Name extends string, H extends string, G e
   /** Only soft-deleted rows. */
   onlyTrashed(): QueryApi<K>
   /** Includes hidden columns, e.g. to check a password hash. Never send the result to a client. */
-  withHidden(): QueryApi<K>
+  withHidden(): QueryApi<K, true>
   create(input: InsertOf<K, G>): Promise<RowOf<K, H>>
   createMany(inputs: InsertOf<K, G>[]): Promise<RowOf<K, H>[]>
   /** Like `create` but may set guarded columns. For trusted internal code only. */
@@ -119,7 +124,7 @@ export type Model<K extends TableKey, Name extends string, H extends string, G e
   describe(): ModelDescription
   /** The same model bound to a specific database instead of the default one. */
   using(database: Database<any>): Model<K, Name, H, G, A, Sc, SD, W>
-} & { [N in keyof Sc]: Sc[N] extends (...args: infer P) => any ? (...args: P) => QueryApi<K> : never }
+} & { [N in keyof Sc]: Sc[N] extends (...args: infer P) => any ? (...args: P) => Scoped<K, Sc> : never }
 
 export interface ModelDescription {
   name: string
@@ -348,6 +353,9 @@ export function defineModel<
         const id = before[primaryKey]
         const cleaned = omit(patch, runtime.guarded)
         const prepared = hooks.updating ? await hooks.updating({ before, patch: cleaned }) : cleaned
+        // Nothing left to write (an empty patch, only guarded columns, or undefined values, which
+        // Drizzle skips): no query, no hooks.
+        if (Object.values(prepared).every((value) => value === undefined)) return before
         const [row] = await client()
           .update(table)
           .set(prepared)
