@@ -22,7 +22,7 @@ const KIT = join(KITS, 'blank')
 // (blank, then starter, then starter-teams), so it only gets components they don't have.
 const USES = {
   blank: ['card', 'toggle-group'],
-  starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner'],
+  starter: ['alert', 'alert-dialog', 'avatar', 'breadcrumb', 'button', 'checkbox', 'field', 'input', 'label', 'dialog', 'menu', 'otp-field', 'sidebar', 'spinner', 'command'],
   'starter-teams': ['badge'],
 }
 

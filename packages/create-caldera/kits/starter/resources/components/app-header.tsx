@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react'
 import { AppLogo } from '@/components/app-logo'
+import { CommandMenu } from '@/components/command-menu'
 import { footerNavItems, isCurrent, mainNavItems } from '@/components/navigation'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuPopup, MenuTrigger } from '@/components/ui/menu'
@@ -22,6 +23,7 @@ export function AppHeader() {
           <AppLogo />
         </Link>
         <div className="ms-auto flex items-center gap-1">
+          <CommandMenu className="me-1" />
           {footerNavItems.map((item) => (
             <Button key={item.href} variant="ghost" size="icon" render={<a href={item.href} target="_blank" rel="noopener" aria-label={item.title} title={item.title} />}>
               {item.icon && <item.icon />}

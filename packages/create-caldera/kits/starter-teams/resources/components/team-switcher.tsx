@@ -1,5 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react'
-import { Check, ChevronsUpDown, Plus, Settings } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronsUpDown, Plus, Settings } from 'lucide-react'
+import type { CommandSection } from '@/components/command-menu'
+import { NewTeamDialog, openNewTeamDialog } from '@/components/new-team-dialog'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from '@/components/ui/menu'
 import { SidebarMenuButton, useSidebar } from '@/components/ui/sidebar'
@@ -28,7 +30,7 @@ function TeamMenuItems({ teams, current }: { teams: Teams; current: Team }) {
         <Settings />
         Team settings
       </MenuItem>
-      <MenuItem render={<Link href="/settings/teams" />}>
+      <MenuItem onClick={openNewTeamDialog}>
         <Plus />
         New team
       </MenuItem>
@@ -43,19 +45,22 @@ export function TeamSwitcher() {
   if (!teams?.current) return null
   const current = teams.current
   return (
-    <Menu>
-      <MenuTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" aria-label={`Team: ${current.name}`} />}>
-        <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary font-semibold text-primary-foreground text-sm">{initial(current.name)}</div>
-        <div className="grid flex-1 text-start text-sm leading-tight">
-          <span className="truncate font-semibold">{current.name}</span>
-          <span className="truncate text-muted-foreground text-xs">{current.personal ? 'Personal team' : 'Team'}</span>
-        </div>
-        <ChevronsUpDown className="ms-auto size-4" />
-      </MenuTrigger>
-      <MenuPopup className="w-60" align="start" side={isMobile ? 'bottom' : state === 'collapsed' ? 'right' : 'bottom'}>
-        <TeamMenuItems teams={teams} current={current} />
-      </MenuPopup>
-    </Menu>
+    <>
+      <Menu>
+        <MenuTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" aria-label={`Team: ${current.name}`} />}>
+          <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary font-semibold text-primary-foreground text-sm">{initial(current.name)}</div>
+          <div className="grid flex-1 text-start text-sm leading-tight">
+            <span className="truncate font-semibold">{current.name}</span>
+            <span className="truncate text-muted-foreground text-xs">{current.personal ? 'Personal team' : 'Team'}</span>
+          </div>
+          <ChevronsUpDown className="ms-auto size-4" />
+        </MenuTrigger>
+        <MenuPopup className="w-60" align="start" side={isMobile ? 'bottom' : state === 'collapsed' ? 'right' : 'bottom'}>
+          <TeamMenuItems teams={teams} current={current} />
+        </MenuPopup>
+      </Menu>
+      <NewTeamDialog />
+    </>
   )
 }
 
@@ -79,6 +84,21 @@ export function HeaderTeamSwitcher() {
           <TeamMenuItems teams={teams} current={current} />
         </MenuPopup>
       </Menu>
+      <NewTeamDialog />
     </>
   )
+}
+
+/** The command menu's Teams section (resources/components/command-menu.tsx): switch, or make a new one. */
+export function useTeamCommands(): CommandSection {
+  const { teams } = usePage().props
+  return {
+    value: 'Teams',
+    items: [
+      ...(teams?.all ?? [])
+        .filter((team) => team.id !== teams?.current?.id)
+        .map((team) => ({ value: team.id, label: `Switch to ${team.name}`, icon: ArrowRightLeft, run: () => router.post('/teams/switch', { teamId: team.id }) })),
+      { value: 'new', label: 'New team…', icon: Plus, run: openNewTeamDialog },
+    ],
+  }
 }
