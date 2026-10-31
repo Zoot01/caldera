@@ -73,7 +73,7 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
       id: string
       name: string
       metadata?: unknown
-      members: { id: string; role: string; userId: string; user: { name: string; email: string } }[]
+      members: { id: string; role: string; userId: string; createdAt: string; user: { name: string; email: string } }[]
       invitations: { id: string; email: string; role: string; status: string; expiresAt: string }[]
     } | null
     if (!team) throw new NotFoundError()
@@ -82,7 +82,10 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
     const manages = role === 'owner' || role === 'admin'
     return c.render('settings/Team', {
       team: { id: team.id, name: team.name, personal: isPersonal(team) },
-      members: team.members.map((m) => ({ id: m.id, name: m.user.name, email: m.user.email, role: m.role, you: m.userId === c.var.user!.id })),
+      // In the order they joined (the database doesn't keep one).
+      members: [...team.members]
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+        .map((m) => ({ id: m.id, name: m.user.name, email: m.user.email, role: m.role, you: m.userId === c.var.user!.id })),
       invitations: manages ? team.invitations.filter((i) => i.status === 'pending').map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: new Date(i.expiresAt).toISOString() })) : [],
       can: {
         update: manages,
