@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CalderaError } from '@caldera/core'
@@ -8,12 +8,14 @@ import { CONVENTIONS, openProject } from './project.js'
 import { startDevBroadcastServer } from './broadcast.js'
 
 export interface DevEvent {
-  type: 'generated' | 'error' | 'broadcast'
+  type: 'generated' | 'error' | 'broadcast' | 'notice'
   /** For `broadcast`: the realtime server dev started. */
   url?: string
   /** Files whose contents changed (only for `generated`). */
   changed: string[]
   error?: string
+  /** For `notice`: something worth knowing that isn't an error. */
+  message?: string
 }
 
 export interface DevOptions {
@@ -25,6 +27,16 @@ export interface DevOptions {
   onEvent?: (event: DevEvent) => void
   /** Milliseconds to wait for more changes before regenerating. */
   debounce?: number
+  /**
+   * Poll for changes instead of relying on file events, for Docker bind mounts, WSL2 Windows drives
+   * and network filesystems, where events never arrive. Also switches tsx and Vite to polling.
+   */
+  poll?: boolean
+  /**
+   * Milliseconds between checks of the watched files' modification times: a backstop for events the
+   * watcher misses (default 2000), or the polling interval with `poll` (default 500).
+   */
+  interval?: number
 }
 
 export interface DevSession {
@@ -38,6 +50,10 @@ export interface DevSession {
  * under src/ (a fresh project load each time, so edits are seen). Codegen errors are reported and the
  * watcher keeps going; the server (tsx watch) restarts itself on source changes. tsx ignores
  * dot-directories, so when only `.caldera/*.gen.ts` changed (an edit in lang/, say), dev restarts it.
+ *
+ * File events are fast but can be missed (under load, while the watcher starts, on some filesystems),
+ * so every couple of seconds dev also compares the files' modification times with what it last saw,
+ * as Laravel's `serve` does for .env: a missed event only delays an update. `poll` uses that alone.
  */
 export function startDev(root: string, options: DevOptions = {}): DevSession {
   const emit = options.onEvent ?? (() => {})
@@ -46,9 +62,14 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
   // Set by the src/ watcher: tsx restarts the server itself for those changes.
   let srcTouched = false
   let restartServer: (() => Promise<void>) | undefined
+  const dirs = ['src', CONVENTIONS.pagesDir, CONVENTIONS.langDir]
+  // What the files looked like at the last generation (or the last check), to spot missed changes.
+  let seen = new Map<string, string>()
   const run = async () => {
     const touchedSrc = srcTouched
     srcTouched = false
+    // Taken before generating: an edit made while it runs differs, so the next check catches it.
+    seen = snapshot(root, dirs)
     const started = Date.now()
     debug('generate: start')
     try {
@@ -85,9 +106,12 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
   const children: ChildProcess[] = []
   let hub: { close(): Promise<void> } | undefined
   const firstRun = (queued = run())
+  let checker: NodeJS.Timeout | undefined
+  // tsx and Vite watch with chokidar, Next.js (webpack) with Watchpack; each polls when told to.
+  const pollEnv = options.poll ? { CHOKIDAR_USEPOLLING: '1', WATCHPACK_POLLING: 'true' } : {}
   const ready = firstRun.then(async () => {
     // Pages and lang/ live outside src/; both change generated types (pages, message keys).
-    for (const dir of ['src', CONVENTIONS.pagesDir, CONVENTIONS.langDir].filter((d) => existsSync(join(root, d)))) {
+    for (const dir of options.poll ? [] : dirs.filter((d) => existsSync(join(root, d)))) {
       watchers.push(
         watch(join(root, dir), { recursive: true }, (event, file) => {
           debug(`fs ${event} ${dir}/${file ?? '?'}`)
@@ -98,6 +122,19 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
         }),
       )
     }
+    checker = setInterval(
+      () => {
+        const now = snapshot(root, dirs)
+        const changed = [...new Set([...now.keys(), ...seen.keys()])].filter((path) => now.get(path) !== seen.get(path))
+        seen = now
+        if (!changed.length) return
+        debug(`${options.poll ? 'poll' : 'backstop'}: ${changed.join(', ')}`)
+        if (changed.some((path) => path.startsWith('src/'))) srcTouched = true
+        schedule()
+      },
+      options.interval ?? (options.poll ? 500 : 2000),
+    )
+    checker.unref()
     // The app's realtime server, when its broadcast connection points here and nothing's listening.
     if ((options.server ?? true) && usesBroadcast(root)) {
       const project = openProject(root)
@@ -116,10 +153,13 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     const viteConfig = ['vite.config.ts', 'vite.config.mts', 'vite.config.js'].find((f) => existsSync(join(root, f)))
     if ((options.vite ?? true) && (options.server ?? true) && viteConfig) {
       const vite = findBin(root, 'vite')
-      if (vite) children.push(spawn(process.execPath, [vite], { cwd: root, stdio: 'inherit' }))
+      if (vite) children.push(spawn(process.execPath, [vite], { cwd: root, stdio: 'inherit', env: { ...process.env, ...pollEnv } }))
       else emit({ type: 'error', changed: [], error: `${viteConfig} exists but vite isn't installed; install it or use --no-vite.` })
     }
     const nextConfig = ['next.config.ts', 'next.config.mjs', 'next.config.js'].find((f) => existsSync(join(root, f)))
+    if (options.poll && nextConfig && (options.server ?? true)) {
+      emit({ type: 'notice', changed: [], message: `Turbopack doesn't poll on its own: set watchOptions.pollIntervalMs in ${nextConfig} too.` })
+    }
     if (options.server ?? true) {
       // A Next.js app: `next dev` serves the pages and the API (Caldera at /api) and reloads itself.
       const command = nextConfig ? findBin(root, 'next') : findBin(root, 'tsx')
@@ -130,7 +170,7 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
             cwd: root,
             stdio: ['inherit', 'pipe', 'pipe'],
             // The preload records unexpected errors for `caldera mcp` (last_errors), with source-mapped stacks.
-            env: { ...process.env, CALDERA_ERROR_LOG: logs.errors, CALDERA_MAIL_OUTBOX: logs.outbox, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${JSON.stringify(PRELOAD)}`.trim() },
+            env: { ...process.env, ...pollEnv, CALDERA_ERROR_LOG: logs.errors, CALDERA_MAIL_OUTBOX: logs.outbox, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${JSON.stringify(PRELOAD)}`.trim() },
           })
           // Shown as before, and kept in .caldera/dev.log for `caldera mcp` (logs).
           child.stdout!.on('data', (chunk: Buffer) => (process.stdout.write(chunk), logs.append(chunk)))
@@ -161,12 +201,41 @@ export function startDev(root: string, options: DevOptions = {}): DevSession {
     ready,
     async stop() {
       clearTimeout(timer)
+      clearInterval(checker)
       for (const watcher of watchers) watcher.close()
       for (const child of children) child.kill('SIGTERM')
       await hub?.close()
       await queued
     },
   }
+}
+
+/** Every file under `dirs` (relative path → mtime and size), skipping the generated directory. */
+function snapshot(root: string, dirs: string[]): Map<string, string> {
+  const files = new Map<string, string>()
+  const walk = (dir: string) => {
+    let entries
+    try {
+      entries = readdirSync(join(root, dir), { withFileTypes: true })
+    } catch {
+      return // Gone, or not there yet.
+    }
+    for (const entry of entries) {
+      const path = `${dir}/${entry.name}`
+      if (entry.name === CONVENTIONS.generatedDir || entry.name === 'node_modules') continue
+      if (entry.isDirectory()) walk(path)
+      else {
+        try {
+          const stat = statSync(join(root, path))
+          files.set(path, `${stat.mtimeMs}:${stat.size}`)
+        } catch {
+          // Deleted between the listing and the stat.
+        }
+      }
+    }
+  }
+  for (const dir of dirs) walk(dir)
+  return files
 }
 
 function usesBroadcast(root: string): boolean {

@@ -60,7 +60,7 @@ UI: Tailwind CSS v4 and coss ui (https://coss.com/ui), built on Base UI, not Rad
 
 Security headers are on by default in `src/http.ts`, including a strict CSP: only scripts with this request's nonce run (and what they load). Page and Vite tags get the nonce automatically; any inline `<script>` you add in a custom `rootView` needs `nonce="${nonce}"`. Don't loosen `script-src`; add other directives with `securityHeaders({ csp: { imgSrc: [...] } })`.
 
-`.caldera/` is generated: never edit it. Run `caldera generate` after adding env, config, routes, models, policies or pages (`caldera dev` does it on save).
+`.caldera/` is generated: never edit it. Run `caldera generate` after adding env, config, routes, models, policies or pages (`caldera dev` does it on save; use `caldera dev --poll` in Docker, WSL2 on a Windows drive or a network filesystem, where file events don't arrive).
 
 ## MCP server
 
