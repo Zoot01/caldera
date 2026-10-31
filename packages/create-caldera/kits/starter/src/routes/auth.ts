@@ -117,7 +117,11 @@ export const auth = defineRoutes('auth')
     return back(c).with('status', 'verification-link-sent')
   })
 
-  .get('password.confirm', '/confirm-password', { middleware: [mw.auth()] }, (c) => c.render('auth/ConfirmPassword', {}))
+  .get('password.confirm', '/confirm-password', { middleware: [mw.auth()] }, async (c) => {
+    // People with a passkey can use it instead (src/auth.ts counts it as confirming).
+    const passkeys = c.var.config.auth.passkeys ? (await c.var.auth.api.listPasskeys({ headers: headers(c) })).length > 0 : false
+    return c.render('auth/ConfirmPassword', { passkeys })
+  })
   .post('password.confirm.store', '/confirm-password', { middleware: [mw.auth()], request: ConfirmPassword }, async (c) => {
     const res = await c.var.auth.api.verifyPassword({ body: { password: c.req.valid('json').password }, headers: headers(c), asResponse: true })
     if (!res.ok) throw new ValidationError({ password: ['That password is incorrect.'] })

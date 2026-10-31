@@ -114,7 +114,8 @@ describe('createProject', () => {
     expect(read('tsconfig.json')).toMatch(/"moduleResolution": "Bundler"[\s\S]*"@\/\*": \["\.\/resources\/\*"\]/)
     expect(read('vite.config.ts')).toContain('tailwindcss()')
     expect(read('src/http.ts')).toContain("import { app } from './app'")
-    expect(read('src/inertia.ts')).toContain('document: [appearance()]')
+    expect(read('src/inertia.ts')).toContain('document: [appearance(), { head: () => \'<link rel="icon" href="/favicon.svg" type="image/svg+xml">\' }]')
+    expect(existsSync(join(dir, 'public/favicon.svg'))).toBe(true)
     // The kit's package.json is merged into the app's, not copied over it.
     const manifest = JSON.parse(read('package.json'))
     expect(manifest.dependencies).toMatchObject({ '@base-ui/react': expect.any(String), '@caldera/inertia': expect.any(String), '@caldera/core': expect.any(String), 'lucide-react': expect.any(String) })
@@ -164,6 +165,8 @@ describe('createProject', () => {
     expect(read('src/inertia.ts')).toContain('teams: () => teamsFor(c)')
     expect(read('resources/components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
     expect(read('resources/components/app-sidebar.tsx')).not.toContain('AppLogo')
+    // The header layout has one too, next to the logo.
+    expect(read('resources/components/app-header.tsx')).toContain('<AppLogo />\n          </Link>\n          <HeaderTeamSwitcher />\n')
     expect(read('resources/layouts/settings-layout.tsx')).toContain("{ title: 'Teams', href: '/settings/teams' }")
     expect(read('src/db/auth-schema.ts')).toContain("snakeCase.table('organization'")
     expect(read('AGENTS.md')).toContain('Teams (Better Auth organizations')
@@ -517,6 +520,13 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       }
       return undefined
     }
+    // Browsers reach it at localhost (WebAuthn needs a host name, not an IP): passkeys and Better Auth's
+    // origin checks use APP_URL.
+    writeFileSync(join(dir, '.dev.vars'), `${readFileSync(join(dir, '.dev.vars'), 'utf8')}APP_URL=http://localhost:3462\n`)
+    writeFileSync(
+      join(dir, 'playwright.workers.config.ts'),
+      `import { defineConfig, devices } from '@playwright/test'\n\nexport default defineConfig({ testDir: 'tests/browser', testMatch: 'security.spec.ts', workers: 1, use: { baseURL: 'http://localhost:3462' }, projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }] })\n`,
+    )
     const dev = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', '3462', '--ip', '127.0.0.1'], { cwd: dir, detached: true })
     try {
       expect(await poll(() => fetch('http://127.0.0.1:3462/edge/users').then((r) => r.json()))).toEqual({ users: [], cache: 'database', hits: 1 })
@@ -536,6 +546,14 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       })
       socket.close()
       expect(JSON.parse(hello)).toMatchObject({ event: 'pusher:connection_established' })
+
+      // The app's own browser tests for passkeys and two-factor, against workerd: a WebAuthn ceremony,
+      // and the passkey counting as a password confirmation (Better Auth's hook reaches the request).
+      const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('VITEST')))
+      ok(spawnSync('pnpm', ['exec', 'playwright', 'install', 'chromium'], { cwd: dir, encoding: 'utf8', env }))
+      const browser = spawnSync('pnpm', ['exec', 'playwright', 'test', '-c', 'playwright.workers.config.ts'], { cwd: dir, encoding: 'utf8', env })
+      expect(browser.status, browser.stdout + browser.stderr).toBe(0)
+      expect(browser.stdout).toMatch(/\b2 passed\b/)
     } finally {
       process.kill(-dev.pid!, 'SIGTERM')
     }

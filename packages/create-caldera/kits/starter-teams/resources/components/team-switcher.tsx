@@ -1,11 +1,42 @@
 import { Link, router, usePage } from '@inertiajs/react'
 import { Check, ChevronsUpDown, Plus, Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from '@/components/ui/menu'
 import { SidebarMenuButton, useSidebar } from '@/components/ui/sidebar'
 
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
-/** The current team, at the top of the sidebar: switch to another, open its settings, or make a new one. */
+type Teams = NonNullable<ReturnType<typeof usePage>['props']['teams']>
+type Team = NonNullable<Teams['current']>
+
+/** The menu's items: switch to another team, open this one's settings, or make a new one. */
+function TeamMenuItems({ teams, current }: { teams: Teams; current: Team }) {
+  return (
+    <>
+      <MenuGroup>
+        <MenuGroupLabel>Teams</MenuGroupLabel>
+        {teams.all.map((team) => (
+          <MenuItem key={team.id} onClick={() => team.id !== current.id && router.post('/teams/switch', { teamId: team.id })}>
+            <div className="flex size-6 items-center justify-center rounded-sm border text-xs">{initial(team.name)}</div>
+            <span className="truncate">{team.name}</span>
+            {team.id === current.id && <Check className="ms-auto" />}
+          </MenuItem>
+        ))}
+      </MenuGroup>
+      <MenuSeparator />
+      <MenuItem render={<Link href={`/settings/teams/${current.id}`} />}>
+        <Settings />
+        Team settings
+      </MenuItem>
+      <MenuItem render={<Link href="/settings/teams" />}>
+        <Plus />
+        New team
+      </MenuItem>
+    </>
+  )
+}
+
+/** The current team, at the top of the sidebar (resources/components/app-sidebar.tsx). */
 export function TeamSwitcher() {
   const { teams } = usePage().props
   const { isMobile, state } = useSidebar()
@@ -22,26 +53,32 @@ export function TeamSwitcher() {
         <ChevronsUpDown className="ms-auto size-4" />
       </MenuTrigger>
       <MenuPopup className="w-60" align="start" side={isMobile ? 'bottom' : state === 'collapsed' ? 'right' : 'bottom'}>
-        <MenuGroup>
-          <MenuGroupLabel>Teams</MenuGroupLabel>
-          {teams.all.map((team) => (
-            <MenuItem key={team.id} onClick={() => team.id !== current.id && router.post('/teams/switch', { teamId: team.id })}>
-              <div className="flex size-6 items-center justify-center rounded-sm border text-xs">{initial(team.name)}</div>
-              <span className="truncate">{team.name}</span>
-              {team.id === current.id && <Check className="ms-auto" />}
-            </MenuItem>
-          ))}
-        </MenuGroup>
-        <MenuSeparator />
-        <MenuItem render={<Link href={`/settings/teams/${current.id}`} />}>
-          <Settings />
-          Team settings
-        </MenuItem>
-        <MenuItem render={<Link href="/settings/teams" />}>
-          <Plus />
-          New team
-        </MenuItem>
+        <TeamMenuItems teams={teams} current={current} />
       </MenuPopup>
     </Menu>
+  )
+}
+
+/** The current team, next to the logo in the header layout (resources/components/app-header.tsx). */
+export function HeaderTeamSwitcher() {
+  const { teams } = usePage().props
+  if (!teams?.current) return null
+  const current = teams.current
+  return (
+    <>
+      <span className="text-muted-foreground/50" aria-hidden="true">
+        /
+      </span>
+      <Menu>
+        <MenuTrigger render={<Button variant="ghost" className="h-9 gap-2 px-2" aria-label={`Team: ${current.name}`} />}>
+          <div className="flex size-6 items-center justify-center rounded-sm bg-primary font-semibold text-primary-foreground text-xs">{initial(current.name)}</div>
+          <span className="max-w-40 truncate font-medium text-sm">{current.name}</span>
+          <ChevronsUpDown className="size-4 text-muted-foreground" />
+        </MenuTrigger>
+        <MenuPopup className="w-60" align="start">
+          <TeamMenuItems teams={teams} current={current} />
+        </MenuPopup>
+      </Menu>
+    </>
   )
 }
