@@ -7,6 +7,10 @@ export interface InertiaPage {
   url: string
   version: string | null
   flash?: Record<string, unknown>
+  /** Deferred props the browser fetches after the page renders, by group: `{ default: ['stats'] }`. */
+  deferredProps?: Record<string, string[]>
+  /** Shared props' names (from `share()` in src/inertia.ts). */
+  sharedProps?: string[]
 }
 
 type FollowRedirect = (location: string) => Promise<TestResponse>
