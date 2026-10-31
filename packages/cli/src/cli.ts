@@ -598,14 +598,17 @@ const devCommand = defineCommand({
     server: { type: 'boolean', description: 'Start the server (use --no-server to only regenerate types)', default: true },
     vite: { type: 'boolean', description: 'Start the Vite dev server when there is a vite.config (use --no-vite to skip)', default: true },
     entry: { type: 'string', description: 'Server entry file', default: 'src/server.ts' },
+    poll: { type: 'boolean', description: 'Poll for changes instead of using file events (Docker bind mounts, WSL2 Windows drives, network filesystems)', default: false },
   },
   async run({ args }) {
     const session = startDev(openProject(args.cwd).root, {
       server: args.server,
       vite: args.vite,
       serverEntry: args.entry,
+      poll: args.poll,
       onEvent: (event) => {
         if (event.type === 'error') process.stderr.write(`✘ caldera generate: ${event.error}\n`)
+        else if (event.type === 'notice') process.stdout.write(`ℹ ${event.message}\n`)
         else if (event.type === 'broadcast') process.stdout.write(`⚡ realtime server on ${event.url}\n`)
         else if (event.changed.length) process.stdout.write(`↻ regenerated ${event.changed.join(', ')}\n`)
       },
