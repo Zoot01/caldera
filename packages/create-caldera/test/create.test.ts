@@ -438,7 +438,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
   }, 300_000)
   it.each([
     { name: 'the blank kit', options: { kit: 'blank' as const }, browserTests: 3 },
-    { name: 'the starter kit with teams', options: { teams: true }, browserTests: 12 },
+    { name: 'the starter kit with teams', options: { teams: true }, browserTests: 13 },
   ])('creates $name on SQLite: it type-checks and passes its tests and browser tests', async ({ options, browserTests }) => {
     const result = await createProject({ directory: join(base, 'e2e-kit'), packageManager: 'pnpm', link: repo, git: false, ...options })
     const dir = result.directory
@@ -635,7 +635,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       const schema = run('exec', 'caldera', 'auth:schema', '--check', '--json')
       expect(JSON.parse(schema.stdout), schema.stdout + schema.stderr).toMatchObject({ status: 'unchanged', dialect: 'pg' })
       // On DATABASE_TEST_URL, which the browser tests' server resets as Vitest does.
-      expect(runsBrowserTests(dir)).toMatch(/\b12 passed\b/)
+      expect(runsBrowserTests(dir)).toMatch(/\b13 passed\b/)
       const dev = spawn('pnpm', ['dev'], { cwd: dir, env: { ...process.env, PORT: '3465', APP_URL: 'http://localhost:3465' }, detached: true })
       try {
         for (let i = 0; i < 60 && !(await fetch('http://localhost:3465/login').then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 500))

@@ -13,6 +13,14 @@ import { title } from './title.js'
 router.on('navigate', (event) => configureBroadcast(event.detail.page.props.broadcast))
 http.onRequest(withSocketId)
 
+// Links prefetch pages on hover and keep them for a while. After anything that changes data (a form
+// post: switching teams, saving a profile) those copies are stale: forget them, or the next click
+// shows the page as it was, with the old team or name, until a reload.
+router.on('finish', (event) => {
+  const { method, completed } = event.detail.visit
+  if (method !== 'get' && completed) router.flushAll()
+})
+
 // Light, dark or system (the server already rendered the right one); `system` follows the OS live.
 initializeAppearance()
 

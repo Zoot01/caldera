@@ -56,3 +56,26 @@ test('creates a team, invites someone by email, and they join it', async ({ brow
   await expect(page.getByRole('button', { name: 'Manage Bob Ray' })).toBeVisible()
   await bob.context().close()
 })
+
+test('after switching teams, pages fetched ahead of time show the new team', async ({ page }) => {
+  await register(page, { name: 'Ann Lee' })
+  await switcher(page).click()
+  await page.getByRole('menuitem', { name: 'New team' }).click()
+  await page.getByRole('dialog').getByLabel('Team name').fill('Acme')
+  await page.getByRole('dialog').getByRole('button', { name: 'Create team' }).click()
+  await expect(switcher(page)).toContainText('Acme')
+  await page.waitForLoadState('networkidle')
+  // Hovering a link fetches its page ahead of time (with Acme as the team).
+  const prefetched = page.waitForResponse((res) => new URL(res.url()).pathname === '/settings/appearance')
+  await page.getByRole('link', { name: 'Appearance', exact: true }).hover()
+  await prefetched
+  await switcher(page).click()
+  await page.getByRole('menuitem', { name: /Ann's Team/ }).click()
+  await expect(switcher(page)).toContainText("Ann's Team")
+  // Back to that page within the app: it must show the team switched to, not the copy from before.
+  await page.getByRole('button', { name: 'Ann Lee' }).click()
+  await page.getByRole('menuitem', { name: 'Settings' }).click()
+  await page.getByRole('link', { name: 'Appearance', exact: true }).click()
+  await expect(page).toHaveURL(/\/settings\/appearance$/)
+  await expect(switcher(page)).toContainText("Ann's Team")
+})
