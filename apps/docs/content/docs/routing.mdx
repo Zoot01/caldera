@@ -1,0 +1,87 @@
+---
+title: Routing
+description: Route groups, parameters, model binding, and where routes live.
+---
+
+Routes live in `src/routes/`, one group per file. A group has a name and, usually, a URL prefix; each route in it has a name, a method and a path.
+
+```ts title="src/routes/notes.ts"
+import { defineRoutes } from '@caldera/http'
+
+export const notes = defineRoutes('notes', { prefix: '/notes' })
+  .get('index', '/', (c) => c.render('Notes/Index', { notes: [] }))
+  .post('store', '/', (c) => c.json({ ok: true }))
+```
+
+That's `notes.index` at `GET /notes` and `notes.store` at `POST /notes`. There's no list of route files to register: `caldera generate` finds every group in `src/routes/` (`caldera dev` does it as you save). `caldera make:routes notes` writes a new file.
+
+The methods are `get`, `post`, `put`, `patch` and `delete`. Each takes the route's name, its path, optional options, and the handler. Handlers are [Hono](https://hono.dev) handlers: `c` is Hono's context, with your app's services on `c.var` (`c.var.db`, `c.var.user`, `c.var.mail`…).
+
+## Parameters
+
+```ts
+.get('raw', '/raw/:id', (c) => c.json({ id: c.req.param('id') }))
+```
+
+Parameters are strings. To get them as something else, validate them with a [request](/docs/requests).
+
+## Route model binding
+
+Most parameters name a row. `bind` loads it for you, puts it on `c.var` (typed), and answers 404 when there isn't one, so the handler only runs for rows that exist:
+
+```ts
+import { Note } from '../models/note'
+
+.get('show', '/notes/:note', { bind: { note: Note } }, (c) => c.json({ title: c.var.note.title }))
+```
+
+A model is looked up by its primary key, or by its `routeKey` if you set one (`defineModel(posts, { name: 'post', routeKey: 'slug' })`).
+
+To narrow the lookup, bind a function instead. It gets the parameter and the request, typed like a route's `c`. This one only finds the signed-in person's notes, so anyone else's are a 404:
+
+```ts
+import type { RouteContext } from '@caldera/http'
+
+const ownNote = (id: string, c: RouteContext) => Note.findFirst({ where: { id, userId: c.var.user!.id } })
+
+.get('mine', '/mine/:note', { bind: { note: ownNote } }, (c) => c.json({ title: c.var.note.title }))
+```
+
+## Route options
+
+| Option | What it does |
+| --- | --- |
+| `bind` | Loads route parameters into `c.var` (above). |
+| `request` | Validates the body, query, form or parameters ([Requests and validation](/docs/requests)). |
+| `authorize` | Runs after binding; `false` (or a throw) is a 403. With a policy: `authorize: allows(Note, 'update', 'note')`. |
+| `middleware` | Named middleware for this route ([Middleware](/docs/middleware)). |
+| `throttle` | Rate limits from `defineLimiter()`. |
+| `description` | Shown in `caldera route:list` and to coding agents. |
+
+```ts
+.patch(
+  'rename',
+  '/notes/:note',
+  {
+    bind: { note: Note },
+    authorize: (c) => c.var.note.userId === c.var.user?.id,
+  },
+  async (c) => {
+    // Only runs for the note's owner.
+  },
+)
+```
+
+A group can take middleware too, for every route in it:
+
+```ts
+export const notes = defineRoutes('notes', { prefix: '/notes', middleware: [mw.auth()] })
+```
+
+## Seeing your routes
+
+```bash
+pnpm exec caldera route:list
+```
+
+lists every route with its name, method, path, middleware, bindings, input schemas, and the file and line it's defined on. The same list is in your app's `AGENTS.md`, for coding agents.

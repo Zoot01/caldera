@@ -1,0 +1,82 @@
+---
+title: Middleware
+description: Named middleware for routes, writing your own, and what runs on every request.
+---
+
+Middleware runs before a route's handler (and can run code after it): checking someone is signed in, refusing a request, timing it. In Caldera, the middleware routes use have names, and they're kept in one typed registry, `src/middleware.ts`.
+
+## Using it
+
+```ts
+import { mw } from '../middleware'
+
+// On every route in the group…
+export const notes = defineRoutes('notes', { prefix: '/notes', middleware: [mw.auth()] })
+  // …or on one route.
+  .get('stats', '/stats', { middleware: [mw.verified()] }, (c) => c.render('Notes/Stats', stats))
+```
+
+The starter kit's:
+
+| Middleware | What it does |
+| --- | --- |
+| `mw.auth()` | Signed in. Otherwise a 401: page visits go to the login page, and come back here after signing in. |
+| `mw.guest()` | Signed out (the login and register pages); signed-in people go to the dashboard. |
+| `mw.verified()` | A confirmed email address, when `mustVerifyEmail` is on in `src/config/auth.ts`. |
+| `mw.passwordConfirmed()` | The password typed in the last few minutes, for sensitive settings; otherwise `/confirm-password` first. |
+
+## Writing your own
+
+Add it to the registry. A middleware is a [Hono](https://hono.dev/docs/guides/middleware) handler: do something, `await next()` to run the rest, then do something after if you need to. This one times the request and reports it in the `Server-Timing` header, which the browser's network panel shows:
+
+```ts title="src/middleware.ts"
+export const mw = defineMiddleware({
+  // …the kit's ones
+  timing: () => async (c: Context, next: Next) => {
+    const start = performance.now()
+    await next()
+    c.header('Server-Timing', `app;dur=${(performance.now() - start).toFixed(1)}`)
+  },
+})
+```
+
+Then `{ middleware: [mw.timing()] }` on any route. To refuse a request, throw: `throw new ForbiddenError()` is a 403, and `throw new UnauthenticatedError()` a 401 (see [Responses and errors](/docs/responses)).
+
+Middleware can take options, which show up in `caldera route:list`:
+
+```ts
+role: (role: 'admin' | 'member') => async (c: Context, next: Next) => {
+  // …
+},
+```
+
+## The order they run in
+
+Whatever order a route lists them in, these run in a fixed order relative to each other, so a check never runs before what it depends on:
+
+1. `session`
+2. `auth`
+3. `throttle` (rate limits)
+4. `bind` (loading route parameters)
+5. `authorize`
+6. `validate` (the [request](/docs/requests))
+
+Anything else keeps the place you gave it. So `authorize: allows(Note, 'update', 'note')` always sees the signed-in user and the bound note, and nobody's input is validated before they're known to be allowed. Change the list with `defineMiddleware(factories, { priority: [...] })`.
+
+## On every request
+
+Some middleware runs for every request, before any route: it's the HTTP stack in `src/http.ts`.
+
+```ts title="src/http.ts"
+export const http = new Hono()
+  .use(securityHeaders()) // a strict CSP, no framing, nosniff, a strict referrer policy
+  .use(originCheck()) // CSRF: refuses changes (POST, PATCH…) sent from other sites
+  .use(app.middleware()) // your services on c.var
+  .use(startSession()) // the encrypted session cookie
+  .use(authenticate({ required: false })) // c.var.user, or null
+  .use(inertia.middleware()) // pages
+  // …the framework's routes, then yours
+  .route('/', router.app)
+```
+
+Add your own with `.use()` in the same place: before `.route('/', router.app)` to run for your routes.

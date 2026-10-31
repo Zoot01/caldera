@@ -1,0 +1,125 @@
+---
+title: Pages
+description: React pages rendered from routes with Inertia, their props, layouts, forms and loading.
+---
+
+Pages are React components in `resources/pages/`. A route renders one by name, with its props, and [Inertia](https://inertiajs.com) does the rest: the first visit is HTML rendered on the server, and every visit after that swaps in the next page's component and props without a full reload. There's no API to write between them.
+
+```ts title="src/routes/notes.ts"
+.get('index', '/', async (c) => {
+  const mine = await Note.findMany({ where: { userId: c.var.user!.id } })
+  return c.render('Notes/Index', { notes: mine.map((note) => ({ id: note.id, title: note.title })) })
+})
+```
+
+```tsx title="resources/pages/Notes/Index.tsx"
+import { Head } from '@inertiajs/react'
+
+export default function Index({ notes }: { notes: { id: string; title: string }[] }) {
+  return (
+    <>
+      <Head title="Notes" />
+      <ul>
+        {notes.map((note) => (
+          <li key={note.id}>{note.title}</li>
+        ))}
+      </ul>
+    </>
+  )
+}
+```
+
+`caldera make:page Notes/Index` writes a new page. Its name is its path under `resources/pages/`.
+
+## Props are type-checked
+
+A page's props are its component's props. `c.render('Notes/Index', …)` is checked against them: a missing prop, a wrong type or a page that doesn't exist fails `pnpm typecheck`, with the line of the route that's wrong. Change a page's props and the type checker lists every route to update.
+
+Props are sent to the browser as JSON, so pass plain data (dates as strings), and only what the page shows: never a whole row with fields the visitor shouldn't see.
+
+## Shared props
+
+Some props every page gets: the signed-in user, the app's name, the visitor's language. They're set once in `src/inertia.ts`:
+
+```ts title="src/inertia.ts"
+share: (c) => ({
+  appName: c.var.config.app.name,
+  auth: { user: c.var.user ? { id: c.var.user.id, name: c.var.user.name, email: c.var.user.email } : null },
+}),
+```
+
+and read anywhere with `usePage()`, typed:
+
+```tsx
+import { usePage } from '@inertiajs/react'
+
+const { auth } = usePage().props // auth.user is typed from share()
+```
+
+## Layouts
+
+`resources/layout.ts` picks each page's layout by its name: the starter kit puts `auth/*` pages in the sign-in layout, `settings/*` in the settings layout inside the app's, and the rest in the app layout. A page can pass its layout props, or pick another:
+
+```tsx
+Index.layout = { breadcrumbs: [{ title: 'Notes', href: '/notes' }] }
+```
+
+## Forms
+
+`useForm` from Inertia posts a form to a route and handles the answer: on success it follows the route's redirect; on a validation error it puts each message on `form.errors`, keeps what was typed, and stays put.
+
+```tsx
+import { useForm } from '@inertiajs/react'
+
+const form = useForm({ title: '', body: '' })
+
+<form
+  onSubmit={(event) => {
+    event.preventDefault()
+    form.post('/notes', { onSuccess: () => form.reset() })
+  }}
+>
+  <input value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} />
+  {form.errors.title && <p>{form.errors.title}</p>}
+  <button disabled={form.processing}>Add note</button>
+</form>
+```
+
+`form.patch`, `form.put` and `form.delete` work the same way, and `router.delete('/notes/1')` sends one without a form. After a successful change the route usually answers `back(c)`, often with a message: `back(c).with('success', 'Note added.')` shows a toast in the starter kit. See [Responses and errors](/docs/responses).
+
+## Slow props
+
+A prop that takes a while can be **deferred**: the page renders without it, and the browser fetches it right after. The page marks it optional and shows something while it's missing:
+
+```ts
+import { defer } from '@caldera/inertia'
+
+c.render('Notes/Stats', {
+  count: async () => (await Note.findMany({ where: { userId: c.var.user!.id } })).length,
+  words: defer(async () => countWords(c.var.user!.id)),
+})
+```
+
+```tsx title="resources/pages/Notes/Stats.tsx"
+export default function Stats({ count, words }: { count: number; words?: number }) {
+  return (
+    <p>
+      {count} notes, {words === undefined ? '…' : words} words
+    </p>
+  )
+}
+```
+
+Only a prop the page marks optional (`words?:`) can be deferred: deferring one the page needs on its first render fails the type check. The other helpers:
+
+| Helper | What it does |
+| --- | --- |
+| `defer(fn)` | Left out of the first load, then fetched by the browser. Props in the same group (`defer(fn, 'stats')`) arrive together. |
+| `optional(fn)` | Only sent when a partial reload asks for it: `router.reload({ only: ['words'] })`. |
+| `always(value)` | Sent even on partial reloads that didn't ask for it. |
+
+A plain function (like `count` above) is only called when the prop is sent, so a partial reload of other props skips it.
+
+## Server rendering
+
+First visits are rendered on the server (`resources/ssr.tsx`), so the HTML arrives with the content in it and the browser takes over from there. A page that uses browser-only code (maps, rich editors) can skip it: `c.render('Map', props, { ssr: false })`.
