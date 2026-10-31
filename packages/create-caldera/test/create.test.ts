@@ -423,7 +423,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       const asset = await fetch(`http://localhost:3457${script}`)
       expect(asset.status).toBe(200)
       // Server-side rendered from build/ssr/ssr.js, in-process: the content is in the HTML.
-      expect(html, serverOutput).toContain('<div data-server-rendered="true" id="app"><header')
+      expect(html, serverOutput).toContain('<div data-server-rendered="true" id="app"><div')
+      expect(html).toContain('Let’s get started')
       // Light/dark: the system theme is resolved by an inline script (with the nonce) before the first paint.
       expect(html).toMatch(/<script nonce="[\w+/=]+">\(function\(\)\{var d=window\.matchMedia/)
       const dark = await fetch('http://localhost:3457/', { headers: { cookie: 'appearance=dark' } }).then((r) => r.text())
@@ -542,7 +543,8 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
       expect(script, html.slice(0, 500)).toBeDefined()
       expect((await fetch(`http://127.0.0.1:3462${script}`)).status).toBe(200)
       // The SSR build is bundled into the Worker: rendered on workerd.
-      expect(html).toContain('<div data-server-rendered="true" id="app"><header')
+      expect(html).toContain('<div data-server-rendered="true" id="app"><div')
+      expect(html).toContain('Let’s get started')
       // Realtime: the page points browsers at this origin, where the BroadcastHub Durable Object answers.
       expect(html).toMatch(/(?:"|&quot;)wsHost(?:"|&quot;):(?:"|&quot;)127\.0\.0\.1/)
       const socket = new WebSocket('ws://127.0.0.1:3462/app/e2e-workers-key?protocol=7')

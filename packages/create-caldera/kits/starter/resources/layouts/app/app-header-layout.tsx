@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { AppFooter } from '@/components/app-footer'
 import { AppHeader } from '@/components/app-header'
+import { FlashToasts } from '@/components/flash-toasts'
 import type { LayoutProps } from '@/types'
 
 /**
@@ -9,12 +10,14 @@ import type { LayoutProps } from '@/types'
  */
 export default function AppHeaderLayout({ children }: LayoutProps & { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh w-full flex-col bg-background">
-      <AppHeader />
-      <main className="mx-1 mb-1 flex flex-1 flex-col rounded-lg border bg-surface md:mx-2 md:mb-2">
-        <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 md:px-8">{children}</div>
-        <AppFooter />
-      </main>
-    </div>
+    <FlashToasts>
+      <div className="flex min-h-svh w-full flex-col bg-background">
+        <AppHeader />
+        <main className="mx-1 mb-1 flex flex-1 flex-col rounded-lg border bg-surface md:mx-2 md:mb-2">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 md:px-8">{children}</div>
+          <AppFooter />
+        </main>
+      </div>
+    </FlashToasts>
   )
 }

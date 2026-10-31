@@ -52,7 +52,7 @@ export function DeleteUser() {
                 </div>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogClose render={<Button variant="ghost" />}>Cancel</AlertDialogClose>
+                <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
                 <Button type="submit" variant="destructive" loading={form.processing}>
                   Delete account
                 </Button>

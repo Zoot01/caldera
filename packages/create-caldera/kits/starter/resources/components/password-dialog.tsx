@@ -56,7 +56,7 @@ export function PasswordDialog({
             </FormField>
           </DialogPanel>
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button type="submit" variant={destructive ? 'destructive' : 'default'} loading={form.processing}>
               {submit}
             </Button>

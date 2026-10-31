@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react'
-import { AppearanceTabs } from '@/components/appearance-tabs'
+import { AppearancePicker } from '@/components/appearance-picker'
 import { Section } from '@/components/section'
 
 export default function Appearance() {
@@ -7,7 +7,7 @@ export default function Appearance() {
     <>
       <Head title="Appearance settings" />
       <Section title="Appearance" description="Light, dark, or whatever your system uses">
-        <AppearanceTabs labels />
+        <AppearancePicker />
       </Section>
     </>
   )

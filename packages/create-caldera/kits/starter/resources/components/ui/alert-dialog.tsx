@@ -111,7 +111,7 @@ export function AlertDialogFooter({
     <div
       className={cn(
         "flex flex-col-reverse gap-2 px-6 sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--radius-2xl)-1px)]",
-        variant === "default" && "border-t bg-muted/72 py-4",
+        variant === "default" && "pt-2 pb-6",
         variant === "bare" && "pb-6",
         className,
       )}
@@ -127,7 +127,7 @@ export function AlertDialogTitle({
 }: AlertDialogPrimitive.Title.Props): React.ReactElement {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("font-bold font-heading text-xl leading-none", className)}
+      className={cn("font-heading font-medium text-lg leading-snug", className)}
       data-slot="alert-dialog-title"
       {...props}
     />

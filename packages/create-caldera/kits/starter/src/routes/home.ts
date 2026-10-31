@@ -1,6 +1,6 @@
 import { defineRoutes } from '@caldera/http'
 
 export const home = defineRoutes('home')
-  // The welcome page: its props come straight from the route, typed by resources/pages/Home.tsx.
-  // c.var.i18n translates in the visitor's locale; keys and parameters are typed from lang/en.
-  .get('index', '/', (c) => c.render('Home', { message: c.var.i18n.t('home.running') }))
+  // The welcome page (resources/pages/Home.tsx). A page's props come straight from its route, typed
+  // by the page: c.render('Home', {}) fails to typecheck if the page asks for something.
+  .get('index', '/', (c) => c.render('Home', {}))

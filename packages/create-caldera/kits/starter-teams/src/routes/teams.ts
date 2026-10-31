@@ -2,9 +2,9 @@ import { withAuthCookies } from '@caldera/auth'
 import { back, defineRequest, defineRoutes, ForbiddenError, NotFoundError, redirect, ValidationError } from '@caldera/http'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { mw } from '../middleware.js'
-import { User } from '../models/user.js'
-import { isPersonal, slugFor } from '../teams.js'
+import { mw } from '../middleware'
+import { User } from '../models/user'
+import { isPersonal, slugFor, teamListFor } from '../teams'
 
 // Teams (Better Auth organizations, src/teams.ts): switching, the settings pages, members and
 // invitations. Better Auth checks every permission itself (src/roles.ts); a refusal becomes a 403.
@@ -58,8 +58,7 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
   })
 
   .get('index', '/settings/teams', async (c) => {
-    const teams = (await c.var.auth.api.listOrganizations({ headers: headers(c) })) as { id: string; name: string; metadata?: unknown; createdAt: Date }[]
-    return c.render('settings/Teams', { teamList: teams.map((team) => ({ id: team.id, name: team.name, personal: isPersonal(team) })) })
+    return c.render('settings/Teams', { teamList: await teamListFor(c.var.user!.id) })
   })
   .post('store', '/settings/teams', { request: TeamName }, async (c) => {
     const { name } = c.req.valid('json')

@@ -4,7 +4,7 @@ import { CommandMenu } from '@/components/command-menu'
 import { footerNavItems, isCurrent, mainNavItems } from '@/components/navigation'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuPopup, MenuTrigger } from '@/components/ui/menu'
-import { UserInfo } from '@/components/user-info'
+import { UserAvatar } from '@/components/user-info'
 import { UserMenuContent } from '@/components/user-menu-content'
 import { cn } from '@/lib/utils'
 import type { NavItem } from '@/types'
@@ -19,7 +19,7 @@ export function AppHeader() {
   return (
     <header className="bg-background">
       <div className="flex h-14 items-center gap-2 px-4 md:px-6">
-        <Link href="/dashboard" prefetch className="flex items-center gap-2">
+        <Link href="/dashboard" prefetch className="me-3 flex items-center">
           <AppLogo />
         </Link>
         <div className="ms-auto flex items-center gap-1">
@@ -31,8 +31,8 @@ export function AppHeader() {
           ))}
           {user && (
             <Menu>
-              <MenuTrigger render={<Button variant="ghost" className="h-9 gap-2 px-1.5" aria-label={`Account: ${user.name}`} />}>
-                <UserInfo user={user} />
+              <MenuTrigger render={<Button variant="ghost" size="icon" className="size-9 rounded-full" aria-label={`Account: ${user.name}`} />}>
+                <UserAvatar user={user} />
               </MenuTrigger>
               <MenuPopup align="end" className="w-56">
                 <UserMenuContent user={user} />
