@@ -2,11 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createApp, defineEnv } from '@caldera/core'
-import { back, errorHandler, redirect, sessionOf, sessionProvider, startSession, ValidationError } from '@caldera/http'
+import { back, errorHandler, ForbiddenError, notFoundHandler, redirect, sessionOf, sessionProvider, startSession, ValidationError } from '@caldera/http'
 import { Hono } from 'hono'
 import { secureHeaders, NONCE } from 'hono/secure-headers'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { always, appearance, appearanceOf, defer, defineInertia, location, optional, viteAssets, type PageObject, type RenderProps, type SsrRenderer } from '../src/index.js'
+import { always, appearance, appearanceOf, defer, defineInertia, errorPage, location, optional, viteAssets, type PageObject, type RenderProps, type SsrRenderer } from '../src/index.js'
 
 // What `caldera generate` writes from resources/pages and src/inertia.ts.
 declare module '../src/inertia.js' {
@@ -56,6 +56,50 @@ type Http = { request: Hono["request"] }
 async function visit(http: Http, path: string, headers: Record<string, string> = {}, init: RequestInit = {}) {
   return http.request(`http://localhost${path}`, { ...init, headers: { ...inertiaHeaders, ...headers } })
 }
+
+describe('error pages', () => {
+  const http = () => {
+    const app = createApp({ env: defineEnv({}), providers: [sessionProvider(() => ({ keys: [KEY] }))] })
+    const inertia = defineInertia({ version: 'v1' })
+    return new Hono()
+      .get('/early', () => {
+        throw new ForbiddenError()
+      })
+      .use(app.middleware())
+      .use(startSession())
+      .use(inertia.middleware())
+      .get('/secret', () => {
+        throw new ForbiddenError('Not yours.')
+      })
+      .post('/form', () => {
+        throw new ValidationError({ title: ['Too short'] })
+      })
+      .get('/boom', () => {
+        throw new Error('database password is hunter2')
+      })
+      .onError(errorHandler({ page: errorPage(), report: () => {} }))
+      .notFound(notFoundHandler({ page: errorPage() }))
+  }
+
+  it('renders the Error page, with its status, for people; JSON for API clients', async () => {
+    const missing = await visit(http(), '/nope')
+    expect(missing.status).toBe(404)
+    expect(await missing.json()).toMatchObject({ component: 'Error', props: { status: 404, message: 'Not found.' } })
+    const forbidden = await visit(http(), '/secret')
+    expect(forbidden.status).toBe(403)
+    expect(await forbidden.json()).toMatchObject({ component: 'Error', props: { status: 403, message: 'Not yours.' } })
+    // A first visit gets the page's HTML; a 500 never shows what went wrong.
+    const boom = await http().request('/boom', { headers: { accept: 'text/html' } })
+    expect(boom.status).toBe(500)
+    const html = await boom.text()
+    expect(html).toContain('&quot;component&quot;:&quot;Error&quot;'.replaceAll('&quot;', '"'))
+    expect(html).not.toContain('hunter2')
+    // API clients, validation errors, and errors before Inertia ran keep the JSON.
+    expect(await (await http().request('/nope', { headers: { accept: 'application/json' } })).json()).toMatchObject({ error: { code: 'not_found' } })
+    expect((await visit(http(), '/form', {}, { method: 'POST' })).status).toBe(303)
+    expect(await (await http().request('/early', { headers: { accept: 'text/html' } })).json()).toMatchObject({ error: { code: 'forbidden' } })
+  })
+})
 
 describe('rendering', () => {
   it('serves the first visit as HTML with the page embedded safely', async () => {

@@ -9,6 +9,8 @@ test('switches to dark mode, and the server remembers it on the next visit', asy
   // Rendered dark by the server from the cookie: no flash of light on load.
   await page.reload()
   await expect(html).toHaveClass(/\bdark\b/)
+  // The class is in the server's HTML, so wait for React before clicking (a click before it's ignored).
+  await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: 'Light' }).click()
   await expect(html).not.toHaveClass(/\bdark\b/)
 })

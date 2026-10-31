@@ -2,7 +2,7 @@
 
 A [Caldera](https://caldera.dev) app: TypeScript, Hono, Drizzle, Zod, and React pages over Inertia (Vite).
 
-Pages get their data from the route that renders them: no API layer. A page's props are its component's props, so changing them makes every `c.render` call that passes the wrong data fail `pnpm typecheck`. Shared props (from `src/inertia.ts`) are on `usePage().props` and typed too. Validation errors come back as `props.errors`; `back(c).with('success', '…')` shows up as `usePage().flash`.
+Pages get their data from the route that renders them: no API layer. A page's props are its component's props, so changing them makes every `c.render` call that passes the wrong data fail `pnpm typecheck`. Shared props (from `src/inertia.ts`) are on `usePage().props` and typed too. Validation errors come back as `props.errors`; `back(c).with('success', '…')` shows up as `usePage().flash`. Errors (`throw new NotFoundError()`, a refused policy, a crash) show people `resources/pages/Error.tsx` with `{ status, message }` and that status (`errorPage()` in src/http.ts); API clients get the JSON error.
 
 A helper that takes a route's `c` types it as `RouteContext<{ post: typeof Post }>` from `@caldera/http`: it sees `c.var` (your services, and the models the route binds), and any route with at least those bindings can pass its `c`. Hono's own `Context` won't accept it.
 

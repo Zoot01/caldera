@@ -1,0 +1,10 @@
+{
+  "403": "You can’t see this page",
+  "404": "Page not found",
+  "419": "This page expired",
+  "429": "Too many requests",
+  "500": "Something went wrong",
+  "503": "Back soon",
+  "home": "Go home",
+  "code": "Error {status}"
+}

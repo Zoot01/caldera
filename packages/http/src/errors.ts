@@ -103,6 +103,27 @@ export interface ErrorHandlerOptions {
    * visits) are redirected, remembering the page for `intended(c)`; API requests keep the 401.
    */
   loginUrl?: string | ((c: Context) => string)
+  /**
+   * Renders errors as a page for people: browsers asking for a page, and Inertia visits (which
+   * otherwise show the JSON as raw text). `errorPage()` from @caldera/inertia renders
+   * `resources/pages/Error.tsx`. Return undefined to send the JSON after all. Validation errors and
+   * sign-in redirects keep their own handling; API clients always get JSON.
+   */
+  page?: ErrorPage
+}
+
+/** What `page` gets: the error as the JSON envelope would show it (its message is safe to show). */
+export type ErrorPage = (c: Context, error: { status: number; code: string; message: string; requestId: string }) => Response | Promise<Response> | undefined | Promise<Response | undefined>
+
+/** Renders `page` for people, or undefined (send JSON). A page that fails falls back to the JSON. */
+async function asPage(page: ErrorPage | undefined, c: Context, body: ErrorBody, report: (error: unknown, c: Context) => void): Promise<Response | undefined> {
+  if (!page || !isPageVisit(c) || body.error.status === 422) return undefined
+  try {
+    return await page(c, { status: body.error.status, code: body.error.code, message: body.error.message, requestId: body.error.requestId })
+  } catch (error) {
+    report(error, c)
+    return undefined
+  }
 }
 
 /** The messages Caldera's own errors use; with @caldera/i18n these come from `errors.<code>` instead. */
@@ -168,7 +189,7 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
         ...(options.debug && error instanceof Error ? { debug: { name: error.name, stack: error.stack } } : {}),
       },
     }
-    const response = c.json(body, status)
+    const response = (await asPage(options.page, c, body, report)) ?? c.json(body, status)
     for (const [name, value] of Object.entries(known?.headers ?? {})) response.headers.set(name, value)
     if (error instanceof HTTPException) {
       // Keep headers an HTTPException carried, e.g. WWW-Authenticate.
@@ -226,10 +247,10 @@ async function validationRedirect(c: Context, error: ValidationError): Promise<R
 }
 
 /** Use as `app.notFound(notFoundHandler())` so unmatched routes use the envelope too. */
-export function notFoundHandler(): NotFoundHandler {
-  return (c) => {
+export function notFoundHandler(options: { page?: ErrorPage } = {}): NotFoundHandler {
+  return async (c) => {
     const body: ErrorBody = { error: { code: 'not_found', message: localized(c, 'not_found', DEFAULT_MESSAGES.not_found!), status: 404, requestId: requestIdOf(c) } }
-    return c.json(body, 404)
+    return (await asPage(options.page, c, body, (error) => console.error(error))) ?? c.json(body, 404)
   }
 }
 

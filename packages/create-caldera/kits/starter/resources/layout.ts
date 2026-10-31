@@ -7,7 +7,7 @@ import SettingsLayout from '@/layouts/settings-layout'
  * with `Page.layout = { breadcrumbs: [...] }`, or pick another with `Page.layout = MyLayout`.
  */
 export function layout(name: string) {
-  if (name === 'Home') return null
+  if (name === 'Home' || name === 'Error') return null
   if (name.startsWith('auth/')) return AuthLayout
   if (name.startsWith('settings/')) return [AppLayout, SettingsLayout]
   return AppLayout

@@ -16,3 +16,8 @@ it('paints the visitor’s light or dark choice on the first load (the appearanc
   const dark = await t.client(http).get('/', { headers: { cookie: 'appearance=dark' } })
   expect(dark.assertOk().text()).toContain('class="dark"')
 })
+
+it('shows people an error page, and API clients the JSON error', async () => {
+  ;(await t.client(http).visit('/nope')).assertNotFound().assertInertia('Error', { status: 404, message: 'Not found.' })
+  ;(await t.client(http).get('/nope', { headers: { accept: 'application/json' } })).assertNotFound().assertJson({ error: { code: 'not_found' } })
+})
