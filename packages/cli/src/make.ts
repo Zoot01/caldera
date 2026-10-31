@@ -17,7 +17,7 @@ interface Planned {
 }
 
 /** Where each kind of file goes. These paths are the conventions codegen and agents rely on. */
-function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: Project, options: { table: boolean }): Planned[] {
+function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: Project, options: { table: boolean; channel: boolean }): Planned[] {
   switch (kind) {
     case 'model':
       return [
@@ -41,7 +41,7 @@ function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: 
     case 'job':
       return [{ path: `${CONVENTIONS.jobsDir}/${n.kebab}.ts`, stub: 'job' }]
     case 'event':
-      return [{ path: `${CONVENTIONS.eventsDir}/${n.kebab}.ts`, stub: 'event' }]
+      return [{ path: `${CONVENTIONS.eventsDir}/${n.kebab}.ts`, stub: options.channel ? 'event-broadcast' : 'event' }]
     case 'listener':
       return [{ path: `${CONVENTIONS.listenersDir}/${n.kebab}.ts`, stub: 'listener' }]
     case 'schedule':
@@ -55,12 +55,13 @@ function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: 
         { path: `${CONVENTIONS.mailDir}/${n.kebab}.tsx`, stub: 'mail', keep: true },
       ]
     case 'channel':
-      return [{ path: `${CONVENTIONS.channelsDir}/${n.kebab}.ts`, stub: 'channel' }]
+      // Bound to the model of the same name when there is one, checked by its policy.
+      return [{ path: `${CONVENTIONS.channelsDir}/${n.kebab}.ts`, stub: hasModel(project, n) ? 'channel-model' : 'channel' }]
   }
 }
 
 /** Next steps generators print instead of editing files you own. */
-function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean }): string[] {
+function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean; channel: boolean; presence: boolean }): string[] {
   if (kind === 'model' && options.table) {
     return [`Add \`${n.plural}\` (from src/db/tables/${n.kebab}.ts) to defineRelations in ${CONVENTIONS.relations}, then run \`caldera db:generate\`.`]
   }
@@ -73,16 +74,36 @@ function hints(kind: MakeKind, n: Names & { page: string; id: string }, options:
     ]
   }
   if (kind === 'schedule') return [`\`caldera schedule:list\` shows its next run; \`caldera schedule:work\` (or a platform cron, see \`caldera schedule:sync\`) runs it.`]
-  if (kind === 'event') return [`Emit it with \`await emit(${n.Name}, { id })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.`]
+  if (kind === 'event') {
+    return [
+      `Emit it with \`await emit(${n.Name}, { ... })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.${options.channel ? ' Its payload names the channel\'s parameter: if the channel calls it something else, change both.' : ' To send it to browsers too, make it with --channel <Channel>.'}`,
+    ]
+  }
   if (kind === 'listener') return [`It runs on every emit of its event. For slow work, listen with a job instead: \`listen(Event, Job.fromEvent((e) => ({ ... })))\`.`]
   if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera/queue'; \`caldera queue:work\` runs it.`]
   if (kind === 'channel') {
+    const pattern = `${channelName(n)}.{${n.name}}`
     return [
-      `Broadcast on it from an event: \`defineEvent({ ..., broadcast: { on: (p) => ${n.Name}Channel.with({ id: p.id }) } })\`. In a page: \`useChannel('${n.kebab}.{id}', { id }, { on: { ... } })\` from '@caldera/broadcast/react'.`,
+      `Send events on it: \`caldera make:event ${n.Name}Updated --channel ${n.Name}\`. In a page: \`${options.presence ? `const { members } = usePresence` : 'useChannel'}('${pattern}', { ${n.name}: ${n.name}.id }, { on: { ... } })\` from '@caldera/broadcast/react'.`,
     ]
   }
   if (kind === 'page') return [`Render it from a route: \`c.render('${n.page}', { title: '${n.Name}' })\`.`]
   return []
+}
+
+/** A channel's name: the plural, kebab-cased (`BlogPost` → `blog-posts`, for `blog-posts.{blogPost}`). */
+const channelName = (n: Names) => n.table.replaceAll('_', '-')
+
+/** Event names are dotted, the subject then what happened: `OrderShipped` → `order.shipped`. */
+function eventName(n: Names): string {
+  const words = n.kebab.split('-')
+  return words.length < 2 ? n.kebab : `${words.slice(0, -1).join('-')}.${words.at(-1)}`
+}
+
+/** Whether `src/models/<name>.ts` exports a model of that name. */
+function hasModel(project: Project, n: Names): boolean {
+  const file = project.path(`${CONVENTIONS.modelsDir}/${n.kebab}.ts`)
+  return existsSync(file) && new RegExp(`export const ${n.Name}\\b`).test(readFileSync(file, 'utf8'))
 }
 
 export function dialectOf(project: Project): 'pg' | 'sqlite' {
@@ -112,7 +133,7 @@ export async function make(
   project: Project,
   kind: MakeKind,
   rawName: string,
-  options: { force?: boolean; table?: boolean; event?: string; job?: string; dryRun?: boolean } = {},
+  options: { force?: boolean; table?: boolean; event?: string; job?: string; channel?: string; presence?: boolean; dryRun?: boolean } = {},
 ): Promise<MakeResult> {
   let n: Names & { page: string; id: string }
   try {
@@ -127,7 +148,8 @@ export async function make(
     throw new CalderaError('invalid_name', (error as Error).message)
   }
   const table = options.table ?? true
-  const files = plan(kind, n, project, { table }).filter((f) => !(f.keep && existsSync(project.path(f.path))))
+  const flags = { table, channel: kind === 'event' && Boolean(options.channel), presence: kind === 'channel' && Boolean(options.presence) }
+  const files = plan(kind, n, project, flags).filter((f) => !(f.keep && existsSync(project.path(f.path))))
   const existing = files.filter((f) => existsSync(project.path(f.path))).map((f) => f.path)
   if (existing.length > 0 && !options.force) {
     throw new CalderaError('file_exists', `Refusing to overwrite ${existing.join(', ')}. Pass --force to replace.`, { files: existing })
@@ -140,14 +162,22 @@ export async function make(
   }
   const eventNames = options.event ? names(options.event) : undefined
   const jobNames = options.job ? names(options.job) : undefined
+  const channelNames = flags.channel ? names(options.channel!.replace(/Channel$/, '')) : undefined
   const values = {
     ...n,
+    eventName: eventName(n),
+    channelName: channelName(n),
+    channelKind: flags.presence ? 'A presence channel: members see who else is on it' : 'A private channel',
+    presenceType: flags.presence ? "  type: 'presence',\n" : '',
+    // What other members see about someone: no secrets, every member gets it.
+    presenceMember: flags.presence ? '  member: ({ user }) => ({ name: user.name }),\n' : '',
+    ...(channelNames ? { Channel: channelNames.Name, channelKebab: channelNames.kebab, channelParam: channelNames.name } : {}),
     ...(eventNames ? { Event: eventNames.Name, eventKebab: eventNames.kebab } : {}),
     ...(jobNames ? { Job: jobNames.Name, jobKebab: jobNames.kebab } : {}),
   }
   if (options.dryRun) {
     const planned = files.map((file) => ({ path: file.path, contents: forProject(project, render(resolveStub(project, file.stub).template, values)), exists: existsSync(project.path(file.path)) }))
-    return { schemaVersion: 1, kind, created: [], hints: hints(kind, n, { table }), generate: 'skipped', planned }
+    return { schemaVersion: 1, kind, created: [], hints: hints(kind, n, flags), generate: 'skipped', planned }
   }
   for (const file of files) {
     const target = project.path(file.path)
@@ -164,7 +194,7 @@ export async function make(
       generated = { error: (error as Error).message }
     }
   }
-  return { schemaVersion: 1, kind, created: files.map((f) => f.path), hints: hints(kind, n, { table }), generate: generated }
+  return { schemaVersion: 1, kind, created: files.map((f) => f.path), hints: hints(kind, n, flags), generate: generated }
 }
 
 /** Copies a built-in stub to `stubs/<name>.stub` so the app can customize it. */

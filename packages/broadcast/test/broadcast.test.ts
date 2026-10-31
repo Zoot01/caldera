@@ -10,10 +10,10 @@ import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import { broadcastProvider, broadcastRoutes, channel, createBroadcaster, defineChannel, deriveSecret, setDefaultBroadcaster, signSubscription, type Broadcaster, type ModelBroadcastEvent, type PusherClientConfig } from '../src/index.js'
+import { broadcastProvider, broadcastRoutes, channel, createBroadcaster, defineChannel, deriveSecret, hmacHex, setDefaultBroadcaster, signSubscription, type Broadcaster, type ModelBroadcastEvent, type PusherClientConfig } from '../src/index.js'
 import { createHub, type HubConnection } from '../src/hub.js'
 import { md5 } from '../src/md5.js'
-import { startBroadcastServer } from '../src/server.js'
+import { serveBroadcast, startBroadcastServer } from '../src/server.js'
 import { hasDocker, SOKETI_APP, startSoketi } from './soketi.js'
 import { startWorkerdHub } from './workerd.js'
 import { reverbDir, startReverb } from './reverb.js'
@@ -460,6 +460,27 @@ describe('the browser client', () => {
       await hub.close()
     }
   }, 30_000)
+})
+
+describe('serveBroadcast', () => {
+  it('starts the server an app’s own connection points at, with the secret derived from APP_KEY', async () => {
+    const appKey = 'app-key-0123456789-0123456789-01234'
+    const app = { config: { broadcast: { default: 'server', connections: { server: { driver: 'pusher', host: '127.0.0.1', port: 0, appId: 'app', key: 'key', appKey }, log: { driver: 'log' } } } } }
+    const server = await serveBroadcast(app)
+    try {
+      expect(await (await fetch(`http://127.0.0.1:${server!.port}/up`)).text()).toBe('OK')
+      // The app's side signs its HTTP API calls with the same derived secret.
+      const secret = await deriveSecret(appKey)
+      const body = JSON.stringify({ name: 'x', channels: ['public'], data: '{}' })
+      const query = `auth_key=key&auth_timestamp=${Math.floor(Date.now() / 1000)}&auth_version=1.0&body_md5=${md5(body)}`
+      const signature = await hmacHex(secret, `POST\n/apps/app/events\n${query}`)
+      expect((await fetch(`http://127.0.0.1:${server!.port}/apps/app/events?${query}&auth_signature=${signature}`, { method: 'POST', body, headers: { 'content-type': 'application/json' } })).status).toBe(200)
+    } finally {
+      await server?.close()
+    }
+    // Nothing to run for log (or hosted Pusher, without a host).
+    expect(await serveBroadcast(app, { connection: 'log' })).toBeUndefined()
+  })
 })
 
 describe('the shared secret', () => {

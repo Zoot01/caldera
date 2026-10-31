@@ -247,11 +247,14 @@ function makeCommand(kind: MakeKind) {
       ...(kind === 'model' ? { table: { type: 'boolean', description: 'Also create the table (use --no-table for an existing one)', default: true } } : {}),
       ...(kind === 'listener' ? { event: { type: 'string', description: 'The event it listens to, e.g. UserRegistered' } } : {}),
       ...(kind === 'schedule' ? { job: { type: 'string', description: 'The job it dispatches, e.g. GenerateReport' } } : {}),
+      ...(kind === 'event' ? { channel: { type: 'string', description: 'Also send it to browsers on this channel (src/channels), e.g. Order' } } : {}),
+      ...(kind === 'channel' ? { presence: { type: 'boolean', description: 'A presence channel: members see who else is on it' } } : {}),
     },
     run: ({ args }) =>
       run(wantsJson(args.json), async () => {
         const name = requireArg(args.name as string | undefined, 'name', `Usage: caldera make:${kind} <name>`)
-        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: (args as { table?: boolean }).table, event: (args as { event?: string }).event, job: (args as { job?: string }).job })
+        const extra = args as { table?: boolean; event?: string; job?: string; channel?: string; presence?: boolean }
+        const result = await make(openProject(args.cwd), kind, name, { force: args.force, table: extra.table, event: extra.event, job: extra.job, channel: extra.channel, presence: extra.presence })
         const text = [
           ...result.created.map((path) => `created   ${path}`),
           ...result.hints.map((hint) => `next      ${hint}`),
