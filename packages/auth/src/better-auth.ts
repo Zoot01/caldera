@@ -29,7 +29,17 @@ export interface BetterAuthProviderOptions<A extends BetterAuthLike> {
    * Builds the Better Auth instance, once, on first use. `db` is the app's Drizzle client, for
    * `drizzleAdapter(db, { provider, schema: { users, session, account, verification } })`.
    */
-  create: (ctx: { db: unknown; env: RegisteredEnv; config: RegisteredConfig; trustedOrigins: string[] }) => A
+  create: (ctx: {
+    db: unknown
+    env: RegisteredEnv
+    config: RegisteredConfig
+    trustedOrigins: string[]
+    /**
+     * The request being handled (its Hono context), for Better Auth hooks that touch the app's own
+     * request state, such as its session. Undefined outside a request, or without `asyncContext`.
+     */
+    request: () => Context | undefined
+  }) => A
   /**
    * The same list you pass to `originCheck()` from `@caldera/http`. Hand it to Better Auth as
    * `trustedOrigins: ctx.trustedOrigins`; Caldera refuses to start if the two disagree, so one
@@ -57,7 +67,7 @@ export function betterAuthProvider<A extends BetterAuthLike>(
     register: (app) => ({
       auth: app.singleton(() => {
         const trustedOrigins = [...(options.trustedOrigins ?? [])]
-        const auth = options.create({ db: joiningClient(defaultDatabase()), env: app.env, config: app.config, trustedOrigins })
+        const auth = options.create({ db: joiningClient(defaultDatabase()), env: app.env, config: app.config, trustedOrigins, request: () => app.current()?.context })
         if (options.trustedOrigins) assertSameOrigins(trustedOrigins, (auth.options as { trustedOrigins?: unknown } | undefined)?.trustedOrigins)
         return auth
       }),

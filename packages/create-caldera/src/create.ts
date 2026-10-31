@@ -411,12 +411,12 @@ const STARTER_AGENTS =
   'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
   'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (sidebar or header; simple, card or split), so switching is one line. Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
-  'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password counts as confirming it). ' +
+  'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password, or using a passkey, counts as confirming it, and /confirm-password offers the person\'s passkey). ' +
   'Browser tests sign up with `register(page)`, log out with `logOut(page, name)` and use passkeys through `virtualAuthenticator(context, page)` (Chrome\'s virtual authenticator), all from `tests/browser/helpers.ts`.'
 
 const TEAMS_AGENTS =
-  'Teams (Better Auth organizations, `src/teams.ts`): everyone gets a personal team at registration (it can\'t be deleted, left or shared); the current team is the session\'s active organization (`c.var.authSession.activeOrganizationId`), switched with the sidebar\'s team switcher (POST /teams/switch). ' +
-  'Settings → Teams (`src/routes/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, leave. ' +
+  'Teams (Better Auth organizations, `src/teams.ts`): everyone gets a personal team at registration (it can\'t be deleted, left or shared); the current team is the session\'s active organization (`c.var.authSession.activeOrganizationId`), switched with the team switcher (`resources/components/team-switcher.tsx`: at the top of the sidebar, or next to the logo in the header layout; POST /teams/switch). ' +
+  'Settings → Teams (`src/routes/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, hand the team to another member (they become owner, the owner an admin), leave. ' +
   'Roles and what they may do are in `src/roles.ts` (Better Auth access control: add your own resources there); policies check them with `g.org.id` (the current team) and `await g.org.has({ project: [\'create\'] })`. Scope a team\'s data by a `teamId` column and the current team, and check `g.org.id` in policies.'
 
 /** Teams over the starter: Better Auth's organization plugin, the gate's `g.org`, the switcher and settings. */
@@ -440,6 +440,10 @@ function applyTeams(directory: string, database: Database) {
     ["import { AppLogo } from '@/components/app-logo'\n", ''],
     ["import { UserInfo } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo } from '@/components/user-info'\n"],
     [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
+  ])
+  edit(directory, 'resources/components/app-header.tsx', [
+    ["import { Breadcrumbs } from '@/components/breadcrumbs'\n", "import { Breadcrumbs } from '@/components/breadcrumbs'\nimport { HeaderTeamSwitcher } from '@/components/team-switcher'\n"],
+    ['            <AppLogo />\n          </Link>\n', '            <AppLogo />\n          </Link>\n          <HeaderTeamSwitcher />\n'],
   ])
   edit(directory, 'resources/layouts/settings-layout.tsx', [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
   edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])

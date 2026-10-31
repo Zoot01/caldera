@@ -7,6 +7,7 @@ import { twoFactor } from 'better-auth/plugins'
 import * as schema from './db/schema.js'
 import { ResetPasswordEmail } from './mail/reset-password.js'
 import { VerifyEmailEmail } from './mail/verify-email.js'
+import { confirmPassword } from './middleware.js'
 import { User } from './models/user.js'
 
 /**
@@ -17,7 +18,7 @@ import { User } from './models/user.js'
 export const auth = betterAuthProvider({
   // c.var.user is a row from the User model.
   userModel: User,
-  create: ({ db, env, config }) =>
+  create: ({ db, env, config, request }) =>
     betterAuth({
       baseURL: env.APP_URL,
       secret: env.APP_KEY,
@@ -53,8 +54,19 @@ export const auth = betterAuthProvider({
         // Authenticator apps and recovery codes. Sign-in asks for a code at /two-factor-challenge;
         // ten failed codes lock the account for 15 minutes.
         twoFactor({ issuer: config.app.name }),
-        // WebAuthn, for this site's own host name.
-        passkey({ rpID: new URL(env.APP_URL).hostname, rpName: config.app.name, origin: env.APP_URL }),
+        // WebAuthn, for this site's own host name. Using a passkey (signing in, or on /confirm-password)
+        // counts as confirming the password for the settings behind mw.passwordConfirmed().
+        passkey({
+          rpID: new URL(env.APP_URL).hostname,
+          rpName: config.app.name,
+          origin: env.APP_URL,
+          authentication: {
+            afterVerification: async () => {
+              const c = request()
+              if (c) confirmPassword(c as never)
+            },
+          },
+        }),
       ],
     }),
 })

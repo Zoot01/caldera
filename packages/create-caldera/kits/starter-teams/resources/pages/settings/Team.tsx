@@ -1,6 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react'
 import { MoreHorizontal } from 'lucide-react'
-import type { FormEvent } from 'react'
+import { type FormEvent, useState } from 'react'
 import { FormField } from '@/components/form-field'
 import { Heading } from '@/components/heading'
 import {
@@ -22,7 +22,7 @@ interface Props {
   team: { id: string; name: string; personal: boolean }
   members: { id: string; name: string; email: string; role: string; you: boolean }[]
   invitations: { id: string; email: string; role: string; expiresAt: string }[]
-  can: { update: boolean; invite: boolean; manageMembers: boolean; delete: boolean; leave: boolean }
+  can: { update: boolean; invite: boolean; manageMembers: boolean; transfer: boolean; delete: boolean; leave: boolean }
 }
 
 const statuses: Record<string, string> = {
@@ -30,14 +30,18 @@ const statuses: Record<string, string> = {
   'team-updated': 'Saved.',
   'invitation-sent': 'Invitation sent.',
   'member-removed': 'Removed from the team.',
+  'ownership-transferred': 'The team has a new owner. You’re an admin now.',
 }
 const roleNames: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
+// The roles given from the member menu; owner is handed over instead.
+const assignable = ['admin', 'member'] as const
 
 export default function Team({ team, members, invitations, can }: Props) {
   const status = statuses[String(usePage().flash.status ?? '')]
   const rename = useForm({ name: team.name })
   const invite = useForm({ email: '', role: 'member' as 'admin' | 'member' })
   const base = `/settings/teams/${team.id}`
+  const [newOwner, setNewOwner] = useState<Props['members'][number]>()
   return (
     <>
       <Head title={team.name} />
@@ -84,13 +88,14 @@ export default function Team({ team, members, invitations, can }: Props) {
                   <MenuPopup align="end" className="w-44">
                     <MenuGroup>
                       <MenuGroupLabel>Role</MenuGroupLabel>
-                      {Object.entries(roleNames).map(([role, name]) => (
-                        <MenuItem key={role} disabled={role === member.role} onClick={() => router.patch(`${base}/members/${member.id}`, { role }, { preserveScroll: true })}>
-                          {name}
+                      {assignable.map((role) => (
+                        <MenuItem key={role} disabled={role === member.role || member.role === 'owner'} onClick={() => router.patch(`${base}/members/${member.id}`, { role }, { preserveScroll: true })}>
+                          {roleNames[role]}
                         </MenuItem>
                       ))}
                     </MenuGroup>
                     <MenuSeparator />
+                    {can.transfer && member.role !== 'owner' && <MenuItem onClick={() => setNewOwner(member)}>Make owner</MenuItem>}
                     <MenuItem variant="destructive" onClick={() => router.delete(`${base}/members/${member.id}`, { preserveScroll: true })}>
                       Remove from team
                     </MenuItem>
@@ -100,6 +105,18 @@ export default function Team({ team, members, invitations, can }: Props) {
             </li>
           ))}
         </ul>
+        <AlertDialog open={newOwner !== undefined} onOpenChange={(open) => !open && setNewOwner(undefined)}>
+          <AlertDialogPopup>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Make {newOwner?.name} the owner?</AlertDialogTitle>
+              <AlertDialogDescription>They’ll own {team.name}, and you’ll become an admin. Only they can hand it back.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogClose render={<Button variant="ghost" />}>Cancel</AlertDialogClose>
+              <Button onClick={() => newOwner && router.post(`${base}/members/${newOwner.id}/transfer`, {}, { preserveScroll: true, onFinish: () => setNewOwner(undefined) })}>Make owner</Button>
+            </AlertDialogFooter>
+          </AlertDialogPopup>
+        </AlertDialog>
       </div>
 
       {can.invite && (

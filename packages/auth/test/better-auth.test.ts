@@ -269,3 +269,42 @@ describe('sessionCookieFor (actingAs in @caldera/testing)', () => {
     await expect(sessionCookieFor(app.services.auth, { id: '00000000-0000-0000-0000-000000000000' })).rejects.toThrow(/no user with id/)
   })
 })
+
+describe('betterAuthProvider create()', () => {
+  it('gives Better Auth hooks the request being handled', async () => {
+    const { AsyncLocalStorage } = await import('node:async_hooks')
+    const client = new PGlite()
+    await client.exec(SCHEMA_SQL)
+    const paths: (string | undefined)[] = []
+    const app = createApp({
+      env: defineEnv({}),
+      asyncContext: AsyncLocalStorage,
+      providers: [
+        databaseProvider({ driver: 'postgres', connect: () => drizzle({ client, relations }) }),
+        betterAuthProvider({
+          create: ({ db, request }) =>
+            betterAuth({
+              baseURL: ORIGIN,
+              secret: 'test-secret-0123456789-abcdefghijklmnop',
+              logger: { disabled: true },
+              database: drizzleAdapter(db as never, { provider: 'pg', schema: { users, session, account, verification } }),
+              user: { modelName: 'users' },
+              advanced: { database: { generateId: 'uuid' } },
+              emailAndPassword: { enabled: true },
+              databaseHooks: { session: { create: { after: async () => void paths.push(request()?.req.path) } } },
+            }),
+        }),
+      ],
+    })
+    await app.boot()
+    const http = new Hono().use(app.middleware()).route('/', authRoutes('/api/auth'))
+    const res = await http.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN },
+      body: JSON.stringify({ name: 'Ann', email: 'ann@example.test', password: 'correct-horse-battery' }),
+    })
+    expect(res.status).toBe(200)
+    expect(paths).toEqual(['/api/auth/sign-up/email'])
+    await app.shutdown()
+  })
+})

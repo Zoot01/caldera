@@ -19,6 +19,18 @@ test('adds a passkey, then signs in with it', async ({ context, page }) => {
   await visit(page, '/login')
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
+  // Signing in with a passkey counts as confirming: Security opens without the password.
+  await visit(page, '/settings/security')
+  await expect(page).toHaveURL(/\/settings\/security$/)
+
+  // Later (here: the app's session, which remembers the confirmation, is gone; still signed in),
+  // the passkey confirms instead of the password.
+  await context.clearCookies({ name: 'caldera_session' })
+  await visit(page, '/settings/security')
+  await expect(page).toHaveURL(/\/confirm-password$/)
+  await page.getByRole('button', { name: 'Use a passkey' }).click()
+  await expect(page).toHaveURL(/\/settings\/security$/)
+  await expect(page.getByText('Test laptop')).toBeVisible()
 })
 
 test('turns on two-factor authentication, then asks for a code at sign-in', async ({ page }) => {

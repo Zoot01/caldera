@@ -3,6 +3,7 @@ import { back, defineRequest, defineRoutes, ForbiddenError, NotFoundError, redir
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { mw } from '../middleware.js'
+import { User } from '../models/user.js'
 import { isPersonal, slugFor } from '../teams.js'
 
 // Teams (Better Auth organizations, src/teams.ts): switching, the settings pages, members and
@@ -12,7 +13,8 @@ const TeamName = defineRequest({ body: z.object({ name: z.string().trim().min(1,
 const Invite = defineRequest({
   body: z.object({ email: z.email('Enter a valid email address.').transform((value) => value.trim().toLowerCase()), role: z.enum(['admin', 'member']) }),
 })
-const ChangeRole = defineRequest({ body: z.object({ role: z.enum(['owner', 'admin', 'member']) }) })
+// Owner is given by handing the team over (members.transfer).
+const ChangeRole = defineRequest({ body: z.object({ role: z.enum(['admin', 'member']) }) })
 const Switch = defineRequest({ body: z.object({ teamId: z.string() }) })
 
 const headers = (c: { req: { raw: Request } }) => c.req.raw.headers
@@ -71,7 +73,7 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
       id: string
       name: string
       metadata?: unknown
-      members: { id: string; role: string; userId: string; user: { name: string; email: string } }[]
+      members: { id: string; role: string; userId: string; createdAt: string; user: { name: string; email: string } }[]
       invitations: { id: string; email: string; role: string; status: string; expiresAt: string }[]
     } | null
     if (!team) throw new NotFoundError()
@@ -80,9 +82,20 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
     const manages = role === 'owner' || role === 'admin'
     return c.render('settings/Team', {
       team: { id: team.id, name: team.name, personal: isPersonal(team) },
-      members: team.members.map((m) => ({ id: m.id, name: m.user.name, email: m.user.email, role: m.role, you: m.userId === c.var.user!.id })),
+      // In the order they joined (the database doesn't keep one).
+      members: [...team.members]
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+        .map((m) => ({ id: m.id, name: m.user.name, email: m.user.email, role: m.role, you: m.userId === c.var.user!.id })),
       invitations: manages ? team.invitations.filter((i) => i.status === 'pending').map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: new Date(i.expiresAt).toISOString() })) : [],
-      can: { update: manages, invite: manages && !isPersonal(team), manageMembers: manages, delete: role === 'owner' && !isPersonal(team), leave: !isPersonal(team) && role !== 'owner' },
+      can: {
+        update: manages,
+        invite: manages && !isPersonal(team),
+        manageMembers: manages,
+        transfer: role === 'owner' && !isPersonal(team),
+        delete: role === 'owner' && !isPersonal(team),
+        // An owner leaves by handing the team over first (unless there's another owner).
+        leave: !isPersonal(team) && (role !== 'owner' || team.members.filter((m) => m.role === 'owner').length > 1),
+      },
     })
   })
   .patch('update', '/settings/teams/:team', { request: TeamName }, async (c) => {
@@ -120,6 +133,21 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
     await check(res)
     return back(c)
   })
+  // Hands the team to another member: they become its owner, and the owner an admin.
+  .post('members.transfer', '/settings/teams/:team/members/:member/transfer', async (c) => {
+    const teamId = id(c, 'team')
+    const memberId = id(c, 'member')
+    const res = await check(await c.var.auth.api.getFullOrganization({ query: { organizationId: teamId }, headers: headers(c), asResponse: true }))
+    const team = (await res.json()) as { metadata?: unknown; members: { id: string; role: string; userId: string }[] } | null
+    const me = team?.members.find((m) => m.userId === c.var.user!.id)
+    if (!team || !me || !team.members.some((m) => m.id === memberId)) throw new NotFoundError()
+    if (me.role !== 'owner' || isPersonal(team)) throw new ForbiddenError('Only the owner can hand over the team.')
+    if (me.id === memberId) return back(c)
+    // The new owner first: if the second step fails, the team has two owners, never none.
+    await check(await c.var.auth.api.updateMemberRole({ body: { organizationId: teamId, memberId, role: 'owner' }, headers: headers(c), asResponse: true }))
+    await check(await c.var.auth.api.updateMemberRole({ body: { organizationId: teamId, memberId: me.id, role: 'admin' }, headers: headers(c), asResponse: true }))
+    return back(c).with('status', 'ownership-transferred')
+  })
   .delete('members.destroy', '/settings/teams/:team/members/:member', async (c) => {
     await check(await c.var.auth.api.removeMember({ body: { organizationId: id(c, 'team'), memberIdOrEmail: id(c, 'member') }, headers: headers(c), asResponse: true }))
     return back(c).with('status', 'member-removed')
@@ -129,8 +157,10 @@ export const teamRoutes = defineRoutes('teams', { middleware: [mw.auth(), mw.ver
   .get('invitations.show', '/invitations/:invitation', async (c) => {
     const res = await c.var.auth.api.getInvitation({ query: { id: id(c, 'invitation') }, headers: headers(c), asResponse: true })
     if (!res.ok) return c.render('teams/Invitation', { invitation: null })
-    const invitation = (await res.json()) as { id: string; organizationName: string; inviterEmail: string; role: string }
-    return c.render('teams/Invitation', { invitation: { id: invitation.id, team: invitation.organizationName, inviter: invitation.inviterEmail, role: invitation.role } })
+    const invitation = (await res.json()) as { id: string; organizationName: string; inviterId: string; inviterEmail: string; role: string }
+    // By name (Better Auth gives the inviter's email); the email if they've since deleted their account.
+    const inviter = (await User.find(invitation.inviterId))?.name ?? invitation.inviterEmail
+    return c.render('teams/Invitation', { invitation: { id: invitation.id, team: invitation.organizationName, inviter, role: invitation.role } })
   })
   .post('invitations.accept', '/invitations/:invitation/accept', async (c) => {
     const res = await check(await c.var.auth.api.acceptInvitation({ body: { invitationId: id(c, 'invitation') }, headers: headers(c), asResponse: true }))

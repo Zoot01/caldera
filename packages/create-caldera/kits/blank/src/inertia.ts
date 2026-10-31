@@ -7,8 +7,9 @@ export const inertia = defineInertia({
   // First loads are rendered on the server (resources/ssr.tsx), then hydrated; client-side if it fails.
   ssr: viteSsr(),
   title: '{{ name }}',
-  // Light, dark or system from the `appearance` cookie, painted right on the first load.
-  document: [appearance()],
+  // Light, dark or system from the `appearance` cookie, painted right on the first load; and the
+  // tab icon, public/favicon.svg (replace it with your own).
+  document: [appearance(), { head: () => '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' }],
   share: (c, { component }) => ({
     appName: '{{ name }}',
     // For useAppearance() while hydrating (resources/hooks/use-appearance.ts).
