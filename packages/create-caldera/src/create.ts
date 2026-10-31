@@ -410,7 +410,7 @@ const STARTER_AGENTS =
   '`c.var.user` is set on every request (null for guests); named middleware in `src/middleware.ts`: `mw.auth()` (signed in, else a 401 that page visits turn into /login and back), `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()`. ' +
   'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
-  'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (sidebar or header; simple, card or split), so switching is one line. Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
+  'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (header with tabs, the default, or sidebar; split, the default, simple or card), so switching is one line. Pages sit in a gray panel (`bg-surface`) as white cards; settings use `Section` (`resources/components/section.tsx`). Colors are CSS variables in `resources/app.css` (the kit\'s look is the last `:root`/`.dark` block: blue `--ring`/`--link`, `--surface`). Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts`. ' +
   'Tests create users with `createUser(t)` from `tests/helpers.ts` (through Better Auth) and sign in with `await t.client(http).actingAs(user)`, or `actingAsConfirmed(t, user)` for pages behind `mw.passwordConfirmed()` (Security, and adding or removing passkeys; signing in with the password, or using a passkey, counts as confirming it, and /confirm-password offers the person\'s passkey). ' +
   'Browser tests sign up with `register(page)`, log out with `logOut(page, name)` and use passkeys through `virtualAuthenticator(context, page)` (Chrome\'s virtual authenticator), all from `tests/browser/helpers.ts`.'
 
@@ -442,8 +442,8 @@ function applyTeams(directory: string, database: Database) {
     [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
   ])
   edit(directory, 'resources/components/app-header.tsx', [
-    ["import { Breadcrumbs } from '@/components/breadcrumbs'\n", "import { Breadcrumbs } from '@/components/breadcrumbs'\nimport { HeaderTeamSwitcher } from '@/components/team-switcher'\n"],
-    ['            <AppLogo />\n          </Link>\n', '            <AppLogo />\n          </Link>\n          <HeaderTeamSwitcher />\n'],
+    ["import { Button } from '@/components/ui/button'\n", "import { HeaderTeamSwitcher } from '@/components/team-switcher'\nimport { Button } from '@/components/ui/button'\n"],
+    ['          <AppLogo />\n        </Link>\n', '          <AppLogo />\n        </Link>\n        <HeaderTeamSwitcher />\n'],
   ])
   edit(directory, 'resources/layouts/settings-layout.tsx', [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
   edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])

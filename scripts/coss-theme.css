@@ -1,0 +1,71 @@
+/* The kit's look, over coss's tokens: cool grays, near-black buttons, and blue for links, focus and
+   what's switched on. Pages sit on `surface`, a panel a shade off white, with white cards on it. */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-link: var(--link);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: var(--color-white);
+  --surface: var(--color-zinc-50);
+  --foreground: var(--color-zinc-950);
+  --card: var(--color-white);
+  --card-foreground: var(--color-zinc-950);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-zinc-950);
+  --primary: var(--color-zinc-950);
+  --primary-foreground: var(--color-white);
+  --secondary: var(--color-zinc-100);
+  --secondary-foreground: var(--color-zinc-950);
+  --muted: var(--color-zinc-100);
+  --muted-foreground: var(--color-zinc-500);
+  --accent: var(--color-zinc-100);
+  --accent-foreground: var(--color-zinc-950);
+  --border: var(--color-zinc-200);
+  --input: var(--color-zinc-300);
+  --ring: #006cff;
+  --link: #0062f0;
+  --info: #006cff;
+  --info-foreground: #0062f0;
+  --sidebar: var(--color-white);
+  --sidebar-foreground: var(--color-zinc-600);
+  --sidebar-accent: var(--color-zinc-100);
+  --sidebar-accent-foreground: var(--color-zinc-950);
+  --sidebar-border: var(--color-zinc-200);
+  --sidebar-primary: var(--color-zinc-950);
+  --sidebar-primary-foreground: var(--color-white);
+  --sidebar-ring: #006cff;
+}
+
+.dark {
+  --background: var(--color-zinc-950);
+  --surface: color-mix(in srgb, var(--color-zinc-900) 50%, var(--color-zinc-950));
+  --foreground: var(--color-zinc-50);
+  --card: var(--color-zinc-900);
+  --card-foreground: var(--color-zinc-50);
+  --popover: var(--color-zinc-900);
+  --popover-foreground: var(--color-zinc-50);
+  --primary: var(--color-white);
+  --primary-foreground: var(--color-zinc-950);
+  --secondary: var(--color-zinc-800);
+  --secondary-foreground: var(--color-zinc-50);
+  --muted: var(--color-zinc-800);
+  --muted-foreground: var(--color-zinc-400);
+  --accent: var(--color-zinc-800);
+  --accent-foreground: var(--color-zinc-50);
+  --border: --alpha(var(--color-white) / 10%);
+  --input: --alpha(var(--color-white) / 14%);
+  --ring: #3d8bff;
+  --link: #4d94ff;
+  --info: #3d8bff;
+  --info-foreground: #4d94ff;
+  --sidebar: var(--color-zinc-950);
+  --sidebar-foreground: var(--color-zinc-400);
+  --sidebar-accent: var(--color-zinc-800);
+  --sidebar-accent-foreground: var(--color-zinc-50);
+  --sidebar-border: --alpha(var(--color-white) / 10%);
+  --sidebar-primary: var(--color-white);
+  --sidebar-primary-foreground: var(--color-zinc-950);
+  --sidebar-ring: #3d8bff;
+}

@@ -1,7 +1,7 @@
 import { router } from '@inertiajs/react'
 import { KeyRound, Trash2 } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Heading } from '@/components/heading'
+import { Section } from '@/components/section'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { authClient, supportsPasskeys } from '@/lib/auth-client'
@@ -33,10 +33,9 @@ export function Passkeys({ passkeys }: { passkeys: PasskeySummary[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <Heading size="small" title="Passkeys" description="Sign in with your fingerprint, face or screen lock instead of a password." />
+    <Section title="Passkeys" description="Sign in with your fingerprint, face or screen lock instead of a password.">
       {passkeys.length > 0 && (
-        <ul className="divide-y rounded-xl border">
+        <ul className="divide-y rounded-lg border">
           {passkeys.map((passkey) => (
             <li key={passkey.id} className="flex items-center gap-3 px-4 py-3">
               <KeyRound className="size-4 text-muted-foreground" />
@@ -62,6 +61,6 @@ export function Passkeys({ passkeys }: { passkeys: PasskeySummary[] }) {
         <p className="text-muted-foreground text-sm">This browser doesn't support passkeys.</p>
       )}
       {error && <p className="text-destructive-foreground text-sm">{error}</p>}
-    </div>
+    </Section>
   )
 }

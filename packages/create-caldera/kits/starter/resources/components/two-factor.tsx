@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from '@inertiajs/react'
 import { Check, Copy, ShieldCheck } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
-import { Heading } from '@/components/heading'
+import { Section } from '@/components/section'
 import { OneTimeCode } from '@/components/one-time-code'
 import { PasswordDialog } from '@/components/password-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -17,12 +17,7 @@ export interface TwoFactorState {
 export function TwoFactor({ state }: { state: TwoFactorState }) {
   const recoveryCodes = usePage().flash.recoveryCodes as string[] | undefined
   return (
-    <div className="space-y-6">
-      <Heading
-        size="small"
-        title="Two-factor authentication"
-        description="Ask for a code from an authenticator app (1Password, Google Authenticator, Authy…) when signing in with a password."
-      />
+    <Section title="Two-factor authentication" description="Ask for a code from an authenticator app (1Password, Google Authenticator, Authy…) when signing in with a password.">
       {state.enabled ? (
         <>
           <p className="flex items-center gap-2 font-medium text-sm text-success-foreground">
@@ -64,7 +59,7 @@ export function TwoFactor({ state }: { state: TwoFactorState }) {
           submit="Continue"
         />
       )}
-    </div>
+    </Section>
   )
 }
 

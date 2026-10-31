@@ -108,7 +108,7 @@ describe('createProject', () => {
     const read = (file: string) => readFileSync(join(dir, file), 'utf8')
     for (const file of ['components.json', 'resources/components/ui/card.tsx', 'resources/lib/utils.ts', 'resources/hooks/use-appearance.ts', 'resources/components/appearance-tabs.tsx']) expect(existsSync(join(dir, file)), file).toBe(true)
     expect(read('resources/app.css')).toContain('@custom-variant dark')
-    expect(read('resources/app.css')).toContain("--font-sans: 'Inter Variable'")
+    expect(read('resources/app.css')).toContain("--font-sans: 'Instrument Sans Variable'")
     expect(JSON.parse(read('components.json')).registries).toEqual({ '@coss': 'https://coss.com/ui/r/{name}.json' })
     // Bundler resolution, as Vite resolves: `@/…` works (coss components import it), and imports have no extension.
     expect(read('tsconfig.json')).toMatch(/"moduleResolution": "Bundler"[\s\S]*"@\/\*": \["\.\/resources\/\*"\]/)
@@ -166,7 +166,7 @@ describe('createProject', () => {
     expect(read('resources/components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
     expect(read('resources/components/app-sidebar.tsx')).not.toContain('AppLogo')
     // The header layout has one too, next to the logo.
-    expect(read('resources/components/app-header.tsx')).toContain('<AppLogo />\n          </Link>\n          <HeaderTeamSwitcher />\n')
+    expect(read('resources/components/app-header.tsx')).toContain('<AppLogo />\n        </Link>\n        <HeaderTeamSwitcher />\n')
     expect(read('resources/layouts/settings-layout.tsx')).toContain("{ title: 'Teams', href: '/settings/teams' }")
     expect(read('src/db/auth-schema.ts')).toContain("snakeCase.table('organization'")
     expect(read('AGENTS.md')).toContain('Teams (Better Auth organizations')

@@ -44,7 +44,7 @@ export function TeamSwitcher() {
   const current = teams.current
   return (
     <Menu>
-      <MenuTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" />}>
+      <MenuTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" aria-label={`Team: ${current.name}`} />}>
         <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary font-semibold text-primary-foreground text-sm">{initial(current.name)}</div>
         <div className="grid flex-1 text-start text-sm leading-tight">
           <span className="truncate font-semibold">{current.name}</span>
