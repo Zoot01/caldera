@@ -33,6 +33,15 @@ export function temporaryFileUrl(ref: FileRef, expiresIn: Duration, storage: Sto
 }
 
 /**
+ * Streams a stored file from the app, named as the user's original file:
+ * `return fileResponse(attachment.file)` after checking who may see it. `inline` shows it in the
+ * browser instead of downloading it (only for kinds that are safe to render, which zfile ensures).
+ */
+export function fileResponse(ref: FileRef, options: { inline?: boolean; cacheControl?: string } = {}, storage: StorageLike = defaultStorage()): Promise<Response> {
+  return storage.disk(ref.disk).response(ref.key, { cacheControl: options.cacheControl ?? 'private, max-age=0', ...(options.inline ? {} : { downloadAs: ref.name }) })
+}
+
+/**
  * Model hooks that delete a file column's old object once the change commits: when the row points
  * at a new file, or is deleted for good (a soft delete keeps the file, so a restore still has it).
  * `defineModel(posts, { hooks: { ...cleanupFiles('cover', 'attachment') } })`.

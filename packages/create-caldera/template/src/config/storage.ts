@@ -6,7 +6,7 @@ export const storage = defineConfig('storage', (env) => ({
     // Private files on this machine. Temporary and upload URLs are signed with APP_KEY and served by
     // the app (storageRoutes in src/http.ts), so direct uploads work in development too. They're
     // relative links; add `url: env.APP_URL` to `serve` for links sent outside a page (emails).
-    local: { driver: 'local', root: 'storage/app', serve: { key: env.APP_KEY } },
+    local: { driver: 'local', root: env.STORAGE_ROOT, serve: { key: env.APP_KEY } },
     // Public files, served as they are from public/storage at /storage.
     public: { driver: 'local', root: 'public/storage', publicUrl: '/storage' },
     // R2 on Workers (the FILES binding).
@@ -24,6 +24,6 @@ export const storage = defineConfig('storage', (env) => ({
         }
       : {}),
   },
-  // Signs upload tokens (uploadRoutes in src/http.ts).
+  // Signs direct-upload tokens and the file refs they answer (uploadRoutes, zupload).
   uploadSecret: env.APP_KEY,
 }))

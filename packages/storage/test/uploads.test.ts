@@ -9,8 +9,8 @@ import { defineRelations, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
 import { Hono } from 'hono'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { cleanupFiles, createStorage, defineUpload, fileRef, pruneUploads, setDefaultStorage, storageProvider, storageRoutes, uploadRoutes, type FileRef } from '../src/index.js'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { cleanupFiles, createStorage, defineUpload, fileRef, fileResponse, pruneUploads, setDefaultStorage, storageProvider, storageRoutes, uploadRoutes, zupload, type FileRef, type SignedFileRef } from '../src/index.js'
 import { localStorageDriver } from '../src/local.js'
 import { s3StorageDriver } from '../src/s3.js'
 import { png } from './files.js'
@@ -30,7 +30,7 @@ afterAll(() => {
 const avatar = defineUpload('avatar', { rules: { maxSize: '1mb', mimes: ['image/*'], image: { maxWidth: 512 } }, directory: 'avatars', authorize: (c) => c.req.header('x-user') !== 'banned' })
 
 function makeHttp(disk: { driver: string; [k: string]: unknown }, drivers = [localStorageDriver]) {
-  const app = createApp({ env: defineEnv({}), providers: [storageProvider(() => ({ default: 'files', disks: { files: disk } }), { drivers })] })
+  const app = createApp({ env: defineEnv({}), providers: [storageProvider(() => ({ default: 'files', disks: { files: disk }, uploadSecret: KEY }), { drivers })] })
   const http = new Hono()
     .use(app.middleware())
     .use(async (c, next) => {
@@ -38,7 +38,7 @@ function makeHttp(disk: { driver: string; [k: string]: unknown }, drivers = [loc
       c.set('user' as never, (user ? { id: user } : null) as never)
       await next()
     })
-    .route('/', uploadRoutes({ uploads: [avatar], secret: () => KEY }))
+    .route('/', uploadRoutes({ uploads: [avatar] }))
     .route('/', storageRoutes())
   return { app, http }
 }
@@ -113,6 +113,35 @@ describe('direct uploads on a local disk (signed PUT served by storageRoutes)', 
     expect((await http.request('http://localhost/_caldera/uploads/complete', json({ token }))).status).toBe(200)
   })
 
+  it('signs the completed ref, and zupload() accepts only an untouched one of its kind', async () => {
+    const { app, http, put } = setup()
+    await app.boot({ env: {} })
+    const result = await uploadThrough(http, png(8, 8), { type: 'image/png', name: 'me.png' }, put)
+    const signed = (result.body as { file: SignedFileRef }).file
+    expect(signed).toMatchObject({ upload: 'avatar', signature: expect.any(String), exp: expect.any(Number) })
+
+    const schema = zupload(avatar)
+    const parsed = await schema.safeParseAsync(signed)
+    // What's stored is the plain ref, with nothing of the signature.
+    expect(parsed.data).toEqual({ disk: 'files', key: signed.key, size: signed.size, mime: 'image/png', name: 'me.png' })
+    expect((await schema.safeParseAsync(JSON.stringify(signed))).data).toEqual(parsed.data)
+
+    // Someone else's file (a key seen in a URL), another disk, another kind, an old ref: all refused.
+    const refused = async (value: unknown, s = schema) => expect((await s.safeParseAsync(value)).success).toBe(false)
+    await refused({ ...signed, key: 'avatars/someone-elses.png' })
+    await refused({ ...signed, disk: 'public' })
+    await refused({ ...signed, size: 1 })
+    await refused({ disk: 'files', key: signed.key, size: signed.size, mime: 'image/png', name: 'me.png' })
+    await refused(signed, zupload('attachment'))
+    await refused({ ...signed, signature: 'not base64!' })
+    vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000)
+    try {
+      await refused(signed)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('pruneUploads removes uploads never completed', async () => {
     const { app } = setup()
     await app.boot({ env: {} })
@@ -181,5 +210,18 @@ describe('cleanupFiles on a model', () => {
       setDefaultStorage(undefined)
       client.close()
     }
+  })
+})
+
+describe('fileResponse', () => {
+  it('serves a stored ref from its own disk, as a download named like the original', async () => {
+    const storage = createStorage({ default: 'files', disks: { files: { driver: 'memory' }, other: { driver: 'memory' } } })
+    await storage.disk('other').put('docs/a1.pdf', '%PDF-1.4', { contentType: 'application/pdf' })
+    const ref: FileRef = { disk: 'other', key: 'docs/a1.pdf', size: 8, mime: 'application/pdf', name: 'Q3 report.pdf' }
+    const res = await fileResponse(ref, {}, storage)
+    expect(res.headers.get('content-disposition')).toContain("filename*=UTF-8''Q3%20report.pdf")
+    expect(res.headers.get('cache-control')).toBe('private, max-age=0')
+    expect(await res.text()).toBe('%PDF-1.4')
+    expect((await fileResponse(ref, { inline: true }, storage)).headers.get('content-disposition')).toBeNull()
   })
 })

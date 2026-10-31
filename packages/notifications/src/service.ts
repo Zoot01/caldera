@@ -13,19 +13,33 @@ import {
 } from './notification.js'
 
 /** A stored notification, as the database channel reads it back. */
-export interface StoredNotification {
+/**
+ * Your notifications by name, filled in by `caldera generate` (register.d.ts), so a stored row's
+ * `data` is typed by its notification's `database.schema`.
+ */
+export interface NotificationRegistry {}
+
+interface Stored<T extends string, D> {
   id: string
-  /** The notification's name. */
-  type: string
-  data: unknown
+  /** The notification's name: check it to narrow `data`. */
+  type: T
+  data: D
   readAt: Date | null
   createdAt: Date
 }
+
+type DatabaseData<N> = N extends { channels: { database: DatabaseMessage<infer S> } } ? z.output<S> : never
+type Registered = { [K in keyof NotificationRegistry & string]: [DatabaseData<NotificationRegistry[K]>] extends [never] ? never : Stored<K, DatabaseData<NotificationRegistry[K]>> }[keyof NotificationRegistry & string]
+
+/** A database notification: one of your registered notifications (narrow on `type`), or any while none are. */
+export type StoredNotification = [Registered] extends [never] ? Stored<string, unknown> : Registered
 
 /** One notifiable's database notifications. Every call is scoped to it, so ids from a request can't reach anyone else's. */
 export interface Inbox {
   /** Newest first. `before` is the last id of the previous page. */
   list(options?: { unread?: boolean; limit?: number; before?: string }): Promise<StoredNotification[]>
+  /** One notification, if it's this notifiable's. */
+  find(id: string): Promise<StoredNotification | undefined>
   unreadCount(): Promise<number>
   markRead(ids: string | readonly string[]): Promise<number>
   markAllRead(): Promise<number>

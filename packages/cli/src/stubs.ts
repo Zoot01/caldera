@@ -146,23 +146,26 @@ export const calderaJobs = sqliteTable(
 `,
   notification: `import { defineNotification } from '@caldera/notifications'
 import { z } from 'zod'
+import { {{ Name }}Email } from '../mail/{{ kebab }}.js'
 
+/** \`await notify(user, {{ Name }}, { id, url })\`: an email and an entry in the user's inbox. */
 export const {{ Name }} = defineNotification({
-  name: '{{ kebab }}',
-  payload: z.object({ id: z.string() }),
+  // Stored rows and queued jobs carry it: keep it stable (namespace it: \`billing.invoice-paid\`).
+  name: '{{ id }}',
+  payload: z.object({ id: z.string(), url: z.url() }),
   channels: {
+    // To the notifiable's mail route (\`routes.mail\` of its defineNotifiable).
+    mail: (_to, { url }) => ({ mail: {{ Name }}Email, props: { url } }),
     // Shown in the app's inbox: \`await inbox(user).list()\`. Needs \`caldera notifications:table\`.
     database: {
-      schema: z.object({ id: z.string(), message: z.string() }),
-      data: (to, { id }) => ({ id, message: '{{ Name }}' }),
+      schema: z.object({ id: z.string(), message: z.string(), url: z.string() }),
+      data: (_to, { id, url }) => ({ id, message: '{{ Name }}', url }),
     },
-    // A mail from src/mail, to the notifiable's mail route:
-    // mail: (to, { id }) => ({ mail: {{ Name }}Email, props: { name: '...' } }),
   },
   // Which channels, per notifiable (default: all of them):
   // via: (to) => ['database'],
-  // One job per channel, after the transaction commits:
-  // queue: true,
+  // One job per channel, after the transaction commits (a failed email retries alone).
+  queue: true,
 })
 `,
   'cache-table': `import { bigint, pgTable, text } from 'drizzle-orm/pg-core'
@@ -238,27 +241,34 @@ export const calderaNotifications = sqliteTable(
 )
 `,
   mail: `import { defineMail } from '@caldera/mail'
-import { Body, Container, Head, Html, Preview, Text } from '@react-email/components'
+import { Body, Button, Container, Head, Heading, Html, Preview, Text } from '@react-email/components'
 import { z } from 'zod'
 
-function {{ Name }}({ name }: { name: string }) {
+function {{ Name }}({ url }: { url: string }) {
   return (
     <Html>
       <Head />
       <Preview>{{ Name }}</Preview>
-      <Body style={{ fontFamily: 'system-ui, sans-serif' }}>
-        <Container>
-          <Text>Hi {name},</Text>
+      <Body style={{ fontFamily: 'system-ui, sans-serif', background: '#f6f6f6' }}>
+        <Container style={{ background: '#fff', padding: '24px', borderRadius: '8px' }}>
+          <Heading as="h1">{{ Name }}</Heading>
+          <Text>Say what happened, and what to do about it.</Text>
+          <Button href={url} style={{ background: '#111', color: '#fff', padding: '10px 16px', borderRadius: '6px' }}>
+            Open it
+          </Button>
         </Container>
       </Body>
     </Html>
   )
 }
-{{ Name }}.PreviewProps = { name: 'Ann' }
+// What the preview page (/_caldera/mail/{{ id }}) and tests render.
+{{ Name }}.PreviewProps = { url: 'http://localhost:3000' }
 
+/** Send with \`await mail.to(user).send({{ Name }}Email, { url })\`, or \`.queue(...)\`. */
 export const {{ Name }}Email = defineMail({
-  name: '{{ kebab }}',
-  props: z.object({ name: z.string() }),
+  // A stable id (namespace it: \`billing.invoice-paid\`).
+  name: '{{ id }}',
+  props: z.object({ url: z.url() }),
   subject: '{{ Name }}',
   component: {{ Name }},
 })

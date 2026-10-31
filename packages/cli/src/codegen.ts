@@ -87,7 +87,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     (await databaseRegister(project)) +
     (await inertiaRegister(project, (name) => usesPackage(project, name))) +
     (lang ? i18nRegister(lang) : '') +
-    (await broadcastRegister(project))
+    (await broadcastRegister(project)) +
+    (await notificationsRegister(project))
 
   const dir = CONVENTIONS.generatedDir
   const generated: GeneratedFile[] = []
@@ -278,6 +279,26 @@ async function broadcastRegister(project: Project): Promise<string> {
     events.map((e) => `      ${JSON.stringify(e.event.broadcast!.as ?? e.event.name)}: typeof ${alias(e.file)}.${e.exportName}\n`).join('') +
     models.flatMap((m) => m.events.map((name) => `      ${JSON.stringify(name)}: import('@caldera/broadcast').ModelBroadcastEvent<typeof ${alias(m.file)}.${m.exportName}>\n`)).join('') +
     `    }\n` +
+    `  }\n` +
+    `}\n`
+  )
+}
+
+/** The `@caldera/notifications` block: notifications by name, so inbox rows' `data` is typed. */
+async function notificationsRegister(project: Project): Promise<string> {
+  const notifications = await loadNotifications(project)
+  if (notifications.length === 0 && !usesPackage(project, '@caldera/notifications')) return ''
+  const files = [...new Set(notifications.map((n) => n.file))]
+  const alias = (file: string) => `notifications${files.indexOf(file)}`
+  return (
+    '\n' +
+    files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
+    `\ndeclare module '@caldera/notifications' {\n` +
+    `  interface NotificationRegistry {\n` +
+    [...notifications]
+      .sort((a, b) => a.notification.name.localeCompare(b.notification.name))
+      .map((n) => `    ${JSON.stringify(n.notification.name)}: typeof ${alias(n.file)}.${n.exportName}\n`)
+      .join('') +
     `  }\n` +
     `}\n`
   )

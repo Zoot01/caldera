@@ -36,6 +36,15 @@ describe('responses', () => {
     await expect(res.assertValidationErrors(['body'])).rejects.toThrow(/expected a validation error for "body"/)
   })
 
+  it('keeps a download’s exact bytes', async () => {
+    const res = await t.client(http).get('/api/download')
+    res.assertOk().assertDownload('résumé.bin')
+    expect(res.bytes()).toEqual(new Uint8Array([0x89, 0x50, 0xff, 0xfe, 0x00]))
+    expect(() => res.assertDownload('other.bin')).toThrow(/expected the download to be named "other.bin", got "résumé.bin"/)
+    const posts = await t.client(http).get('/api/posts')
+    expect(() => posts.assertDownload()).toThrow(/expected a download/)
+  })
+
   it('shows diffs when JSON doesn’t match', async () => {
     const res = await t.client(http).get('/api/posts')
     await expect(async () => res.assertJson({ posts: [{ title: 'missing' }] })).rejects.toThrow(/GET \/api\/posts: expect/)

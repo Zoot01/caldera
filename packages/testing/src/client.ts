@@ -143,7 +143,7 @@ export class TestClient {
     }
     this.#store(response.headers)
     if (method === 'GET' && response.status >= 200 && response.status < 300) this.#shared.referer = url.toString()
-    const result = { status: response.status, headers: response.headers, body: await response.text() }
+    const result = { status: response.status, headers: response.headers, bytes: new Uint8Array(await response.arrayBuffer()) }
     // Following a redirect is a GET, as browsers do after a form post (303).
     return new TestResponse(result, { method, path: url.pathname + url.search }, (location) => this.get(new URL(location, url).pathname + new URL(location, url).search))
   }

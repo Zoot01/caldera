@@ -38,6 +38,10 @@ const api = defineRoutes('api', { prefix: '/api' })
     const [post] = await defaultDatabase().current().insert(posts).values(c.req.valid('json')).returning()
     return c.json({ post }, 201)
   })
+  // Bytes that aren't valid UTF-8, as an image or a zip would be.
+  .get('download', '/download', (c) =>
+    c.body(new Uint8Array([0x89, 0x50, 0xff, 0xfe, 0x00]), 200, { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="r_sum_.bin"; filename*=UTF-8''${encodeURIComponent('résumé.bin')}` }),
+  )
 const web = defineRoutes('web')
   .get('index', '/posts', async (c) => c.render('Posts/Index' as never, { posts: await all() } as never))
   .get('create', '/posts/create', (c) => c.render('Posts/Create' as never, {} as never))

@@ -12,10 +12,12 @@ export type MakeKind = (typeof MAKE_KINDS)[number]
 interface Planned {
   path: string
   stub: StubName
+  /** Written only when missing: an existing file is used as is. */
+  keep?: boolean
 }
 
 /** Where each kind of file goes. These paths are the conventions codegen and agents rely on. */
-function plan(kind: MakeKind, n: Names & { page: string }, project: Project, options: { table: boolean }): Planned[] {
+function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: Project, options: { table: boolean }): Planned[] {
   switch (kind) {
     case 'model':
       return [
@@ -47,22 +49,28 @@ function plan(kind: MakeKind, n: Names & { page: string }, project: Project, opt
     case 'mail':
       return [{ path: `${CONVENTIONS.mailDir}/${n.kebab}.tsx`, stub: 'mail' }]
     case 'notification':
-      return [{ path: `${CONVENTIONS.notificationsDir}/${n.kebab}.ts`, stub: 'notification' }]
+      // With its mail, which the stub sends on the mail channel (kept if it's already there).
+      return [
+        { path: `${CONVENTIONS.notificationsDir}/${n.kebab}.ts`, stub: 'notification' },
+        { path: `${CONVENTIONS.mailDir}/${n.kebab}.tsx`, stub: 'mail', keep: true },
+      ]
     case 'channel':
       return [{ path: `${CONVENTIONS.channelsDir}/${n.kebab}.ts`, stub: 'channel' }]
   }
 }
 
 /** Next steps generators print instead of editing files you own. */
-function hints(kind: MakeKind, n: Names & { page: string }, options: { table: boolean }): string[] {
+function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean }): string[] {
   if (kind === 'model' && options.table) {
     return [`Add \`${n.plural}\` (from src/db/tables/${n.kebab}.ts) to defineRelations in ${CONVENTIONS.relations}, then run \`caldera db:generate\`.`]
   }
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
-  if (kind === 'mail') return [`Send it: \`await mail.to(user).send(${n.Name}Email, { name: user.name })\` from '@caldera/mail'. Preview: /_caldera/mail/${n.kebab}.`]
+  if (kind === 'mail') return [`Send it: \`await mail.to(user).send(${n.Name}Email, { url })\` from '@caldera/mail'. Preview: /_caldera/mail/${n.id}.`]
   if (kind === 'notification') {
-    return [`Send it: \`await notify(user, ${n.Name}, { id })\` from '@caldera/notifications'. Its database channel needs \`caldera notifications:table\`; add a mail with \`caldera make:mail\`.`]
+    return [
+      `Send it: \`await notify(user, ${n.Name}, { id })\` from '@caldera/notifications'. It emails ${CONVENTIONS.mailDir}/${n.kebab}.tsx (preview: /_caldera/mail/${n.id}) and stores a row for the inbox, which needs \`caldera notifications:table\`.`,
+    ]
   }
   if (kind === 'schedule') return [`\`caldera schedule:list\` shows its next run; \`caldera schedule:work\` (or a platform cron, see \`caldera schedule:sync\`) runs it.`]
   if (kind === 'event') return [`Emit it with \`await emit(${n.Name}, { id })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.`]
@@ -106,16 +114,20 @@ export async function make(
   rawName: string,
   options: { force?: boolean; table?: boolean; event?: string; job?: string; dryRun?: boolean } = {},
 ): Promise<MakeResult> {
-  let n: Names & { page: string }
+  let n: Names & { page: string; id: string }
   try {
     // Pages are paths (`Posts/Index`): each segment is a PascalCase folder or file name.
     const segments = kind === 'page' ? rawName.split('/').filter(Boolean).map((segment) => names(segment).Name) : []
-    n = { ...names(kind === 'page' ? (segments.at(-1) ?? '') : rawName), page: segments.join('/') }
+    // Mails and notifications take a namespace for their stable id: `billing.InvoicePaid` → `billing.invoice-paid`.
+    const dot = kind === 'mail' || kind === 'notification' ? rawName.lastIndexOf('.') : -1
+    const namespace = dot > 0 ? names(rawName.slice(0, dot)).kebab : undefined
+    const base = names(kind === 'page' ? (segments.at(-1) ?? '') : dot > 0 ? rawName.slice(dot + 1) : rawName)
+    n = { ...base, page: segments.join('/'), id: namespace ? `${namespace}.${base.kebab}` : base.kebab }
   } catch (error) {
     throw new CalderaError('invalid_name', (error as Error).message)
   }
   const table = options.table ?? true
-  const files = plan(kind, n, project, { table })
+  const files = plan(kind, n, project, { table }).filter((f) => !(f.keep && existsSync(project.path(f.path))))
   const existing = files.filter((f) => existsSync(project.path(f.path))).map((f) => f.path)
   if (existing.length > 0 && !options.force) {
     throw new CalderaError('file_exists', `Refusing to overwrite ${existing.join(', ')}. Pass --force to replace.`, { files: existing })

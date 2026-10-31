@@ -93,6 +93,16 @@ export interface RouteGroup<G extends string, E extends Env, S extends Schema, P
 export type AnyRouteGroup = RouteGroup<string, any, any, string, any>
 
 /**
+ * The `c` a route handler gets, for helpers that take one: `(c: RouteContext<{ project: typeof Project }>)`
+ * sees your app's services and the bound models. Any route with at least those bindings can pass its `c`.
+ */
+export type RouteContext<B extends Bindings = {}> = Omit<Context<RegisteredHonoEnv & Env & BindEnv<B>, any, any>, 'set' | 'get' | 'var'> & {
+  // Read-only: `c.set` would make Context invariant, so no route with more variables could pass it.
+  readonly var: Readonly<VariablesOf<RegisteredHonoEnv & Env & BindEnv<B>>>
+}
+type VariablesOf<E> = E extends { Variables: infer V } ? V : {}
+
+/**
  * Starts a route group. `name` prefixes every route name (`posts` → `posts.show`).
  * Handlers see your app's services on `c.var` once `caldera generate` has registered the app.
  * `E` comes last on purpose: passing it explicitly would stop `G` and `Prefix` being inferred.

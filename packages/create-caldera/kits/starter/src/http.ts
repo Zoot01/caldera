@@ -24,7 +24,7 @@ export const http = new Hono()
   .route('/', cronRoutes({ secret: () => app.config.app.cronSecret }))
   // Signed file links and uploads for the local disk, and direct uploads (src/uploads.ts).
   .route('/', storageRoutes())
-  .route('/', uploadRoutes({ uploads, secret: () => app.config.storage.uploadSecret }))
+  .route('/', uploadRoutes({ uploads }))
   // Browsers ask here before joining a private or presence channel (src/channels decides).
   .route('/', broadcastRoutes())
   // Mail previews and the outbox, outside production only.

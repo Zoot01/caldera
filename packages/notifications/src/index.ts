@@ -13,4 +13,4 @@ export type {
   QueueSettings,
 } from './notification.js'
 export { createNotifications, defaultNotifications, inbox, NotificationFailedError, notificationsProvider, notify, SEND_NOTIFICATION_JOB, setDefaultNotifications } from './service.js'
-export type { DatabaseChannel, Inbox, Notifications, NotificationsFake, Recipient, SendReport, StoredNotification } from './service.js'
+export type { DatabaseChannel, Inbox, NotificationRegistry, Notifications, NotificationsFake, Recipient, SendReport, StoredNotification } from './service.js'

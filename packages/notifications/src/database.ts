@@ -38,13 +38,15 @@ export function databaseChannel(options: { table?: string; database?: () => Data
     }
     return (await target.all!(query)) as T[]
   }
-  const decode = (row: Row): StoredNotification => ({
-    id: row.id,
-    type: row.type,
-    data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data,
-    readAt: row.read_at === null ? null : new Date(Number(row.read_at)),
-    createdAt: new Date(Number(row.created_at)),
-  })
+  // Typed by the registry (the row's type names its notification); stored through its schema.
+  const decode = (row: Row) =>
+    ({
+      id: row.id,
+      type: row.type,
+      data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data,
+      readAt: row.read_at === null ? null : new Date(Number(row.read_at)),
+      createdAt: new Date(Number(row.created_at)),
+    }) as StoredNotification
   const list = (ids: string | readonly string[]) => {
     const all = typeof ids === 'string' ? [ids] : [...ids]
     return all.length ? sql`id in (${sql.join(all.map((id) => sql`${id}`), sql`, `)})` : sql`1 = 0`
@@ -64,6 +66,10 @@ export function databaseChannel(options: { table?: string; database?: () => Data
           : sql``
         const rows = await run<Row>(sql`select id, type, data, read_at, created_at from ${table} where ${mine}${unreadOnly}${cursor} order by created_at desc, id desc limit ${size}`)
         return rows.map(decode)
+      },
+      async find(id) {
+        const [row] = await run<Row>(sql`select id, type, data, read_at, created_at from ${table} where ${mine} and id = ${id} limit 1`)
+        return row ? decode(row) : undefined
       },
       async unreadCount() {
         const [row] = await run<{ n: number | string }>(sql`select count(*) as n from ${table} where ${mine} and read_at is null`)
