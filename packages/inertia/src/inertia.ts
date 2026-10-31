@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { appendHeader, isSessionStarted, previousUrl, sessionOf } from '@caldera/http'
 import type { Context, MiddlewareHandler } from 'hono'
-import { always, isProp, propKind, type Prop, type PropsInput } from './props.js'
+import { always, isProp, propKind, type LazyProp, type Prop, type PropsInput } from './props.js'
 import { renderOnServer, type SsrRenderer, type SsrResult } from './ssr.js'
 import { escapeAttribute, type ViteAssets } from './vite.js'
 
@@ -236,7 +236,7 @@ async function resolveProps(props: Record<string, unknown>, prefix: string, stat
       const wrapped = isProp(value) ? propKind(value) : undefined
       if (state.partial && wrapped !== 'always' && !parentResolved && !matchesPartial(path, state)) return
       if (!state.partial && (wrapped === 'optional' || wrapped === 'defer')) {
-        if (wrapped === 'defer' && isProp(value)) (state.deferred[value.group ?? 'default'] ??= []).push(path)
+        if (wrapped === 'defer' && isProp(value)) (state.deferred[(value as LazyProp<unknown>).group ?? 'default'] ??= []).push(path)
         return
       }
       const result = await (isProp(value) ? value.resolve() : typeof value === 'function' ? (value as () => unknown)() : value)
