@@ -1,0 +1,97 @@
+---
+title: Scheduling
+description: Running jobs on a timetable, on a server or on a platform's cron.
+---
+
+Some work happens on the clock: clearing out old uploads every night, sending a weekly digest. A schedule dispatches a [job](/docs/queues) at the times you give it.
+
+## Defining a schedule
+
+```bash
+pnpm exec caldera make:schedule PruneUploadsNightly --job PruneUploads
+```
+
+```ts title="src/schedules/prune-uploads-nightly.ts"
+import { defineSchedule } from '@caldera/schedule'
+import { PruneUploads } from '../jobs/prune-uploads'
+
+export const pruneUploadsNightly = defineSchedule('uploads.prune-nightly', {
+  cron: '0 2 * * *', // 02:00 every day
+  tz: 'Europe/London',
+  job: PruneUploads,
+  payload: {},
+  withoutOverlapping: true,
+})
+```
+
+The job is an ordinary one:
+
+```ts title="src/jobs/prune-uploads.ts"
+import { defineJob } from '@caldera/queue'
+import { pruneUploads } from '@caldera/storage'
+import { z } from 'zod'
+
+export const PruneUploads = defineJob({
+  name: 'uploads.prune',
+  payload: z.object({}),
+  async handle(_payload, ctx) {
+    const removed = await pruneUploads(ctx.services.storage, { olderThan: '1d' })
+    console.log(`Removed ${removed} unclaimed uploads`)
+  },
+})
+```
+
+Scheduled work always runs as a job, so it gets retries, and a long one doesn't hit a serverless host's time limit.
+
+| | |
+| --- | --- |
+| `cron` | Five fields: minute, hour, day of the month, month, day of the week. `*/15 * * * *` is every quarter hour; `0 9 * * 1` is Mondays at 09:00. |
+| `tz` | The time zone the cron is read in, such as `America/New_York`. Default UTC. Daylight saving is handled: this one runs at 02:00 London time all year. |
+| `payload` | What the job gets. |
+| `withoutOverlapping` | Skip a run while the last one's job is still waiting or running. |
+| `onOneServer` | With several servers ticking, dispatch once. Needs a shared [cache](/docs/cache). |
+| `environments` | Only in these, such as `['production']`. |
+
+See them all with the next time each runs:
+
+```bash
+pnpm exec caldera schedule:list
+```
+
+## Running schedules
+
+Something has to look at the clock every minute.
+
+**On a server**, run the scheduler beside the app and the [worker](/docs/queues#running-a-worker):
+
+```bash
+pnpm scheduler
+```
+
+Or, from the system's crontab, run `caldera schedule:run` every minute: it dispatches what's due and exits.
+
+**On Vercel**, platform crons call your app. Write them into `vercel.json`:
+
+```bash
+pnpm exec caldera schedule:sync --target vercel
+```
+
+Each schedule becomes a Vercel cron. Set `CRON_SECRET` in the project: Vercel sends it, and the app refuses cron calls without it. Run it again whenever schedules change; `--check` fails if `vercel.json` is out of date, for CI.
+
+Vercel's crons run in UTC, so write those schedules in UTC: `schedule:sync` warns about one with a `tz`. Its Hobby plan only runs crons once a day.
+
+**On Cloudflare Workers**, `--target cloudflare` adds one Cron Trigger, every minute, to `wrangler.json`. The Worker from `caldera cloudflare:setup` then dispatches what's due, so time zones work as on a server.
+
+## Testing
+
+Run the scheduler at a time of your choosing and see what it dispatched:
+
+```ts
+const queue = t.fake('queue')
+
+await t.services.scheduler.runDue(new Date('2026-07-01T01:00:00Z')) // 02:00 in London, in summer
+
+queue.assertDispatched(PruneUploads)
+```
+
+`t.services.scheduler.run('uploads.prune-nightly')` runs one schedule now, whatever its cron says.

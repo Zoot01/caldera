@@ -1,0 +1,109 @@
+---
+title: Events
+description: Saying something happened, and letting other code react, now or on the queue.
+---
+
+An event says something happened: a note was shared, an order was paid. The code that emits it doesn't need to know who cares. Listeners react, in the same request or as queued jobs.
+
+## Defining an event
+
+```bash
+pnpm exec caldera make:event NoteShared
+```
+
+```ts title="src/events/note-shared.ts"
+import { defineEvent } from '@caldera/events'
+import { z } from 'zod'
+
+export const NoteShared = defineEvent({
+  name: 'note.shared',
+  payload: z.object({ noteId: z.string(), email: z.email() }),
+})
+```
+
+As with jobs, `name` is a stable id and `payload` a Zod schema, checked when the event is emitted.
+
+## Emitting
+
+```ts
+import { emit } from '@caldera/events'
+
+await emit(NoteShared, { noteId: note.id, email })
+```
+
+`emit` runs the listeners in order and waits for them. If one throws, the rest don't run and `emit` throws too.
+
+Inside a transaction, `{ afterCommit: true }` waits for the commit, and drops the event if it rolls back, so listeners never react to something that didn't happen.
+
+## Listeners
+
+```bash
+pnpm exec caldera make:listener LogNoteShared --event NoteShared
+```
+
+```ts title="src/listeners/log-note-shared.ts"
+import { listen } from '@caldera/events'
+import { NoteShared } from '../events/note-shared'
+
+export const logNoteShared = listen(NoteShared, async ({ noteId, email }) => {
+  console.log(`Note ${noteId} shared with ${email}`)
+})
+```
+
+`caldera generate` registers every listener in `src/listeners`. The payload is typed by the event, and the second argument has `ctx.services`, the app's services.
+
+### Queued listeners
+
+A listener runs in the request that emitted the event, so the response waits for it. For anything slow, listen with a [job](/docs/queues) instead:
+
+```ts title="src/listeners/publish-shared-note.ts"
+import { listen } from '@caldera/events'
+import { NoteShared } from '../events/note-shared'
+import { PublishNote } from '../jobs/publish-note'
+
+export const publishSharedNote = listen(
+  NoteShared,
+  PublishNote.fromEvent((e) => ({ noteId: e.noteId })),
+)
+```
+
+Each emit dispatches the job, with the payload `fromEvent` makes from the event. It's an ordinary job, with its tries, backoff and uniqueness.
+
+## Asking listeners
+
+`until` asks the listeners in turn and returns the first answer that isn't `undefined`. It suits hooks where one listener decides, like a price:
+
+```ts
+import { until } from '@caldera/events'
+
+const price = await until(PriceFor, { sku })
+```
+
+Queued listeners can't answer, so `until` skips them.
+
+## To the browser
+
+An event with `broadcast` also reaches the browsers listening on a channel, so pages update live. That's [Realtime](/docs/realtime).
+
+## Seeing every listener
+
+`AGENTS.md`, which `caldera generate` keeps up to date, lists every event's listeners, and which are queued:
+
+| Event | Listener | Runs | Defined in |
+| --- | --- | --- | --- |
+| `note.shared` | `logNoteShared` | in process | src/listeners/log-note-shared.ts |
+| `note.shared` | `publishSharedNote` | queued: job `notes.publish` | src/listeners/publish-shared-note.ts |
+
+## Testing
+
+Fake events to check what was emitted without running the listeners:
+
+```ts
+const events = t.fake('events')
+
+await client.post(`/notes/${note.id}/share`, { json: { email: 'bob@example.test' } })
+
+events.assertEmitted(NoteShared, (e) => e.email === 'bob@example.test')
+```
+
+Without the fake, listeners run as usual, so a test can check what they did, such as the job a queued listener dispatched (with `t.fake('queue')`).

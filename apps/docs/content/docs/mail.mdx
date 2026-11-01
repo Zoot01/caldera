@@ -1,0 +1,126 @@
+---
+title: Mail
+description: Emails written as React components, previewed in the browser, sent now or from the queue.
+---
+
+Mails are [React Email](https://react.email) components with a typed set of props. Write one, preview it in the browser, and send it through whichever service `MAIL_MAILER` names.
+
+## Writing a mail
+
+```bash
+pnpm exec caldera make:mail NoteShared
+```
+
+```tsx title="src/mail/note-shared.tsx"
+import { attach, defineMail, useApp } from '@caldera/mail'
+import { Tailwind } from '@caldera/mail/tailwind'
+import { Body, Button, Container, Head, Heading, Html, Preview, Text } from '@react-email/components'
+import { z } from 'zod'
+
+function NoteShared({ from, title, url }: { from: string; title: string; url: string }) {
+  const app = useApp()
+  return (
+    <Html>
+      <Head />
+      <Preview>{from} shared a note with you</Preview>
+      <Tailwind>
+        <Body className="bg-gray-100 font-sans">
+          <Container className="rounded-lg bg-white p-6">
+            <Heading as="h1" className="text-xl">{title}</Heading>
+            <Text>{from} shared a note with you on {app.name}.</Text>
+            <Button href={url} className="rounded-md bg-black px-4 py-2 text-white">
+              Open the note
+            </Button>
+          </Container>
+        </Body>
+      </Tailwind>
+    </Html>
+  )
+}
+NoteShared.PreviewProps = {
+  from: 'Ann',
+  title: 'Groceries',
+  body: 'Milk, eggs',
+  url: 'http://localhost:3000/notes/1',
+}
+
+export const NoteSharedEmail = defineMail({
+  name: 'notes.shared',
+  props: z.object({ from: z.string(), title: z.string(), body: z.string(), url: z.url() }),
+  subject: (p) => `${p.from} shared “${p.title}” with you`,
+  component: NoteShared,
+  attachments: (p) => [attach.content(p.body, `${p.title}.txt`, 'text/plain')],
+})
+```
+
+| | |
+| --- | --- |
+| `name` | A stable id. Queued mail carries it, so keep it once mail is being sent. |
+| `props` | A Zod schema for what the mail needs. Checked before it's rendered. |
+| `subject` | A string, or a function of the props. |
+| `text` | The plain-text part. Made from the HTML unless you pass a function, or `false` for none. |
+| `attachments` | Files to attach: `attach.content(data, name, type)`, or `attach.fromStorage(key)` for a file on a [disk](/docs/storage). |
+| `from`, `replyTo` | When this mail shouldn't use the app's. |
+
+`useApp()` is the app's name and URL from `src/config/app.ts`. Use it instead of writing your app's name into mails, and `subject: (p, { app }) => …` does the same for subjects.
+
+### Tailwind
+
+Import `Tailwind` from `@caldera/mail/tailwind`, not React Email's. `caldera generate` compiles the classes your mails use once, and sending only copies the styles inline: Tailwind never runs while a mail is sent. Write classes as plain strings in `className` so it can find them.
+
+## Previewing
+
+`/_caldera/mail` lists every mail, and `/_caldera/mail/notes.shared` renders one with its `PreviewProps`. Edit the component and reload. Previews only exist outside production.
+
+## Sending
+
+```ts
+import { mail } from '@caldera/mail'
+
+await mail.to(email).send(NoteSharedEmail, {
+  from: c.var.user!.name,
+  title: note.title,
+  body: note.body,
+  url: new URL(`/notes/${note.id}`, c.var.config.app.url).href,
+})
+```
+
+The props are typed by the mail's schema. `to` takes an address, a list, `{ name, email }`, or a user. `cc`, `bcc`, `replyTo` and `from` work the same way, and `.via('postmark')` uses another mailer than the default.
+
+`send` renders and sends before it returns. To let the response go first, queue it:
+
+```ts
+await mail.to(email).queue(NoteSharedEmail, props)
+```
+
+A [worker](/docs/queues) renders and sends it, with retries. Inside a transaction, it's queued once the transaction commits. Mail is never queued unless you ask.
+
+## Mailers
+
+`MAIL_MAILER` picks one from `src/config/mail.ts`:
+
+| | Set |
+| --- | --- |
+| `log` | Nothing. Sends nothing: prints a line, and keeps mail in the outbox. The default. |
+| `resend` | `RESEND_API_KEY` |
+| `postmark` | `POSTMARK_SERVER_TOKEN` |
+| `ses` | `SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| `smtp` | `SMTP_URL`. Node only. |
+| `cloudflare` | The `EMAIL` binding, on Workers. |
+
+`MAIL_FROM` is the sender. Without a name (`hello@example.com`), mail is sent as your app's name.
+
+With the `log` mailer, `/_caldera/mail/outbox` shows what was sent, with links you can click, which is how the starter's password reset and verification work in development. To try a real mailer without mailing real people, set `MAIL_REDIRECT_TO` to your own address: every message goes there instead.
+
+## Testing
+
+```ts
+const mail = t.fake('mail')
+
+await client.post(`/notes/${note.id}/share`, { json: { email: 'bob@example.test' } })
+
+mail.assertSent(NoteSharedEmail, ({ message }) => message.to[0]!.email === 'bob@example.test')
+mail.rendered(NoteSharedEmail).subject // 'Ann shared “Groceries” with you'
+```
+
+`assertQueued` checks queued mail by its props, and `mail.sent(NoteSharedEmail)` lists each message as sent, attachments and all.

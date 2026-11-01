@@ -1,0 +1,222 @@
+---
+title: Storage
+description: Storing files on disk or in a bucket, uploads checked by their bytes, and links to download them.
+---
+
+Files go on disks: a folder on this machine in development, S3 or R2 in production. The code is the same for each.
+
+## Disks
+
+`src/config/storage.ts` has two to begin with:
+
+| | |
+| --- | --- |
+| `local` | Private files in `storage/app`. The default. Nobody can reach them unless a route sends them or you make a signed link. |
+| `public` | Files anyone may see, in `public/storage`, at `/storage/...`. |
+
+Set `S3_BUCKET` (and `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_ENDPOINT` for services other than AWS) and the default disk becomes S3. On Cloudflare Workers, it's R2, through the `FILES` binding.
+
+`c.var.storage` is the default disk, and `c.var.storage.disk('public')` the others.
+
+## Reading and writing
+
+```ts
+const disk = c.var.storage
+
+await disk.put('reports/q3.csv', csv)
+const text = await disk.getText('reports/q3.csv')
+const bytes = await disk.get('reports/q3.csv')
+await disk.exists('reports/q3.csv')
+await disk.delete('reports/q3.csv')
+```
+
+| | |
+| --- | --- |
+| `put(key, body)` | A string, bytes, a `Blob` or a stream. |
+| `get(key)`, `getText(key)`, `getStream(key)` | The file. A missing one throws `FileNotFoundError`. |
+| `info(key)` | Size, type and last modified. |
+| `copy(from, to)`, `move(from, to)`, `delete(...keys)` | |
+| `list(prefix)`, `listAll(prefix)` | Files under a folder: a page at a time, or all of them with `for await`. |
+
+## Uploads
+
+Check an uploaded file in the request with `zfile`, then store it with `putFile`:
+
+```ts
+import { zfile } from '@caldera/storage'
+
+const AttachFile = defineRequest({
+  form: z.object({ file: zfile({ maxSize: '10mb', mimes: ['pdf', 'image/*'] }) }),
+})
+```
+
+```ts
+.post(
+  'attach',
+  '/notes/:note/attachment',
+  { bind: { note: Note }, request: AttachFile, authorize: allows(Note, 'update', 'note') },
+  async (c) => {
+    const { file } = c.req.valid('form')
+    const disk = c.var.storage
+    const key = await disk.putFile('attachments', file)
+    await Note.update(c.var.note, {
+      attachment: {
+        disk: disk.name,
+        key,
+        size: file.size,
+        mime: file.detected.mime,
+        name: file.name,
+      },
+    })
+    return back(c).with('success', 'Attached.')
+  },
+)
+```
+
+`zfile` believes the file's bytes, never its name or the type the browser claims: an HTML page renamed `cat.png` fails with "HTML files can't be uploaded." SVG, HTML and programs are refused even when `mimes` would match them, since they can run code from your site; `allow: ['svg']` lets SVGs through.
+
+| Rule | |
+| --- | --- |
+| `maxSize` | `'10mb'`, `'500kb'`, or bytes. |
+| `mimes` | Types (`application/pdf`), families (`image/*`) or extensions (`pdf`). |
+| `image` | `{ maxWidth, maxHeight, minWidth, minHeight }`, read from the image itself. |
+
+`putFile` stores the file under a random name with the extension of what it really is, so names from the browser never become paths.
+
+### Keeping track of files
+
+A file column holds where the file is, with the name to download it as. `fileRef` is its schema:
+
+```ts title="src/db/tables/note.ts"
+import { timestamps, zjson } from '@caldera/db/sqlite'
+import { fileRef } from '@caldera/storage'
+
+export const notes = snakeCase.table('notes', {
+  // …
+  attachment: zjson(fileRef),
+})
+```
+
+`cleanupFiles` deletes the old file when a row gets a new one, and when the row is deleted for good, once the change commits:
+
+```ts title="src/models/note.ts"
+import { cleanupFiles } from '@caldera/storage'
+
+export const Note = defineModel(notes, {
+  // …
+  hooks: { ...cleanupFiles('attachment') },
+})
+```
+
+A soft delete keeps the file, so restoring the note restores its attachment.
+
+## Downloads
+
+For private files, check who may see the file, then send it:
+
+```ts
+import { fileResponse } from '@caldera/storage'
+
+.get(
+  'download',
+  '/notes/:note/attachment',
+  { bind: { note: Note }, authorize: allows(Note, 'view', 'note') },
+  async (c) => {
+    const file = c.var.note.attachment
+    if (!file) return c.notFound()
+    return fileResponse(file)
+  },
+)
+```
+
+It downloads under the name it was uploaded with. `fileResponse(file, { inline: true })` shows it in the browser instead.
+
+Or hand out a link that stops working after a while, so the file doesn't pass through your app:
+
+```ts
+import { temporaryFileUrl } from '@caldera/storage'
+
+const url = await temporaryFileUrl(file, '5m')
+```
+
+On S3, that's a signed S3 link. On the local disk, it's a link to your app, signed with `APP_KEY`. Either way, a changed or expired link is refused.
+
+Files on the `public` disk have a permanent address: `disk.url('banners/hello.png')` is `/storage/banners/hello.png`.
+
+## Direct uploads
+
+Some hosts limit request bodies (Vercel: 4.5MB), and big files shouldn't pass through your app anyway. With direct uploads the browser sends the file straight to the bucket, and your app only checks it.
+
+Say what may be uploaded in `src/uploads.ts`:
+
+```ts title="src/uploads.ts"
+import { defineUpload } from '@caldera/storage'
+
+export const attachment = defineUpload('attachment', {
+  rules: { maxSize: '20mb', mimes: ['pdf', 'image/*'] },
+  directory: 'attachments',
+})
+
+export const uploads = [avatar, attachment]
+```
+
+In the page, `useUpload` sends the file, with progress, and the form sends what it answers:
+
+```tsx
+import { router } from '@inertiajs/react'
+import { useUpload } from '@caldera/storage/react'
+
+export function AttachmentField({ noteId }: { noteId: string }) {
+  const { upload, progress, error } = useUpload('attachment')
+
+  async function choose(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const attachment = await upload(file)
+    router.post(`/notes/${noteId}/attachment`, { attachment })
+  }
+
+  return (
+    <div>
+      <input type="file" onChange={choose} />
+      {progress !== null && <progress value={progress} />}
+      {error && <p>{error}</p>}
+    </div>
+  )
+}
+```
+
+The route checks it with `zupload` and keeps it with `claimUpload`:
+
+```ts
+import { claimUpload, zupload } from '@caldera/storage'
+
+const AttachUpload = defineRequest({ body: z.object({ attachment: zupload(attachment) }) })
+
+// In the handler:
+await Note.update(c.var.note, { attachment: await claimUpload(c.req.valid('json').attachment) })
+```
+
+The upload's rules are checked twice: against what the browser says before it sends, and against the real bytes once they're in the bucket. What the browser gets back is signed, so it can't be swapped for someone else's file, and each upload can be claimed once. Name the form field after the upload, so errors land on it.
+
+Uploads that are never claimed wait under `tmp/uploads/`. Schedule `pruneUploads()` daily to clear them.
+
+On the local disk, direct uploads go to your app, so they work in development the same way.
+
+## Testing
+
+`t.fake('storage')` swaps the default disk for one in memory, and `t.fake('storage', 'public')` another:
+
+```ts
+const disk = t.fake('storage')
+
+await client.post(`/notes/${note.id}/attachment`, {
+  form: { file: new File([png], 'dot.png', { type: 'image/png' }) },
+})
+
+const { attachment } = (await Note.find(note.id))!
+await disk.assertExists(attachment!.key)
+await disk.assertCount('attachments', 1)
+```
+
+Nothing reaches the real disk. Links work as before: a faked `public` disk gives the same `/storage/...` URLs, and signed local links are served from the fake.

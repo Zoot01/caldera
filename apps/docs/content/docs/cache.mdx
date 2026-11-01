@@ -1,0 +1,134 @@
+---
+title: Cache
+description: Keeping computed values for a while, locks across servers, and rate limiting.
+---
+
+The cache keeps values you'd rather not compute on every request. It's also where locks and rate limits keep count, which is why [unique jobs and batches](/docs/queues) need it.
+
+## Remembering a value
+
+`remember` returns the cached value, or computes it, stores it for that long, and returns it:
+
+```ts
+const stats = await c.var.cache.remember(`notes:stats:${userId}`, '10m', async () => {
+  const notes = await Note.ownedBy(userId).findMany({ columns: { pinned: true } })
+  return { total: notes.length, pinned: notes.filter((n) => n.pinned).length }
+})
+```
+
+Durations are seconds or strings like `'30s'`, `'10m'`, `'1h'`, `'7d'`. Values are stored as JSON.
+
+| | |
+| --- | --- |
+| `get(key)` | The value, or `undefined`. |
+| `put(key, value, ttl?)` | Store it. Without `ttl`, it's kept until you forget it. |
+| `add(key, value, ttl?)` | Store it only if the key is empty. `true` when it stored. |
+| `forget(key)` | Delete it. |
+| `pull(key)` | Get it and delete it. |
+| `increment(key, by?)`, `decrement(key, by?)` | Counters. |
+| `remember(key, ttl, compute)` | Get it, or compute and store it. |
+| `rememberForever(key, compute)` | The same, kept until you forget it. |
+
+Outside a request, jobs have it as `ctx.services.cache`.
+
+### Values whose shape changes
+
+What comes back from the cache is whatever was stored, maybe by an older deploy. Pass a schema to check it, and to turn JSON back into dates:
+
+```ts
+const last = await c.var.cache.get('last-export', {
+  schema: z.object({ at: z.coerce.date() }),
+})
+last?.at.getFullYear()
+```
+
+A value that doesn't match counts as missing, so `remember` computes it afresh instead of crashing.
+
+### Stale while refreshing
+
+`flexible` takes two durations. For the first minute below, the value is fresh. After that, until ten minutes, callers get the old value at once while one of them refreshes it in the background. Past ten minutes, it's computed again before it's returned:
+
+```ts
+const count = await c.var.cache.flexible('notes:count', ['1m', '10m'], () => countNotes())
+```
+
+So a busy page waits on the computation only when nobody has asked for ten minutes. On Cloudflare Workers, pass `{ waitUntil: (p) => c.executionCtx.waitUntil(p) }` so the background refresh can finish after the response.
+
+### Tags
+
+Tags group keys so you can clear them together, such as everything cached for one user:
+
+```ts
+const titles = await c.var.cache.tags(`user:${userId}`).remember('titles', '1h', loadTitles)
+
+// After they add a note:
+await c.var.cache.tags(`user:${userId}`).flush()
+```
+
+## Locks
+
+A lock makes sure only one process does something at a time, across every server and worker:
+
+```ts
+await c.var.cache.lock('reports:build', '30s').run(async () => {
+  await buildReport()
+})
+```
+
+`run` releases the lock when the function finishes, or after `30s` if the process dies holding it. If someone else holds it, `run` throws `LockUnavailableError` straight away; `{ wait: '5s' }` waits for it first.
+
+## Stores
+
+`src/config/cache.ts` picks the store:
+
+| | |
+| --- | --- |
+| `memory` | In the process. Fast, but each server has its own, and it's gone on restart. The default. |
+| `redis` | Shared by every server and worker. Used when `REDIS_URL` is set. |
+| `database` | Rows in `caldera_cache`, shared, on any database. On Cloudflare Workers, the default. |
+
+With more than one server, use `redis` or `database`, or each one keeps its own counts, locks and rate limits. `c.var.cache.store('database')` uses a store other than the default.
+
+## Rate limiting
+
+A limiter says how often someone may do something:
+
+```ts
+import { defineLimiter, perHour, perMinute } from '@caldera/cache'
+
+const createNotes = defineLimiter('notes.create', { limits: [perMinute(10), perHour(100)] })
+```
+
+Give it to a route as `throttle`:
+
+```ts
+.post('store', '/notes', { throttle: createNotes }, async (c) => {
+  // …
+})
+```
+
+The eleventh note in a minute gets a 429:
+
+```json
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "Too many requests. Try again later.",
+    "status": 429,
+    "retryAfter": 6
+  }
+}
+```
+
+with `Retry-After` and `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers. A form posted from a page goes back with the message as an error instead.
+
+| Option | |
+| --- | --- |
+| `limits` | `perSecond(n)`, `perMinute(n)`, `perHour(n)`, `perDay(n)`, or `every(n, '15m')`. All of them apply. |
+| `key` | Who's counted. By default, the signed-in user, or the IP address for guests. Return a list to combine: `(c) => [ipOf(c), email]`. |
+| `count: 'failures'` | Count only failed requests, such as wrong passwords. The starter's login works this way. |
+| `blockFor` | Once someone hits the limit, refuse them for this long. |
+| `message` | The 429's message. |
+| `dryRun` | Count and log, but never refuse: for trying a limit out in production. |
+
+Jobs use limiters too, with [`rateLimited`](/docs/queues#middleware), to stay under another service's limits.
