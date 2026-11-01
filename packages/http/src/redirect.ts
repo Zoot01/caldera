@@ -9,7 +9,9 @@ export class Redirect extends Response {
   readonly #c: Context
 
   constructor(c: Context, location: string, status: 301 | 302 | 303 | 307 | 308) {
-    super(null, { status, headers: { location } })
+    // With the headers already set on the context (a cookie from setCookie, a Vary), as c.redirect()
+    // keeps them: a Response of its own would drop them.
+    super(null, { status, headers: c.newResponse(null, status, { location }).headers })
     this.#c = c
   }
 

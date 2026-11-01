@@ -6,7 +6,7 @@ import { i18nReport } from './i18n.js'
 import { workersIssues } from './cloudflare.js'
 import { vercelIssues } from './vercel.js'
 import { loadApp, projectEnv } from './describe.js'
-import type { Project } from './project.js'
+import { openProject, type Project } from './project.js'
 
 export interface CheckIssue {
   code: string
@@ -67,10 +67,19 @@ export async function check(project: Project): Promise<CheckResult> {
   }
 
   // Deploy targets (a wrangler config, a vercel.json): the defaults the app would use there.
+  // A fresh copy of the app for each target: an app that's been shut down can't boot again, and the
+  // auth schema check above has already booted and shut down this project's copy.
   const bootWith = async (env: Record<string, unknown>, options: { local?: boolean } = {}) => {
-    const app = await loadApp(project)
-    await app.boot({ env: options.local === false ? env : { ...projectEnv(project), ...env } })
-    return app as unknown as { config: Record<string, any>; shutdown(): Promise<void> }
+    const fresh = openProject(project.root)
+    try {
+      const app = await loadApp(fresh)
+      await app.boot({ env: options.local === false ? env : { ...projectEnv(project), ...env } })
+      const booted = app as unknown as { config: Record<string, any>; shutdown(): Promise<void> }
+      return { config: booted.config, shutdown: () => booted.shutdown().finally(() => fresh.dispose()) }
+    } catch (error) {
+      await fresh.dispose()
+      throw error
+    }
   }
   for (const target of [workersIssues, vercelIssues]) {
     try {

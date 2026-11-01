@@ -1,5 +1,6 @@
 import { createApp, defineEnv } from '@caldera/core'
 import { Hono } from 'hono'
+import { setCookie } from 'hono/cookie'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
@@ -170,6 +171,19 @@ describe('flash and redirects', () => {
     const res = await makeApp().request('/posts', form({ title: 'Hi' }, { accept: 'application/json' }))
     expect(res.status).toBe(422)
     expect(await res.json()).toMatchObject({ error: { code: 'validation_failed', fields: { title: ['Too short'] } } })
+  })
+
+  it('keeps cookies and headers set before the redirect', async () => {
+    const app = new Hono().post('/locale', (c) => {
+      setCookie(c, 'locale', 'fr')
+      c.header('vary', 'Cookie', { append: true })
+      return redirect(c, '/')
+    })
+    const res = await app.request('/locale', { method: 'POST' })
+    expect(res.status).toBe(303)
+    expect(res.headers.get('location')).toBe('/')
+    expect(res.headers.getSetCookie()).toEqual(['locale=fr; Path=/'])
+    expect(res.headers.get('vary')).toBe('Cookie')
   })
 
   it('never redirects back to another site', async () => {

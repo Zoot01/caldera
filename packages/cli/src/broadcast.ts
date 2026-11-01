@@ -53,7 +53,7 @@ export async function broadcastNowhere(project: Project, broadcast: { default?: 
     {
       code: 'broadcast_nowhere',
       severity: 'warning' as const,
-      message: `On ${platform} the broadcast connection is "${broadcast!.default}" (${driver}), so ${events.map((e) => e.event.broadcast!.as ?? e.event.name).join(', ')} reach no browser. Set BROADCAST_CONNECTION (pusher, server, cloudflare).`,
+      message: `On ${platform} the broadcast connection is "${broadcast!.default}" (${driver}), so ${events.map((e) => e.event.broadcast!.as ?? e.event.name).join(', ')} ${events.length === 1 ? 'reaches' : 'reach'} no browser. Set BROADCAST_CONNECTION (pusher, server, cloudflare).`,
       file: 'src/config/broadcast.ts',
     },
   ]

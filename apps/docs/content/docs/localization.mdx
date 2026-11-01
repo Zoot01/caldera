@@ -1,0 +1,135 @@
+---
+title: Localization
+description: Translating your app, with plurals, formatted numbers and dates, and validation messages in each language.
+---
+
+Text lives in `lang/`, one folder per language, and is looked up by key. The keys are typed, so a misspelled one is an error, not a blank on the page.
+
+## Messages
+
+Each file in `lang/en/` is a group of messages. `lang/en/notes.json`:
+
+```json title="lang/en/notes.json"
+{
+  "count": "{count, plural, =0 {No notes yet} one {# note} other {# notes}}",
+  "shared": "{name} shared “{title}” with you",
+  "empty": "Nothing here. <link>Write your first note</link>."
+}
+```
+
+The key is the file and the name: `notes.count`. Messages use [ICU syntax](https://formatjs.github.io/docs/core-concepts/icu-syntax/): `{name}` is a parameter, `plural` picks the form for a number (`#` is the number), and `select` picks by a value.
+
+English is the source: the types come from `lang/en/`, and other languages have the same keys.
+
+## Translating in a page
+
+A page says which messages it needs, and only those are sent to the browser:
+
+```tsx title="resources/pages/Notes/Summary.tsx"
+import { useT } from '@caldera/i18n/react'
+import { Link } from '@inertiajs/react'
+
+export const messages = ['notes.*']
+
+export default function Summary({ count }: { count: number }) {
+  const { t, rich } = useT()
+  return (
+    <div>
+      <h1>{t('notes.count', { count })}</h1>
+      {count === 0 && (
+        <p>{rich('notes.empty', { link: (text) => <Link href="/notes/create">{text}</Link> })}</p>
+      )}
+    </div>
+  )
+}
+```
+
+`t('notes.count')` without `count` is a type error, and so is a key that doesn't exist. `rich` turns tags in a message into components, so translators can move the link within the sentence without touching your code.
+
+## In routes
+
+`c.var.i18n` translates for the current visitor:
+
+```ts
+c.var.i18n.t('notes.count', { count })
+```
+
+It formats for their language too:
+
+| | English | French |
+| --- | --- | --- |
+| `i18n.number(1234.5)` | 1,234.5 | 1 234,5 |
+| `i18n.currency(9.99, 'EUR')` | €9.99 | 9,99 € |
+| `i18n.date(date, { dateStyle: 'long' })` | March 1, 2026 | 1 mars 2026 |
+| `i18n.list(['Ann', 'Bob', 'Cat'])` | Ann, Bob, and Cat | Ann, Bob et Cat |
+
+`relativeTime(-3, 'day')` gives "3 days ago". Outside a request, in jobs and mail, use `translator('fr').t(...)` from `@caldera/i18n`.
+
+## Adding a language
+
+Copy `lang/en/` to `lang/fr/`, translate it, and add the language to `src/config/i18n.ts`:
+
+```ts title="src/config/i18n.ts"
+locales: ['en', 'fr'],
+```
+
+Then check nothing's missing:
+
+```bash
+pnpm exec caldera i18n:missing
+```
+
+lists, for each language, keys that are missing or extra, messages whose parameters don't match English, and keys no code uses.
+
+In development, a message a language lacks shows in English between markers, `⟦No notes yet⟧`, so it stands out. In production it's plain English.
+
+## Which language
+
+Each request's language is the first of:
+
+1. A `{locale}` in the URL, if you set `routeParam: 'locale'` in the config.
+2. The signed-in user's `locale` column, if the users table has one.
+3. A language they chose before, remembered in a cookie.
+4. Their browser's languages (`Accept-Language`), matched to yours: `fr-CA` gets `fr`.
+5. The default, English.
+
+Let people choose:
+
+```ts
+const ChooseLocale = defineRequest({ body: z.object({ locale: z.enum(['en', 'fr']) }) })
+
+.post('locale', '/locale', { request: ChooseLocale }, (c) => {
+  c.var.i18n.setLocale(c.req.valid('json').locale)
+  return back(c)
+})
+```
+
+`setLocale` switches the rest of this request and sets the cookie.
+
+## Validation messages
+
+Validation errors come out in the visitor's language once `lang/` has messages for them. `lang/fr/validation.json`:
+
+```json title="lang/fr/validation.json"
+{
+  "required": "Le champ {attribute} est obligatoire.",
+  "too_small": {
+    "string": "Le champ {attribute} doit contenir au moins {minimum} caractères."
+  },
+  "attributes": {
+    "title": "titre"
+  }
+}
+```
+
+`z.string().min(3)` on `title` then fails with "Le champ titre doit contenir au moins 3 caractères." Keys follow Zod's issue codes, with the kind of value after (`too_small.string`, `too_big.array`); `attributes` names fields. For one field's message only, use `custom`: `validation.custom.title.too_small`.
+
+A message written in the schema, `z.string().min(3, 'Too short')`, is used as it is.
+
+## Testing
+
+Send the language like a browser does:
+
+```ts
+const res = await client.get('/notes/count', { headers: { 'accept-language': 'fr' } })
+```

@@ -19,7 +19,7 @@ afterAll(() => {
 
 it('writes an empty listener list once the app uses events', async () => {
   await generate(openProject(root))
-  expect(readFileSync(join(root, '.caldera/listeners.gen.ts'), 'utf8')).toContain('export const listeners = [] as const\n')
+  expect(readFileSync(join(root, '.caldera/listeners.gen.ts'), 'utf8')).toContain('export const listeners: readonly AnyListener[] = []\n')
 })
 
 it('make:event and make:listener, then generate registers the listener and lists it in AGENTS.md', async () => {
@@ -34,7 +34,7 @@ it('make:event and make:listener, then generate registers the listener and lists
   )
   await generate(openProject(root))
   expect(readFileSync(join(root, '.caldera/listeners.gen.ts'), 'utf8')).toContain(
-    `import * as listeners0 from '../src/listeners/greet-new-users.js'\nimport * as listeners1 from '../src/listeners/notify-admins.js'\n\nexport const listeners = [listeners0.greetNewUsers, listeners1.notifyAdmins] as const\n`,
+    `import type { AnyListener } from '@caldera/events'\nimport * as listeners0 from '../src/listeners/greet-new-users.js'\nimport * as listeners1 from '../src/listeners/notify-admins.js'\n\nexport const listeners: readonly AnyListener[] = [listeners0.greetNewUsers, listeners1.notifyAdmins]\n`,
   )
   const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
   expect(agents).toContain('| `user.registered` | `greetNewUsers` | queued: job `fixture.greet` | src/listeners/greet-new-users.ts |')

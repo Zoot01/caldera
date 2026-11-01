@@ -1,0 +1,148 @@
+---
+title: Deployment
+description: Running your app in production, on a server, on Vercel or on Cloudflare Workers.
+---
+
+The same app runs on a Node server, on Vercel and on Cloudflare Workers. What changes between them is the environment: which database, queue, disk and mailer it uses. The code stays the same.
+
+## Production settings
+
+Whatever the host, production needs these set in its environment:
+
+| | |
+| --- | --- |
+| `NODE_ENV` | `production`. |
+| `APP_KEY` | A random secret of at least 32 characters: `openssl rand -base64 32`. It signs sessions, links and uploads, so keep it secret, and keep it the same across deploys: changing it signs everyone out. |
+| `APP_URL` | The address people use, such as `https://notes.example.com`. Links in emails are built from it. |
+| `DATABASE_URL` | Your production database. |
+| `QUEUE_CONNECTION` | Not `sync`: `database` or `redis` on a server, `deferred` on Vercel. See [Queues](/docs/queues#connections). |
+| `MAIL_MAILER` | A real mailer, with its key, and `MAIL_FROM`. See [Mail](/docs/mail#mailers). |
+| `S3_BUCKET` and the rest | Where files go, unless the server's disk is enough. See [Storage](/docs/storage#disks). |
+| `BROADCAST_CONNECTION` | If pages update live. See [Realtime](/docs/realtime#connections). |
+
+Variables set in the environment win over `.env`, which is for development. In production, mail previews and the outbox at `/_caldera/mail` are switched off.
+
+Before deploying, check the app:
+
+```bash
+pnpm exec caldera check
+```
+
+It reports generated files that are out of date, a Better Auth schema that no longer matches your config, translations whose parameters differ from English, and, with a Vercel or Workers config present, settings that won't work there.
+
+## On a server
+
+Any machine with Node 22 or later: a VPS, a container, a platform like Render or Fly.
+
+```bash
+pnpm install
+pnpm build
+pnpm exec caldera db:migrate --force
+pnpm start
+```
+
+`pnpm build` builds the pages for the browser and for server rendering. `db:migrate` refuses to run with `NODE_ENV=production` unless you pass `--force`, so it's never run there by accident. `pnpm start` serves the app on `PORT` (3000 by default), with the files in `public/`.
+
+Run a migration as part of each deploy, before the new code starts.
+
+### Beside the app
+
+An app may need these running too, each as its own long-running process:
+
+| | When |
+| --- | --- |
+| `pnpm worker` | The queue is `database` or `redis`. Restart it on every deploy so it runs the new code. |
+| `pnpm scheduler` | You have [schedules](/docs/scheduling). Or a crontab line running `caldera schedule:run` every minute. |
+| `pnpm realtime` | `BROADCAST_CONNECTION=server`. Browsers connect to it, so put it behind your TLS proxy too, and set `BROADCAST_PUBLIC_URL` to the address they use. |
+
+On a platform with a Procfile, that's:
+
+```
+web: pnpm start
+worker: pnpm worker
+scheduler: pnpm scheduler
+```
+
+Put the app behind a proxy that handles HTTPS (Caddy, nginx, or your platform's).
+
+## Vercel
+
+```bash
+pnpm exec caldera vercel:setup
+pnpm add @vercel/functions
+```
+
+adds `vercel.json` and `api/index.js`: the app runs as one function, and `public/` is served from Vercel's CDN.
+
+Functions don't keep files between requests or keep running after them, so in the Vercel project set:
+
+- `DATABASE_URL` to a hosted database: Turso (`libsql://…`) or Postgres.
+- `QUEUE_CONNECTION=deferred`, which runs jobs right after the response. For work that must survive a crash, use QStash, or Redis with a worker elsewhere.
+- `S3_*` for files. Large uploads should use [direct uploads](/docs/storage#direct-uploads): Vercel takes request bodies up to 4.5MB.
+- A mailer, and `CRON_SECRET` if you have schedules (then `caldera schedule:sync --target vercel`).
+- For realtime, hosted Pusher or a realtime server elsewhere: functions can't hold the connections.
+
+Then check those settings against the app:
+
+```bash
+vercel pull --environment=production
+pnpm exec caldera check
+```
+
+`check` reads the pulled settings and reports what wouldn't work, such as:
+
+```
+✘ On Vercel DATABASE_URL is "file:local.db": a function's disk doesn't last between requests. Use a hosted database (Turso libsql://…, or Postgres).
+✘ On Vercel the default disk "local" is local; functions have a read-only filesystem. Use s3 (Amazon S3, Cloudflare R2, Tigris…).
+```
+
+Run migrations from your machine or CI against the production `DATABASE_URL`, with `db:migrate --force`.
+
+## Cloudflare Workers
+
+```bash
+pnpm exec caldera cloudflare:setup
+pnpm add -D wrangler
+```
+
+adds `wrangler.json` and `src/worker.ts`, which answers requests, takes jobs from Cloudflare Queues and runs Cron Triggers. The app itself doesn't change: when Cloudflare's bindings are there, the config uses them.
+
+| Binding | For |
+| --- | --- |
+| `DB` | D1, the database. |
+| `FILES` | R2, the default disk. |
+| `QUEUE` | Cloudflare Queues. |
+| `EMAIL` | Cloudflare Email Service, for mail. |
+| `BROADCAST_HUB` | A Durable Object for realtime. |
+
+The cache uses the database store, so rate limits and locks are shared.
+
+### Locally
+
+```bash
+cp .dev.vars.example .dev.vars          # then set APP_KEY in it
+pnpm exec caldera d1:migrations
+pnpm exec wrangler d1 migrations apply DB --local
+pnpm build
+pnpm exec wrangler dev
+```
+
+`d1:migrations` copies your migrations from `drizzle/` to where Wrangler looks for them. Run it after each `caldera db:generate`.
+
+### Deploying
+
+Create what the bindings point at (the names are in `wrangler.json`), set the key, migrate and deploy:
+
+```bash
+pnpm exec wrangler d1 create notes              # put its id in wrangler.json
+pnpm exec wrangler r2 bucket create notes-files
+pnpm exec wrangler queues create notes-jobs
+pnpm exec wrangler secret put APP_KEY
+pnpm exec wrangler d1 migrations apply DB --remote
+pnpm build
+pnpm exec wrangler deploy
+```
+
+Mail needs your domain set up in Cloudflare Email Service; until then, keep `MAIL_MAILER=log`. With schedules, run `caldera schedule:sync --target cloudflare` once.
+
+Some things are Node-only and don't run on Workers: SMTP, BullMQ and Redis, the local disk, and the `database` queue's worker. `caldera check` says when the app's config would use one there.

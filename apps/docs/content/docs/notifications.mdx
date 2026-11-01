@@ -1,0 +1,160 @@
+---
+title: Notifications
+description: Telling people something happened, by email, in an in-app inbox, or on any channel you add.
+---
+
+A notification is one message sent several ways: an email, an entry in the person's inbox in the app, a Slack message. You say what happened once, and each channel gets its version.
+
+## Writing a notification
+
+```bash
+pnpm exec caldera make:notification notes.SharedWithYou
+```
+
+writes the notification and a [mail](/docs/mail) for it. Here it uses the mail from the Mail page:
+
+```ts title="src/notifications/shared-with-you.ts"
+import { defineNotification } from '@caldera/notifications'
+import { z } from 'zod'
+import { NoteSharedEmail } from '../mail/note-shared'
+
+export const SharedWithYou = defineNotification({
+  name: 'notes.shared-with-you',
+  payload: z.object({ from: z.string(), title: z.string(), body: z.string(), url: z.url() }),
+  channels: {
+    mail: (_to, p) => ({ mail: NoteSharedEmail, props: p }),
+    database: {
+      schema: z.object({ message: z.string(), url: z.url() }),
+      data: (_to, p) => ({ message: `${p.from} shared “${p.title}”`, url: p.url }),
+    },
+  },
+  queue: true,
+})
+```
+
+Each key of `channels` is a channel, with what it sends:
+
+| | |
+| --- | --- |
+| `mail` | A mail and its props. It goes to the person's email address. |
+| `database` | A row in the person's inbox: its `data`, and the `schema` it's checked against and read back with. |
+
+With `queue: true`, each channel is its own [job](/docs/queues), queued after the transaction commits, so a failed email is retried without filing a second inbox entry. The starter's welcome notification works this way.
+
+## Sending
+
+```ts
+import { notify } from '@caldera/notifications'
+
+await notify(bob, SharedWithYou, {
+  from: c.var.user!.name,
+  title: note.title,
+  body: note.body,
+  url: new URL(`/notes/${note.id}`, c.var.config.app.url).href,
+})
+```
+
+`notify` takes a user or a list of users. How a user is reached is `UserNotifiable` in `src/models/user.ts`: their email for `mail`, and their id for the inbox.
+
+To notify an address with no account behind it, use `route`:
+
+```ts
+import { route } from '@caldera/notifications'
+
+await notify(route({ mail: 'cat@example.test' }), SharedWithYou, payload)
+```
+
+### Choosing channels
+
+`via` picks channels for each recipient. An address without an account has no inbox:
+
+```ts
+via: (to) => (to.onDemand ? ['mail'] : ['mail', 'database']),
+```
+
+## The inbox
+
+Notifications sent to `database` are rows in `caldera_notifications`. `inbox(user)` reads one person's:
+
+```ts
+import { inbox } from '@caldera/notifications'
+
+const unread = await inbox(c.var.user!).list({ unread: true })
+const count = await inbox(c.var.user!).unreadCount()
+await inbox(c.var.user!).markRead(id)
+```
+
+| | |
+| --- | --- |
+| `list({ unread, limit, before })` | Newest first. `before` is the last id of the previous page. |
+| `find(id)` | One notification. |
+| `unreadCount()` | For the badge. |
+| `markRead(ids)`, `markUnread(ids)`, `markAllRead()` | |
+| `delete(ids)` | |
+
+Every call is limited to that person's notifications, so an id sent from the browser can't reach anyone else's.
+
+Each row's `data` is typed by its notification's `schema`, once you've checked which notification it is:
+
+```ts
+for (const n of unread) {
+  if (n.type === 'notes.shared-with-you') n.data.url // string
+}
+```
+
+## Your own channels
+
+A channel is a name and a way to send. Slack, by webhook:
+
+```ts title="src/slack.ts"
+import { defineChannel } from '@caldera/notifications'
+
+export const slack = defineChannel<{ text: string }>({
+  name: 'slack',
+  async send(message, { notifiable }) {
+    await fetch(notifiable.routes.slack as string, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(message),
+    })
+  },
+})
+```
+
+Add it to `channels` in `src/app.ts`:
+
+```ts title="src/app.ts"
+notificationsProvider({
+  notifications,
+  notifiable: UserNotifiable,
+  channels: [databaseChannel(), slack],
+}),
+```
+
+A notification then has a `slack` handler that returns the message, and the recipient's `slack` route says where it goes:
+
+```ts
+export const NoteReported = defineNotification({
+  name: 'notes.reported',
+  payload: z.object({ noteId: z.string(), reason: z.string() }),
+  channels: {
+    slack: (_to, p) => ({ text: `Note ${p.noteId} was reported: ${p.reason}` }),
+  },
+})
+
+await notify(route({ slack: env.SLACK_WEBHOOK_URL }), NoteReported, { noteId, reason })
+```
+
+For users, add a `slack` route to `UserNotifiable`.
+
+## Testing
+
+```ts
+const notifications = t.fake('notifications')
+
+await client.post(`/notes/${note.id}/share`, { json: { email: 'bob@example.test' } })
+
+notifications.assertSentTo(bob, SharedWithYou, (p) => p.title === 'Groceries')
+```
+
+A fake sends nothing and files nothing. `assertSentOnDemand` checks notifications sent with `route`. Without the fake, notifications are delivered for real (mail to the outbox, rows to the inbox), so you can test those too.

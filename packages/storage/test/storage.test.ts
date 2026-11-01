@@ -119,6 +119,34 @@ describe('signed URLs on a local disk (served by storageRoutes)', () => {
     expect((await http.request(expired)).status).toBe(403)
   })
 
+  it('a faked disk keeps its links: public URLs, and signed ones served from the fake', async () => {
+    const root = tempRoot()
+    const app = createApp({
+      env: defineEnv({}),
+      providers: [
+        storageProvider(
+          () => ({
+            default: 'uploads',
+            disks: { uploads: { driver: 'local', root, serve: { url: 'http://localhost', key: KEY } }, public: { driver: 'local', root: tempRoot(), publicUrl: '/storage' } },
+          }),
+          { drivers: [localStorageDriver] },
+        ),
+      ],
+    })
+    const http = new Hono().use(app.middleware()).route('/', storageRoutes())
+    await app.boot({ env: {} })
+    const fake = app.services.storage.fake()
+    const pub = app.services.storage.fake('public')
+    expect(pub.url('banners/a b.png')).toBe('/storage/banners/a%20b.png')
+    await app.services.storage.put('reports/q3.pdf', 'pdf-bytes')
+    const ok = await http.request(await app.services.storage.temporaryUrl('reports/q3.pdf', '5m'))
+    expect(await ok.text()).toBe('pdf-bytes')
+    const upload = await app.services.storage.temporaryUploadUrl('in/x.txt', { expiresIn: '5m', contentType: 'text/plain', contentLength: 2 })
+    expect((await http.request(upload.url, { method: 'PUT', body: 'hi', headers: { ...upload.headers, 'content-length': '2' } })).status).toBe(200)
+    await fake.assertExists('in/x.txt')
+    expect(readdirSync(root)).toEqual([]) // nothing reached the real disk
+  })
+
   it('accepts an upload of exactly the signed type and size', async () => {
     const { app, http } = makeHttp()
     await app.boot({ env: {} })

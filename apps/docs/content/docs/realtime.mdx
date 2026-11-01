@@ -1,0 +1,178 @@
+---
+title: Realtime
+description: Pushing changes to open pages as they happen, on channels only the right people can join.
+---
+
+When something changes, pages that show it can update without a reload: a note renamed in one tab shows the new title in another, and you can see who else is looking. The server broadcasts events on channels, and pages listen.
+
+Nothing to set up in development: `pnpm dev` starts a realtime server beside the app, and the starter's pages connect to it.
+
+## Channels
+
+A channel is who may hear something. Channels live in `src/channels`:
+
+```bash
+pnpm exec caldera make:channel Note
+```
+
+```ts title="src/channels/note.ts"
+import { defineChannel } from '@caldera/broadcast'
+import { Note } from '../models/note'
+
+export const NoteChannel = defineChannel('notes.{note}', {
+  bind: { note: Note },
+  authorize: ({ gate, note }) => gate.can(Note, 'view', note),
+})
+```
+
+`{note}` is filled in for each note. `bind` loads the row, as [route binding](/docs/routing#route-model-binding) does, and `authorize` decides who may join: here, whoever the [policy](/docs/authorization) lets view the note. A missing note, or someone who may not, is refused.
+
+| `type` | |
+| --- | --- |
+| `private` | Only people `authorize` allows. The default. |
+| `presence` | The same, and members see who else is there. |
+| `public` | Anyone, signed in or not. No `authorize`. |
+
+The starter has one already, `users.{id}`, which only that user can join.
+
+## Broadcasting events
+
+An [event](/docs/events) with `broadcast` reaches browsers on a channel too:
+
+```ts title="src/events/note-renamed.ts"
+import { defineEvent } from '@caldera/events'
+import { z } from 'zod'
+import { NoteChannel } from '../channels/note'
+
+export const NoteRenamed = defineEvent({
+  name: 'note.renamed',
+  payload: z.object({ noteId: z.string(), title: z.string(), editedBy: z.string() }),
+  broadcast: {
+    on: (p) => NoteChannel.with({ note: p.noteId }),
+    with: (p) => ({ title: p.title, editedBy: p.editedBy }),
+  },
+})
+```
+
+`on` picks the channels, and `with` what browsers get. Everyone on the channel sees all of `with`, so send only what they may see. `caldera make:event NoteRenamed --channel Note` writes this for you.
+
+Emit it as usual:
+
+```ts
+await emit(
+  NoteRenamed,
+  { noteId: note.id, title: note.title, editedBy: c.var.user!.name },
+  { toOthers: true },
+)
+```
+
+Broadcasts go out once the listeners have run, and after the transaction commits, so nobody hears about a change that rolled back. `toOthers` skips the browser that made the request, which already shows the change.
+
+## Model broadcasting
+
+A model can broadcast its own changes. Every note created, updated or deleted reaches its owner's other tabs, and anyone looking at that note:
+
+```ts title="src/models/note.ts"
+import { channel } from '@caldera/broadcast'
+
+export const Note = defineModel(notes, {
+  // …
+  broadcast: {
+    on: (note) => [
+      channel('users.{id}', { id: note.userId }),
+      channel('notes.{note}', { note: note.id }),
+    ],
+    with: (note) => ({ id: note.id, title: note.title, pinned: note.pinned }),
+  },
+})
+```
+
+Browsers get `note.created`, `note.updated` and `note.deleted`. `with` is required, so a new column never reaches the browser unless you add it. `events: ['created']` sends fewer.
+
+`channel()` names a channel by its pattern, typed from `src/channels`. Use it in models rather than importing `NoteChannel`: that file imports the `Note` model, so each would import the other.
+
+## Listening in pages
+
+```tsx
+import { useChannel } from '@caldera/broadcast/react'
+import { router } from '@inertiajs/react'
+import { toastManager } from '@/components/ui/toast'
+
+useChannel('notes.{note}', { note: note.id }, {
+  on: {
+    'note.renamed': (e) => {
+      toastManager.add({ title: `${e.editedBy} renamed this note to “${e.title}”` })
+      router.reload({ only: ['note'] })
+    },
+  },
+})
+```
+
+The handlers are typed by the event's `with`: `e.title` is a string, and a misspelled field is an error. A common pattern is to reload just the props that changed, so the page shows the server's latest.
+
+The subscription lasts as long as the component, and components on the same channel share one.
+
+### Who's here
+
+A presence channel says who else has joined, with what `member` shows about them:
+
+```ts title="src/channels/note-viewers.ts"
+export const NoteViewers = defineChannel('notes.{note}.viewers', {
+  type: 'presence',
+  bind: { note: Note },
+  authorize: ({ gate, note }) => gate.can(Note, 'view', note),
+  member: ({ user }) => ({ name: user.name }),
+})
+```
+
+```tsx
+import { usePresence } from '@caldera/broadcast/react'
+
+const { members } = usePresence('notes.{note}.viewers', { note: note.id })
+
+return <p>Here now: {members.map((m) => m.info.name).join(', ')}</p>
+```
+
+Every member sees `member`'s answer, so leave out anything private.
+
+## Connections
+
+`BROADCAST_CONNECTION` picks one from `src/config/broadcast.ts`:
+
+| | |
+| --- | --- |
+| `server` | Caldera's realtime server. `pnpm dev` runs it; in production, run `pnpm realtime` beside the app. With `REDIS_URL`, run it on several machines. Soketi and Laravel Reverb speak the same protocol, so `BROADCAST_HOST` can point at either. |
+| `sse` | Server-sent events from the app itself, with no other server. One-way: no presence. |
+| `pusher` | Hosted Pusher. Set `PUSHER_KEY` and the rest. |
+| `cloudflare` | A Durable Object, on Workers. See `caldera cloudflare:setup`. |
+| `log` | Writes broadcasts to the log; browsers don't connect. |
+
+When browsers reach the server at another address than the app does (a public hostname in front of it), set `BROADCAST_PUBLIC_URL`.
+
+`caldera broadcast:list` lists every channel, who may join, and the events broadcast on it.
+
+## Testing
+
+Tests send nothing. Fake broadcasting to check what would have been sent:
+
+```ts
+const broadcast = t.fake('broadcast')
+
+await client.patch(`/notes/${note.id}`, { json: { title: 'Shopping' } })
+
+broadcast.assertBroadcast(NoteRenamed, {
+  on: NoteChannel.with({ note: note.id }),
+  data: (d) => d.title === 'Shopping',
+})
+```
+
+To check who may join, post to the endpoint browsers use:
+
+```ts
+const res = await bob.post('/_caldera/broadcast/auth', {
+  form: { socket_id: '1.2', channel_name: `private-notes.${note.id}` },
+})
+res.assertStatus(403)
+```
+
+The starter's browser tests run against a realtime server of their own, so they can check live updates with two browsers.

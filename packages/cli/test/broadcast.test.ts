@@ -39,7 +39,7 @@ const fresh = async () => {
 it('generate lists channels for the server, their types for the browser, and types the hooks', async () => {
   const dir = await fresh()
   expect(readFileSync(join(dir, '.caldera/channels.gen.ts'), 'utf8')).toContain(
-    "import * as channels0 from '../src/channels/posts.js'\n\nexport const channels = [channels0.PostChannel, channels0.RoomChannel] as const\n",
+    "import type { AnyChannel } from '@caldera/broadcast'\nimport * as channels0 from '../src/channels/posts.js'\n\nexport const channels: readonly AnyChannel[] = [channels0.PostChannel, channels0.RoomChannel]\n",
   )
   const client = readFileSync(join(dir, '.caldera/broadcast.client.gen.ts'), 'utf8')
   expect(client).toContain("import { registerChannels } from '@caldera/broadcast/client'")

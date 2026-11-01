@@ -1,4 +1,4 @@
 {
   "title": "Caldera",
-  "pages": ["---Getting started---", "index", "installation", "first-app", "structure", "cli", "---The basics---", "routing", "requests", "pages", "middleware", "responses", "---Database---", "database", "models", "relations", "factories-and-seeders", "---Auth---", "authentication", "authorization", "teams"]
+  "pages": ["---Getting started---", "index", "installation", "first-app", "structure", "cli", "---The basics---", "routing", "requests", "pages", "middleware", "responses", "---Database---", "database", "models", "relations", "factories-and-seeders", "---Auth---", "authentication", "authorization", "teams", "---Digging deeper---", "events", "queues", "mail", "notifications", "cache", "storage", "realtime", "localization", "scheduling", "---Shipping---", "testing", "deployment"]
 }

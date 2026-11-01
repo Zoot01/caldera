@@ -1,0 +1,227 @@
+---
+title: Queues
+description: Jobs that run outside the request, with retries, delays, chains and batches.
+---
+
+Some work shouldn't hold up a response: calling another service, resizing an image, sending a hundred emails. Put it in a job, dispatch it, and a worker runs it, retrying when it fails.
+
+## Writing a job
+
+```bash
+pnpm exec caldera make:job PublishNote
+```
+
+```ts title="src/jobs/publish-note.ts"
+import { defineJob } from '@caldera/queue'
+import { z } from 'zod'
+import { Note } from '../models/note'
+
+export const PublishNote = defineJob({
+  name: 'notes.publish',
+  payload: z.object({ noteId: z.string() }),
+  tries: 3,
+  backoff: [10, 60],
+  async handle({ noteId }, ctx) {
+    const note = await Note.find(noteId)
+    if (!note) return // deleted since it was queued
+    const res = await fetch('https://hooks.example.com/notes', {
+      method: 'POST',
+      body: JSON.stringify({ id: note.id, title: note.title }),
+      signal: ctx.signal,
+    })
+    if (!res.ok) throw new Error(`The webhook answered ${res.status}`)
+  },
+})
+```
+
+| | |
+| --- | --- |
+| `name` | The job's id in the queue. Keep it stable: renaming it strands jobs already queued. |
+| `payload` | A Zod schema. Payloads are checked when dispatched and again when run. |
+| `tries` | Runs in total, the first included. Default 1. |
+| `backoff` | Seconds to wait before each retry, or a duration like `'5m'`. The last one repeats. |
+| `timeout` | How long a run may take. Default 60 seconds. |
+| `retryUntil` | Stop retrying this long after dispatch, whatever `tries` says. |
+| `queue` | Which queue it goes on. Default `default`. |
+
+Pass ids, not rows: the job reads the row when it runs, so it sees the latest version, and a deleted row is a quiet return.
+
+`ctx` has the attempt number, `ctx.services` (the app's services, like `ctx.services.mail`), and `ctx.signal`, which aborts at the timeout. Pass it to `fetch` and anything else that takes one.
+
+## Dispatching
+
+```ts
+import { dispatch } from '@caldera/queue'
+
+await dispatch(PublishNote, { noteId: note.id })
+```
+
+The payload is typed by the job's schema, and a wrong one is an error here, where the mistake is, not later in a worker.
+
+| Option | |
+| --- | --- |
+| `delay: '10m'` | Don't run it before then. |
+| `afterCommit: true` | Inside a transaction, wait for it to commit; drop the job if it rolls back. |
+| `queue: 'slow'` | Another queue than the job's own. |
+| `connection: 'redis'` | Another connection than the default. |
+
+`afterCommit` matters when the job reads what the transaction writes. Without it, a fast worker can look for the note before it's committed:
+
+```ts
+await c.var.db.transaction(async () => {
+  const note = await Note.create({ userId, title })
+  await dispatch(PublishNote, { noteId: note.id }, { afterCommit: true })
+})
+```
+
+## When jobs fail
+
+A job fails when `handle` throws or runs out of time. It's tried again after its `backoff` until it has used its `tries`. Then `failed` runs, if the job has one:
+
+```ts
+async failed({ noteId }, error) {
+  console.error(`Couldn't publish note ${noteId}`, error)
+},
+```
+
+Inside `handle`, the job can decide for itself:
+
+| | |
+| --- | --- |
+| `ctx.release(30)` | Try again in 30 seconds, such as when a service says it's busy. This counts as one of its `tries`. |
+| `ctx.fail('Reason')` | Give up now, without more tries. `failed` runs. |
+
+```ts
+if (res.status === 429) ctx.release(30)
+```
+
+## Connections
+
+Where jobs go is set in `src/config/queue.ts`, and `QUEUE_CONNECTION` picks one:
+
+| | |
+| --- | --- |
+| `sync` | Runs the job as it's dispatched, in the same request, retries and all. A failure is thrown to the caller. The default, for development and tests. |
+| `deferred` | Runs the job right after the response is sent, in the same process. Nothing to set up, but nothing survives a crash: for short work, and for serverless hosts like Vercel. |
+| `database` | Jobs are rows in `caldera_jobs`, run by a worker. Durable, with nothing else to run. |
+| `redis` | BullMQ on Redis, run by a worker. Set `REDIS_URL`. |
+| `cloudflare` | Cloudflare Queues, on Workers. See `caldera cloudflare:setup`. |
+
+QStash, for serverless apps without workers, is in `@caldera/queue/qstash`.
+
+### Running a worker
+
+The `database` and `redis` connections need a worker running beside the app:
+
+```bash
+pnpm worker
+```
+
+```
+Processing jobs: notes.publish, notes.report-published
+✓ notes.report-published #1
+↻ notes.publish #1 retry in 10s: The webhook answered 500
+```
+
+It runs every job in `src/jobs`. `--queue high,default` takes queues in that order; `--concurrency 4` runs four jobs at once. Restart it when you deploy, so it runs the new code.
+
+On the `database` connection, jobs that used up their tries stay in the table:
+
+```bash
+pnpm exec caldera queue:failed
+pnpm exec caldera queue:retry <id>   # or --all
+pnpm exec caldera queue:forget <id>  # or --all
+```
+
+## Unique jobs
+
+Some jobs only need to happen once, however many times they're asked for. With `unique`, a second dispatch while one is queued or running does nothing:
+
+```ts
+export const RebuildSearchIndex = defineJob({
+  name: 'notes.rebuild-search-index',
+  payload: z.object({ userId: z.string() }),
+  unique: { key: (p) => p.userId, for: '1h' },
+  // …
+})
+
+const { dispatched } = await dispatch(RebuildSearchIndex, { userId })
+// false: one is already waiting for this user
+```
+
+`for` is how long the lock lasts if the job never finishes. Unique jobs keep their locks in the [cache](/docs/cache), so with more than one server, use Redis.
+
+## Middleware
+
+Middleware wraps a job's runs. Two come with Caldera:
+
+```ts
+import { rateLimited, withoutOverlapping } from '@caldera/queue'
+
+middleware: [withoutOverlapping({ key: (p) => p.userId })],
+```
+
+| | |
+| --- | --- |
+| `withoutOverlapping({ key })` | One run at a time for each key; another waits and tries again. |
+| `rateLimited(limiter)` | Runs only while a [rate limiter](/docs/cache#rate-limiting) has room, across every worker, such as for an API's limits. |
+
+Both put the job back to wait, which counts as one of its tries, so give such jobs plenty of `tries` or a `retryUntil`.
+
+## Chains
+
+A chain runs jobs one after another. If one fails, the rest don't run:
+
+```ts
+import { chain } from '@caldera/queue'
+
+await chain([
+  ExportNotes.with({ userId }),
+  ZipExport.with({ userId }),
+  EmailExportLink.with({ userId }),
+]).dispatch()
+```
+
+## Batches
+
+A batch runs jobs side by side and tracks them together:
+
+```ts
+import { batch } from '@caldera/queue'
+
+const notes = await Note.ownedBy(userId).findMany()
+const { batchId } = await batch(notes.map((note) => PublishNote.with({ noteId: note.id })))
+  .then(ReportPublished.with({ userId }))
+  .dispatch()
+```
+
+| | |
+| --- | --- |
+| `.then(job)` | Runs when every job succeeded. |
+| `.catch(job)` | Runs once, on the first failure. |
+| `.finally(job)` | Runs when every job is over, however it went. |
+| `.allowFailures()` | Keep running the others after one fails. By default they're skipped. |
+
+`c.var.queue.batchStatus(batchId)` reports progress, for a progress bar: `{ total, pending, failed, finished }`. Batches count in the [cache](/docs/cache) too.
+
+## Testing
+
+With `sync`, the tests' connection, a dispatched job has already run when `dispatch` returns. To check what was dispatched instead, fake the queue:
+
+```ts
+const queue = t.fake('queue')
+
+await client.post(`/notes/${note.id}/publish`)
+
+queue.assertDispatched(PublishNote, (p) => p.noteId === note.id)
+queue.assertNotDispatched(ReportPublished)
+```
+
+Faked jobs wait until `drain()`, which runs them for real, with their retries and whatever they dispatch:
+
+```ts
+const results = await queue.drain()
+results.map((r) => r.outcome.status) // ['retry', 'retry', 'failed']
+```
+
+`queue.dispatched(PublishNote)` lists each dispatch with its payload and delay.

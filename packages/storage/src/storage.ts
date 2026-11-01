@@ -56,9 +56,12 @@ export function createStorage<const N extends string>(
     return found
   }
   const fake = (name: N = config.default): FakeDisk => {
-    const real = manager.capabilities(name)
-    // A real disk in memory, with the real disk's capabilities checked the same way.
-    const memory = createDisk(name, memoryStorage(), { ...real, publicUrls: false, signedUrls: false, presignedUploads: false })
+    // A real disk in memory, with the real disk's capabilities and links: those are made from its
+    // config without touching its files, so a page shows the same URL under a fake, and the local
+    // disk's signed links (served by storageRoutes through this service) reach the fake's files.
+    const real = manager.use(name)
+    const links = Object.fromEntries((['url', 'signedUrl', 'signedUpload', 'verifySignature'] as const).flatMap((m) => (real[m] ? [[m, real[m].bind(real)]] : [])))
+    const memory = createDisk(name, { ...memoryStorage(), ...links }, manager.capabilities(name))
     const fail = (message: string) => {
       throw new CalderaError('assertion_failed', message)
     }
