@@ -23,7 +23,7 @@ The starter kit's:
 | `mw.auth()` | Signed in. Otherwise a 401: page visits go to the login page, and come back here after signing in. |
 | `mw.guest()` | Signed out (the login and register pages); signed-in people go to the dashboard. |
 | `mw.verified()` | A confirmed email address, when `mustVerifyEmail` is on in `src/config/auth.ts`. |
-| `mw.passwordConfirmed()` | The password typed in the last few minutes, for sensitive settings; otherwise `/confirm-password` first. |
+| `mw.passwordConfirmed()` | The password typed recently (three hours by default), for sensitive settings; otherwise `/confirm-password` first. |
 
 ## Writing your own
 

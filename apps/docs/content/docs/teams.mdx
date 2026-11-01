@@ -1,0 +1,143 @@
+---
+title: Teams
+description: The teams starter kit, roles and invitations, and keeping each team's data to itself.
+---
+
+Create an app with `--teams` and people work in teams: they invite each other by email, have roles, and switch between the teams they're in. Teams are Better Auth [organizations](https://better-auth.com/docs/plugins/organization).
+
+```bash
+pnpm create caldera my-app --teams
+```
+
+## What you get
+
+- **A personal team** for everyone, made when they register. It can't be deleted, left or shared.
+- **The current team**: the one they're working in, kept in their session. The team switcher (top of the sidebar, or beside the logo in the header layout) changes it.
+- **Settings → Teams**: create, rename and delete teams; invite people by email; change roles; remove members; hand a team to someone else; leave.
+- **Invitations**: an email with a link to `/invitations/:id`, where the person accepts or declines. They last a week, and inviting the same address again replaces the old one.
+
+## Roles
+
+A team has an owner, admins and members. What each may do is in `src/roles.ts`, as Better Auth access control: for the team itself, owners and admins manage members and invitations, and members don't.
+
+Your own resources go next to Better Auth's. Projects, which members may create but only owners and admins change:
+
+```ts title="src/roles.ts"
+export const ac = createAccessControl({ ...defaultStatements, project: ['create', 'update', 'delete'] })
+
+export const roles = {
+  owner: ac.newRole({ ...ownerAc.statements, project: ['create', 'update', 'delete'] }),
+  admin: ac.newRole({ ...adminAc.statements, project: ['create', 'update', 'delete'] }),
+  member: ac.newRole({ ...memberAc.statements, project: ['create'] }),
+}
+```
+
+## A team's data
+
+Data that belongs to a team has a `teamId` column pointing at the team:
+
+```ts title="src/db/tables/project.ts"
+import { snakeCase, text } from 'drizzle-orm/sqlite-core'
+import { timestamps } from '@caldera/db/sqlite'
+import { organization } from '../schema'
+
+export const projects = snakeCase.table('projects', {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  // The team it belongs to (a Better Auth organization).
+  teamId: text()
+    .notNull()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  name: text().notNull(),
+  ...timestamps(),
+})
+```
+
+Deleting a team deletes its projects with it. A scope on the model reads one team's:
+
+```ts title="src/models/project.ts"
+export const Project = defineModel(projects, {
+  name: 'project',
+  scopes: {
+    inTeam: (teamId: string) => ({ teamId }),
+  },
+})
+```
+
+### The policy
+
+In a teams app, policies get the current team as `g.org`: its id, and whether the person's role grants a permission from `src/roles.ts`.
+
+```ts title="src/policies/project.ts"
+import { definePolicy, denyAsNotFound } from '@caldera/auth'
+import { Project } from '../models/project'
+
+export const ProjectPolicy = definePolicy(Project, {
+  viewAny: (_user, _none, g) => g.org.id !== null,
+  // Another team's project is a 404, as if it didn't exist.
+  view: (_user, project, g) => project.teamId === g.org.id || denyAsNotFound(),
+  create: (_user, _none, g) => g.org.has({ project: ['create'] }),
+  update: async (_user, project, g) =>
+    project.teamId === g.org.id ? g.org.has({ project: ['update'] }) : denyAsNotFound(),
+  delete: async (_user, project, g) =>
+    project.teamId === g.org.id ? g.org.has({ project: ['delete'] }) : denyAsNotFound(),
+})
+```
+
+Checking the team first matters: a role is someone's role in their current team, so without it an admin of one team could change another team's projects by id.
+
+### The routes
+
+The current team's id is `c.var.authSession.activeOrganizationId`:
+
+```ts title="src/routes/projects.ts"
+export const projects = defineRoutes('projects', { prefix: '/projects', middleware: [mw.auth()] })
+  .get('index', '/', { authorize: allows(Project, 'viewAny') }, async (c) => {
+    const teamId = c.var.authSession!.activeOrganizationId!
+    const list = await Project.inTeam(teamId).findMany({ orderBy: { name: 'asc' } })
+    const rows = await c.var.gate.annotate(Project, list, ['update', 'delete'])
+    return c.render('Projects/Index', {
+      projects: rows.map((project) => ({ id: project.id, name: project.name, can: project.can })),
+    })
+  })
+  .post('store', '/', { request: ProjectForm, authorize: allows(Project, 'create') }, async (c) => {
+    const teamId = c.var.authSession!.activeOrganizationId!
+    await Project.create({ ...c.req.valid('json'), teamId })
+    return back(c).with('success', 'Project created.')
+  })
+  .delete(
+    'destroy',
+    '/:project',
+    { bind: { project: Project }, authorize: allows(Project, 'delete', 'project') },
+    async (c) => {
+      await Project.delete(c.var.project)
+      return back(c)
+    },
+  )
+```
+
+Switching teams changes what every page shows: the list reads the new team's projects, and the old team's are 404s.
+
+## On every page
+
+`src/inertia.ts` shares the person's teams with every page as `teams`: `{ current, all }`, each with an id, a name and whether it's their personal one. The team switcher reads it.
+
+## Testing
+
+Tests make teams and members through the same routes people use. From the kit's `tests/teams/teams.test.ts` (where `createTeam` posts to `/settings/teams`):
+
+```ts
+const mail = t.fake('mail')
+const ann = await t.client(http).actingAs(await createUser(t))
+const acme = await createTeam(ann, 'Acme')
+await ann.post(`/settings/teams/${acme}/invitations`, {
+  json: { email: 'bob@example.test', role: 'member' },
+})
+const link = new URL(mail.sent(TeamInvitationEmail)[0]!.props.url)
+
+const bobUser = await createUser(t, { name: 'Bob', email: 'bob@example.test' })
+const bob = await t.client(http).actingAs(bobUser)
+await bob.post(`${link.pathname}/accept`)
+// Bob is a member of Acme, and it's his current team.
+```
