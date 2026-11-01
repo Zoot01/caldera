@@ -70,21 +70,26 @@ Broadcasts go out once the listeners have run, and after the transaction commits
 
 ## Model broadcasting
 
-A model can broadcast its own changes. Every note created, updated or deleted reaches its owner's other tabs:
+A model can broadcast its own changes. Every note created, updated or deleted reaches its owner's other tabs, and anyone looking at that note:
 
 ```ts title="src/models/note.ts"
-import { UserChannel } from '../channels/users'
+import { channel } from '@caldera/broadcast'
 
 export const Note = defineModel(notes, {
   // …
   broadcast: {
-    on: (note) => UserChannel.with({ id: note.userId }),
+    on: (note) => [
+      channel('users.{id}', { id: note.userId }),
+      channel('notes.{note}', { note: note.id }),
+    ],
     with: (note) => ({ id: note.id, title: note.title, pinned: note.pinned }),
   },
 })
 ```
 
 Browsers get `note.created`, `note.updated` and `note.deleted`. `with` is required, so a new column never reaches the browser unless you add it. `events: ['created']` sends fewer.
+
+`channel()` names a channel by its pattern, typed from `src/channels`. Use it in models rather than importing `NoteChannel`: that file imports the `Note` model, so each would import the other.
 
 ## Listening in pages
 

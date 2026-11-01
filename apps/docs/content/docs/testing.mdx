@@ -1,0 +1,158 @@
+---
+title: Testing
+description: Tests that send requests to your app, with a fresh database and fakes for mail, jobs and the rest, plus browser tests.
+---
+
+Caldera apps are tested by sending requests to them and checking what comes back. There's no server to start: requests go straight to the app, in the same process, against a database of their own.
+
+```bash
+pnpm test
+```
+
+runs every file in `tests/` with [Vitest](https://vitest.dev). `pnpm test:browser` runs the browser tests, below.
+
+## A test file
+
+```ts title="tests/notes.test.ts"
+import { setupApp } from '@caldera/testing'
+import { expect, it } from 'vitest'
+import { app } from '../src/app'
+import { http } from '../src/http'
+import { createUser } from './helpers'
+
+const t = setupApp(app)
+
+it('lists, adds and deletes your notes', async () => {
+  const ann = await t.client(http).actingAs(await createUser(t))
+  ;(await ann.post('/notes', { json: { title: 'Groceries', body: 'Milk, eggs' } })).assertRedirect()
+
+  const page = await ann.visit('/notes')
+  page.assertOk().assertInertia('Notes/Index', (props) =>
+    expect(props.notes).toMatchObject([{ title: 'Groceries' }]),
+  )
+
+  await (await ann.post('/notes', { json: { title: '' } })).assertValidationErrors(['title'])
+})
+```
+
+`setupApp(app)` at the top of a file does the setting up:
+
+- It starts the app in the `test` environment, with a random `APP_KEY`.
+- It makes a database for the file, empty, with your migrations from `drizzle/` applied. Your development database is never touched.
+- Each test runs in a transaction that's rolled back, so every test starts from the same empty database.
+- Fakes are undone after each test, and the app shuts down after the file.
+
+Postgres apps set `DATABASE_TEST_URL` to a database whose name contains `test`.
+
+## Sending requests
+
+`t.client(http)` is a client for your app that keeps cookies between requests, like a browser:
+
+| | |
+| --- | --- |
+| `get(path)`, `post`, `put`, `patch`, `delete` | `{ json }`, `{ form }` (with `File`s for uploads), `{ query }`, `{ headers }`. |
+| `visit(path)` | A page visit, as Inertia makes it, so pages answer with their props. |
+| `await actingAs(user)` | Signed in as `user`, with a real session. |
+| `withHeaders({...})`, `withCookie(name, value)` | On every request after. |
+
+Code under test uses the same database transaction, so rows a test creates are there for its requests, and the other way round.
+
+## Checking responses
+
+Assertions return the response, so they chain:
+
+| | |
+| --- | --- |
+| `assertOk()`, `assertCreated()`, `assertNoContent()`, `assertStatus(n)` | The status. |
+| `assertNotFound()`, `assertForbidden()`, `assertUnauthorized()`, `assertTooManyRequests()` | |
+| `assertRedirect('/login')` | A redirect, and where to. `followRedirect()` follows it. |
+| `assertJson({ ... })` | The JSON contains this. |
+| `assertJsonPath('total', 2)` | One value, by dot path. |
+| `assertInertia('Notes/Index', { ... })` | Which page, and props containing these (or a function that checks them). |
+| `await assertValidationErrors(['title'])` | Validation failed on these fields, from a JSON API or a form redirected back. `{ title: 'Too short' }` also checks the message contains that. |
+| `await assertNoValidationErrors()` | |
+| `assertDownload('q3.pdf')` | A file download, with that name. |
+| `assertHeader(name, value?)` | |
+
+`json()`, `text()`, `bytes()` and `page()` (the Inertia page) read the body for checks of your own.
+
+## Data
+
+Make what a test needs with [factories](/docs/factories-and-seeders):
+
+```ts
+const ann = await factory(UserFactory).create()
+await factory(NoteFactory).count(2).with({ userId: ann.id }).create()
+
+const client = await t.client(http).actingAs(ann)
+;(await client.visit('/notes')).assertInertia('Notes/Index', (props) =>
+  expect(props.notes).toHaveLength(2),
+)
+```
+
+To start every test in a file from seeded data, pass seeders. Those they depend on run too:
+
+```ts
+const t = setupApp(app, { database: { seed: [notesSeeder] } })
+```
+
+Code that opens its own database connections can't see inside the test's transaction. For that, `{ database: { strategy: 'truncate' } }` empties the tables after each test instead.
+
+## Fakes
+
+Faking a service stops it doing anything outside the app, and records what it was asked to do:
+
+| | Checks |
+| --- | --- |
+| `t.fake('mail')` | `assertSent`, `assertQueued`, `rendered` ([Mail](/docs/mail#testing)) |
+| `t.fake('queue')` | `assertDispatched`, then `drain()` to run the jobs ([Queues](/docs/queues#testing)) |
+| `t.fake('events')` | `assertEmitted` ([Events](/docs/events#testing)) |
+| `t.fake('notifications')` | `assertSentTo`, `assertSentOnDemand` ([Notifications](/docs/notifications#testing)) |
+| `t.fake('storage')` | `assertExists`, `assertCount`: files in memory ([Storage](/docs/storage#testing)) |
+| `t.fake('broadcast')` | `assertBroadcast` ([Realtime](/docs/realtime#testing)) |
+
+Without a fake, things happen for real, inside the test: jobs run as they're dispatched, mail goes to the outbox, and files go to disk.
+
+For calls to other services, stub `fetch` with Vitest:
+
+```ts
+const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+vi.stubGlobal('fetch', fetch)
+```
+
+## Browser tests
+
+For what only a browser can show (JavaScript, a click flow, a live update), the starter has [Playwright](https://playwright.dev) tests in `tests/browser/`:
+
+```ts title="tests/browser/notes.spec.ts"
+import { expect, test } from '@playwright/test'
+import { register, visit } from './helpers'
+
+test('a second tab shows a new note without reloading', async ({ page, context }) => {
+  await register(page)
+  const other = await context.newPage()
+  await visit(other, '/notes')
+  await visit(page, '/notes')
+
+  await page.getByLabel('Title').fill('From the first tab')
+  await page.getByRole('button', { name: 'Add note' }).click()
+
+  await expect(other.getByText('From the first tab')).toBeVisible()
+})
+```
+
+`pnpm test:browser` builds the app and serves it on port 3100, with a database and a realtime server of its own, emptied on every run. Open pages with `visit` from `tests/browser/helpers.ts`: it waits for React to take over, since a click before that does nothing. `register` signs a new person up through the form.
+
+Mail sent during a browser test is in the outbox:
+
+```ts
+const res = await page.request.get('/_caldera/mail/outbox', {
+  headers: { accept: 'application/json' },
+})
+```
+
+Once per machine, install the browser: `npx playwright install chromium`.
+
+## In CI
+
+The starter's `.github/workflows/ci.yml` runs `pnpm typecheck`, `pnpm test` and `pnpm test:browser` on every push and pull request.
