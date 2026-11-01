@@ -1,4 +1,4 @@
-import { createClientTranslator } from '@caldera/i18n/translator'
+import { createClientTranslator } from '@caldera-js/i18n/translator'
 import { ArrowUpRight } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'

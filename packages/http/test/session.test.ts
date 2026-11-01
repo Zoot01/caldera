@@ -1,4 +1,4 @@
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineEnv } from '@caldera-js/core'
 import { Hono } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { describe, expect, it } from 'vitest'

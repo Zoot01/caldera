@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/next",
-  "version": "0.0.0",
-  "description": "Caldera in a Next.js app: the Hono app as route handlers, services in Server Components and server actions, a typed client.",
+  "name": "@caldera-js/next",
+  "version": "0.1.0",
+  "description": "Caldera in a Next.js app: the app's routes under /api, submit() and load() for server actions and pages, services in Server Components, a typed client.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/nextjs",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "next"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -28,11 +38,11 @@
     "react": ">=19.0.0"
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/http": "workspace:*",
-    "@caldera/i18n": "workspace:*",
+    "@caldera-js/http": "workspace:*",
+    "@caldera-js/i18n": "workspace:*",
     "@types/react": "19.3.0",
     "hono": "4.13.14",
     "next": "16.4.2",
@@ -40,5 +50,11 @@
     "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

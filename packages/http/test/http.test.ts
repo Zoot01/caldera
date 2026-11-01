@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { hc } from 'hono/client'
 import { describe, expect, expectTypeOf, it } from 'vitest'

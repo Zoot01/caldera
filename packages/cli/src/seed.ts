@@ -1,5 +1,5 @@
-import { CalderaError } from '@caldera/core'
-import type { SeederDefinition, SeedReport } from '@caldera/db/seeders'
+import { CalderaError } from '@caldera-js/core'
+import type { SeederDefinition, SeedReport } from '@caldera-js/db/seeders'
 import { loadApp, projectEnv } from './describe.js'
 import { CONVENTIONS, exportsOfKind, seederFiles, type Project } from './project.js'
 
@@ -35,9 +35,9 @@ export async function seedProject(project: Project, options: SeedOptions = {}): 
   const app = await loadApp(project)
   await app.boot({ env })
   try {
-    // Through the project's own loader: the same @caldera/db instance its factories use. Loaded
+    // Through the project's own loader: the same @caldera-js/db instance its factories use. Loaded
     // here, not at the top, because the CLI must start in apps that never seed.
-    const { runSeeders } = await project.importPackage<typeof import('@caldera/db/seeders')>('@caldera/db/seeders')
+    const { runSeeders } = await project.importPackage<typeof import('@caldera-js/db/seeders')>('@caldera-js/db/seeders')
     return await runSeeders(seeders, { environment, force: options.force, seed: options.seed, only: options.only })
   } finally {
     await app.shutdown()

@@ -1,5 +1,5 @@
-import { defaultDatabase } from '@caldera/db'
-import { defineRequest, defineRoutes } from '@caldera/http'
+import { defaultDatabase } from '@caldera-js/db'
+import { defineRequest, defineRoutes } from '@caldera-js/http'
 import { z } from 'zod'
 import { posts as table } from '../db/schema.js'
 

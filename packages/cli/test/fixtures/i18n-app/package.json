@@ -1,1 +1,1 @@
-{"name": "fixture-i18n-app", "private": true, "type": "module", "dependencies": {"@caldera/i18n": "workspace:*"}}
+{"name": "fixture-i18n-app", "private": true, "type": "module", "dependencies": {"@caldera-js/i18n": "workspace:*"}}

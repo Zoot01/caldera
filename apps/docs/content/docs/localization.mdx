@@ -26,7 +26,7 @@ English is the source: the types come from `lang/en/`, and other languages have 
 A page says which messages it needs, and only those are sent to the browser:
 
 ```tsx title="resources/pages/Notes/Summary.tsx"
-import { useT } from '@caldera/i18n/react'
+import { useT } from '@caldera-js/i18n/react'
 import { Link } from '@inertiajs/react'
 
 export const messages = ['notes.*']
@@ -63,7 +63,7 @@ It formats for their language too:
 | `i18n.date(date, { dateStyle: 'long' })` | March 1, 2026 | 1 mars 2026 |
 | `i18n.list(['Ann', 'Bob', 'Cat'])` | Ann, Bob, and Cat | Ann, Bob et Cat |
 
-`relativeTime(-3, 'day')` gives "3 days ago". Outside a request, in jobs, use `translator('fr').t(...)` from `@caldera/i18n`. Mail is written in the recipient's language: see [mail](/docs/mail#in-the-recipients-language).
+`relativeTime(-3, 'day')` gives "3 days ago". Outside a request, in jobs, use `translator('fr').t(...)` from `@caldera-js/i18n`. Mail is written in the recipient's language: see [mail](/docs/mail#in-the-recipients-language).
 
 ## Adding a language
 

@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
 import type { Envelope } from './envelope.js'
@@ -16,7 +16,7 @@ export function bullmqQueue(options: { url: string; prefix?: string }): QueueDri
   let loaded: Promise<{ bull: BullModule; IORedis: new (url: string, options: object) => Redis }> | undefined
   const load = () =>
     (loaded ??= (async () => {
-      // Imported on first use. This file is its own entry (@caldera/queue/bullmq), so apps that don't
+      // Imported on first use. This file is its own entry (@caldera-js/queue/bullmq), so apps that don't
       // use BullMQ (and edge bundles) never reference bullmq or ioredis.
       const missing = (pkg: string) => () => {
         throw new CalderaError('missing_dependency', `The bullmq queue driver needs ${pkg}: install it in your app.`, { package: pkg })

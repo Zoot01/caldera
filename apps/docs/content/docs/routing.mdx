@@ -6,7 +6,7 @@ description: Route groups, parameters, model binding, and where routes live.
 Routes live in `src/routes/`, one group per file. A group has a name and, usually, a URL prefix; each route in it has a name, a method and a path.
 
 ```ts title="src/routes/notes.ts"
-import { defineRoutes } from '@caldera/http'
+import { defineRoutes } from '@caldera-js/http'
 
 export const notes = defineRoutes('notes', { prefix: '/notes' })
   .get('index', '/', (c) => c.render('Notes/Index', { notes: [] }))
@@ -40,7 +40,7 @@ A model is looked up by its primary key, or by its `routeKey` if you set one (`d
 To narrow the lookup, bind a function instead. It gets the parameter and the request, typed like a route's `c`. This one only finds the signed-in person's notes, so anyone else's are a 404:
 
 ```ts
-import type { RouteContext } from '@caldera/http'
+import type { RouteContext } from '@caldera-js/http'
 
 const ownNote = (id: string, c: RouteContext) =>
   Note.findFirst({ where: { id, userId: c.var.user!.id } })

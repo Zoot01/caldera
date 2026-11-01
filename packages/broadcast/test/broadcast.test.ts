@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { serve } from '@hono/node-server'
-import { createApp, defineEnv } from '@caldera/core'
-import { createDatabase, setDefaultDatabase } from '@caldera/db'
-import { createEvents, defineEvent, setDefaultEvents, type BroadcastPayload } from '@caldera/events'
-import { createQueue, setDefaultQueue } from '@caldera/queue'
+import { createApp, defineEnv } from '@caldera-js/core'
+import { createDatabase, setDefaultDatabase } from '@caldera-js/db'
+import { createEvents, defineEvent, setDefaultEvents, type BroadcastPayload } from '@caldera-js/events'
+import { createQueue, setDefaultQueue } from '@caldera-js/queue'
 import { drizzle } from 'drizzle-orm/pglite'
 import { Hono } from 'hono'
 import PusherModule, { type Channel } from 'pusher-js'
@@ -508,7 +508,7 @@ describe('model broadcasting', () => {
   it('sends created, updated, deleted and restored after commit, with only `with`, and nothing on rollback', async () => {
     const { pgTable, serial, text, timestamp } = await import('drizzle-orm/pg-core')
     const { defineRelations } = await import('drizzle-orm')
-    const { defineModel } = await import('@caldera/db')
+    const { defineModel } = await import('@caldera-js/db')
     const notes = pgTable('notes', { id: serial().primaryKey(), title: text().notNull(), secret: text().notNull().default(''), deletedAt: timestamp('deleted_at') })
     const NoteChannel = defineChannel('notes.{note}', { authorize: () => true })
     const Typed = defineModel(notes, {

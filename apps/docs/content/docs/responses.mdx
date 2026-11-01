@@ -17,7 +17,7 @@ redirect(c, '/notes') // a redirect
 ## Redirects
 
 ```ts
-import { back, intended, redirect } from '@caldera/http'
+import { back, intended, redirect } from '@caldera-js/http'
 
 redirect(c, '/notes') // to a path or URL
 back(c) // to the page the request came from (this site only), or '/'
@@ -50,7 +50,7 @@ Throw an error from a handler (or a model, a policy, middleware) and Caldera ans
 | `new TooManyRequestsError()` | 429 | `rate_limited` |
 | anything else | 500 | `server_error` |
 
-All of them come from `@caldera/http`. A refused policy is a 403, a bound row that doesn't exist a 404, a rate limit a 429, all without code of yours.
+All of them come from `@caldera-js/http`. A refused policy is a 403, a bound row that doesn't exist a 404, a rate limit a 429, all without code of yours.
 
 ### For API clients
 

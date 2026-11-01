@@ -1,4 +1,4 @@
-import { defineRoutes } from '@caldera/http'
+import { defineRoutes } from '@caldera-js/http'
 import { User } from '../models/user.js'
 
 export const home = defineRoutes('home')

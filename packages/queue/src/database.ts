@@ -1,5 +1,5 @@
-import { CalderaError, CapabilityError, defineDriver, parseDuration, type Duration } from '@caldera/core'
-import { defaultDatabase, type Database } from '@caldera/db'
+import { CalderaError, CapabilityError, defineDriver, parseDuration, type Duration } from '@caldera-js/core'
+import { defaultDatabase, type Database } from '@caldera-js/db'
 import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'

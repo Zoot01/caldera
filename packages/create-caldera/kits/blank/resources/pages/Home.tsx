@@ -1,4 +1,4 @@
-import { useT } from '@caldera/i18n/react'
+import { useT } from '@caldera-js/i18n/react'
 import { Head, usePage } from '@inertiajs/react'
 import type { ReactNode } from 'react'
 import { AppearanceTabs } from '@/components/appearance-tabs'

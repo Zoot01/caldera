@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/core",
-  "version": "0.0.0",
+  "name": "@caldera-js/core",
+  "version": "0.1.0",
   "description": "Caldera application core: env, config, providers and the app lifecycle.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/structure",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -21,5 +30,11 @@
   "dependencies": {
     "hono": "4.13.14",
     "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

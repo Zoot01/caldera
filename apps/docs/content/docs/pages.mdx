@@ -92,7 +92,7 @@ const form = useForm({ title: '', body: '' })
 A prop that takes a while can be **deferred**: the page renders without it, and the browser fetches it right after. The page marks it optional and shows something while it's missing:
 
 ```ts
-import { defer } from '@caldera/inertia'
+import { defer } from '@caldera-js/inertia'
 
 c.render('Notes/Stats', {
   count: async () => (await Note.findMany({ where: { userId: c.var.user!.id } })).length,

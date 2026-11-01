@@ -1,4 +1,4 @@
-import { useT } from '@caldera/i18n/react'
+import { useT } from '@caldera-js/i18n/react'
 import { Head, Link, usePage } from '@inertiajs/react'
 import { ArrowUpRight } from 'lucide-react'
 import type { ReactNode } from 'react'

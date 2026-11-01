@@ -1,11 +1,11 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cache } from 'react'
 import { executionContext } from './action.js'
 
 export { actionResult, load, parseSetCookie, submit, type ActionResult, type LoadOptions, type ParsedCookie, type SubmitOptions } from './action.js'
 
-/** The parts of a Caldera app the adapter uses (structural, so any app's own @caldera/core copy fits). */
+/** The parts of a Caldera app the adapter uses (structural, so any app's own @caldera-js/core copy fits). */
 interface AppLike<S = Record<string, unknown>> {
   readonly state: string
   readonly services: S
@@ -54,7 +54,7 @@ export async function services<S>(app: AppLike<S>): Promise<S> {
 
 /**
  * This request's per-request services (`i18n` in the visitor's locale, and `user` with
- * `authenticate({ required: false })` from @caldera/auth) in a Server Component or server action:
+ * `authenticate({ required: false })` from @caldera-js/auth) in a Server Component or server action:
  * `const { i18n, user } = await requestContext(app, authenticate({ required: false }))`.
  * The app's middleware runs on the incoming request's headers, once per render (React `cache`).
  * Read-only: cookies set here (a session write, `setLocale`) aren't sent; change those in a route

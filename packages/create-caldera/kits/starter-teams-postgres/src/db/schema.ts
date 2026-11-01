@@ -1,4 +1,4 @@
-import { authUserColumns } from '@caldera/auth'
+import { authUserColumns } from '@caldera-js/auth'
 import { boolean, snakeCase } from 'drizzle-orm/pg-core'
 import { authSchema } from './auth-schema.js'
 

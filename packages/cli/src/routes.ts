@@ -1,8 +1,8 @@
 import { relative } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { exportsOfKind, routeFiles, type Project } from './project.js'
 
-// Structural copy of @caldera/http's RouteRecord, so the CLI doesn't need it installed.
+// Structural copy of @caldera-js/http's RouteRecord, so the CLI doesn't need it installed.
 export interface RouteRecord {
   name: string
   method: string

@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/testing",
-  "version": "0.0.0",
+  "name": "@caldera-js/testing",
+  "version": "0.1.0",
   "description": "Caldera testing: boot the app per test file, a migrated database rolled back per test, self-restoring fakes, and an HTTP client with Laravel-style assertions.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/testing",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "testing"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -25,31 +35,31 @@
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",
     "vitest": ">=4.0.0",
-    "@caldera/db": "workspace:*",
-    "@caldera/auth": "workspace:*"
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/auth": "workspace:*"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
       "optional": true
     },
-    "@caldera/db": {
+    "@caldera-js/db": {
       "optional": true
     },
-    "@caldera/auth": {
+    "@caldera-js/auth": {
       "optional": true
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/auth": "workspace:*",
-    "@caldera/cache": "workspace:*",
-    "@caldera/db": "workspace:*",
-    "@caldera/http": "workspace:*",
-    "@caldera/inertia": "workspace:*",
-    "@caldera/mail": "workspace:*",
-    "@caldera/queue": "workspace:*",
+    "@caldera-js/auth": "workspace:*",
+    "@caldera-js/cache": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/http": "workspace:*",
+    "@caldera-js/inertia": "workspace:*",
+    "@caldera-js/mail": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
     "@libsql/client": "0.18.0",
     "@types/pg": "^8.15.0",
     "drizzle-kit": "1.0.0-rc.5",
@@ -59,5 +69,11 @@
     "typescript": "5.9.3",
     "vitest": "5.0.5",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

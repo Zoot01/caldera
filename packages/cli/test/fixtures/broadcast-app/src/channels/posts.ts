@@ -1,4 +1,4 @@
-import { defineChannel } from '@caldera/broadcast'
+import { defineChannel } from '@caldera-js/broadcast'
 import { z } from 'zod'
 import { Post } from '../models/post.js'
 

@@ -1,4 +1,4 @@
-/** What @caldera/i18n's `c.var.i18n` gives these helpers (matched by shape: no dependency). */
+/** What @caldera-js/i18n's `c.var.i18n` gives these helpers (matched by shape: no dependency). */
 export interface MessageTranslator {
   has(key: string): boolean
   t(key: string, params?: Record<string, unknown>): string

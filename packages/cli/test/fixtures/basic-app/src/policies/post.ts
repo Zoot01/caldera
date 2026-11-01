@@ -1,4 +1,4 @@
-import { defineAbility, definePolicy } from '@caldera/auth'
+import { defineAbility, definePolicy } from '@caldera-js/auth'
 import Post from '../models/post.js'
 
 export const PostPolicy = definePolicy(Post, {

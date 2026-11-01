@@ -1,4 +1,4 @@
-import { CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
+import { CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera-js/core'
 import { createDisk, type Disk } from './disk.js'
 import { setDefaultStorage } from './files.js'
 import { setUploadSecret } from './uploads.js'
@@ -34,8 +34,8 @@ export type StorageService<N extends string = string> = Disk & {
 export const STORAGE_DRIVERS: readonly DriverDefinition<StorageDriver, StorageCapabilities>[] = [memoryStorageDriver, r2StorageDriver]
 
 const HINTS = {
-  local: "It's in '@caldera/storage/local': import { localStorageDriver } from it and pass `drivers: [localStorageDriver]`.",
-  s3: "It's in '@caldera/storage/s3': import { s3StorageDriver } from it and pass `drivers: [s3StorageDriver]`.",
+  local: "It's in '@caldera-js/storage/local': import { localStorageDriver } from it and pass `drivers: [localStorageDriver]`.",
+  s3: "It's in '@caldera-js/storage/s3': import { s3StorageDriver } from it and pass `drivers: [s3StorageDriver]`.",
 }
 
 export function createStorage<const N extends string>(

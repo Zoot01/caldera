@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 
 /** One entry of Vite's `.vite/manifest.json`. */
 export interface ManifestChunk {

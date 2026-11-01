@@ -1,4 +1,4 @@
-import { errorHandler, notFoundHandler, originCheck } from '@caldera/http'
+import { errorHandler, notFoundHandler, originCheck } from '@caldera-js/http'
 import { Hono } from 'hono'
 import { router } from '../.caldera/routes.gen.js'
 import { app } from './app.js'

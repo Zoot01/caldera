@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const mail = defineConfig('mail', (env) => ({
   default: env.MAIL_MAILER,

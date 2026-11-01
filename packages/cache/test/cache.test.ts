@@ -130,7 +130,7 @@ describe.each(stores)('cache on $name', ({ make }) => {
 it('reports a missing store at boot and checks capabilities', () => {
   expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'localhost' } } }, { drivers: [redisDriver] })).toThrow(/cache\.r \(redis\): url: must be a redis:\/\//)
   // Without the driver, the error says where it is.
-  expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'redis://x' } } })).toThrow(/It's in '@caldera\/cache\/redis'/)
+  expect(() => createCacheService({ default: 'r', stores: { r: { driver: 'redis', url: 'redis://x' } } })).toThrow(/It's in '@caldera-js\/cache\/redis'/)
   const cache = createCacheService({ default: 'memory', stores: { memory: { driver: 'memory' } } })
   expect(cache.manager.describe().instances[0]).toMatchObject({ name: 'memory', capabilities: { locks: true, shared: false } })
 })

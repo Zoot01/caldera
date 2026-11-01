@@ -66,7 +66,7 @@ describe('r2 driver (Miniflare, real workerd R2)', () => {
     const result = await build({
       stdin: {
         contents: `
-          import { createStorage } from '@caldera/storage'
+          import { createStorage } from '@caldera-js/storage'
           export default {
             async fetch(request, env) {
               const storage = createStorage({ default: 'r2', disks: { r2: { driver: 'r2', bucket: env.BUCKET, publicUrl: 'https://files.example.test' } } })
@@ -92,7 +92,7 @@ describe('r2 driver (Miniflare, real workerd R2)', () => {
       conditions: ['workerd', 'worker', 'browser'],
       write: false,
       logLevel: 'silent',
-      alias: { '@caldera/storage': join(import.meta.dirname, '../src/index.ts') },
+      alias: { '@caldera-js/storage': join(import.meta.dirname, '../src/index.ts') },
     })
     mf = new Miniflare({ modules: true, script: result.outputFiles[0]!.text, compatibilityDate: '2026-07-30', compatibilityFlags: ['nodejs_compat'], r2Buckets: ['BUCKET'] })
     await mf.ready

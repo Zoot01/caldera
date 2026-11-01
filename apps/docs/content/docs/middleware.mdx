@@ -31,7 +31,7 @@ The starter kit's:
 Some links must work without signing in, and only as the app made them: an email's unsubscribe link, a download that expires. `signedUrl` adds a signature to a URL, made with `APP_KEY`:
 
 ```ts
-import { signedUrl } from '@caldera/http'
+import { signedUrl } from '@caldera-js/http'
 
 const link = await signedUrl(`${config.app.url}/unsubscribe/digest?user=${user.id}`)
 const download = await signedUrl(`/reports/${report.id}`, { expiresIn: '1h' })

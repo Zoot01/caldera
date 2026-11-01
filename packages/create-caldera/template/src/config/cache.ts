@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const cache = defineConfig('cache', (env) => ({
   // Memory works on one server; with REDIS_URL set, the cache (and so unique jobs, batches and rate

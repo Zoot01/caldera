@@ -1,4 +1,4 @@
-import { createStorage, setDefaultStorage } from '@caldera/storage'
+import { createStorage, setDefaultStorage } from '@caldera-js/storage'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createMail } from '../src/index.js'
 import { smtpDriver } from '../src/smtp.js'

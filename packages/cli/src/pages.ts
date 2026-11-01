@@ -34,7 +34,7 @@ export async function loadInertia(project: Project): Promise<{ file: string; exp
 }
 
 /**
- * The `@caldera/inertia` block of register.d.ts: each page's props come from its own component,
+ * The `@caldera-js/inertia` block of register.d.ts: each page's props come from its own component,
  * and the shared props from `defineInertia({ share })`, for the server (`c.render`) and the client
  * (Inertia's `InertiaConfig`, so `usePage().props.auth` is typed too).
  */
@@ -46,8 +46,8 @@ export async function inertiaRegister(project: Project, uses: (name: string) => 
   const pageModule = (file: string) => project.importFromGenerated(file)
   return (
     (pages.length ? `\nimport type { ComponentProps } from 'react'\n` : '\n') +
-    (shared ? `import type { SharedPropsOf } from '@caldera/inertia'\n` : '') +
-    `\ndeclare module '@caldera/inertia' {\n` +
+    (shared ? `import type { SharedPropsOf } from '@caldera-js/inertia'\n` : '') +
+    `\ndeclare module '@caldera-js/inertia' {\n` +
     `  interface PageRegistry {\n` +
     pages.map((p) => `    '${p.name}': ComponentProps<typeof import('${pageModule(p.file)}').default>\n`).join('') +
     `  }\n` +

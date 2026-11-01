@@ -2,12 +2,12 @@ import { randomBytes } from 'node:crypto'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { TestClient, type Requestable, type TestClientOptions } from './client.js'
 import { isPostgres, migrateFresh, testDatabaseUrl, type DatabaseLike } from './database.js'
 
-/** The parts of a Caldera app the helpers use (structural: the app's own @caldera/core copy fits). */
+/** The parts of a Caldera app the helpers use (structural: the app's own @caldera-js/core copy fits). */
 interface AppLike {
   readonly state: string
   readonly services: object
@@ -106,7 +106,7 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
       await rollback()
       rollback = undefined
     } else if (db && settings?.strategy === 'truncate') {
-      const { truncateAll } = await import('@caldera/db/testing')
+      const { truncateAll } = await import('@caldera-js/db/testing')
       await truncateAll(db as never)
       if (settings.seed?.length) await seed(db, settings.seed)
     }
@@ -143,6 +143,6 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
 }
 
 async function seed(db: DatabaseLike, seeders: readonly unknown[]) {
-  const { runSeeders } = await import('@caldera/db/seeders')
+  const { runSeeders } = await import('@caldera-js/db/seeders')
   await runSeeders(seeders as never, { environment: 'test', database: db as never })
 }

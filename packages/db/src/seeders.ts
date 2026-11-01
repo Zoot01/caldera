@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { defaultDatabase, type Database } from './database.js'
 import { changeSeed, currentSeed } from './seed-state.js'
 

@@ -1,5 +1,5 @@
-import { withAuthCookies } from '@caldera/auth'
-import { back, defineRequest, defineRoutes, NotFoundError, redirect, ValidationError } from '@caldera/http'
+import { withAuthCookies } from '@caldera-js/auth'
+import { back, defineRequest, defineRoutes, NotFoundError, redirect, ValidationError } from '@caldera-js/http'
 import type { Context } from 'hono'
 import { renderSVG } from 'uqr'
 import { z } from 'zod'

@@ -1,4 +1,4 @@
-import { authUserColumns } from '@caldera/auth/sqlite'
+import { authUserColumns } from '@caldera-js/auth/sqlite'
 import { integer, snakeCase } from 'drizzle-orm/sqlite-core'
 import { authSchema } from './auth-schema.js'
 

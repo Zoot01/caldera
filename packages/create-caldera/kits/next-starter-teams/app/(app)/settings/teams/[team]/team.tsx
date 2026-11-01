@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import { ChevronDown, Mail, MoreHorizontal, SendHorizontal, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { cancelInvitation, changeRole, deleteTeam, invite as sendInvite, leaveTeam, makeOwner, removeMember, renameTeam } from '@/app/actions/teams'

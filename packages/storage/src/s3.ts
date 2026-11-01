@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { AwsClient } from 'aws4fetch'
 import { z } from 'zod'
 import { contentDisposition } from './disk.js'

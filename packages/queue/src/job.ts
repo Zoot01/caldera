@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration, type RegisteredConfig, type RegisteredServices } from '@caldera-js/core'
 import type { z } from 'zod'
 
 export interface JobContext {
@@ -66,7 +66,7 @@ export interface JobDefinition<P extends z.ZodType = z.ZodType> {
   /** A payload bound to this job, for `chain([...])`. */
   with(payload: z.input<P>): PendingJob
   /**
-   * This job as an event listener (`@caldera/events`): `listen(UserRegistered, SendWelcome.fromEvent((e) => ({ userId: e.userId })))`.
+   * This job as an event listener (`@caldera-js/events`): `listen(UserRegistered, SendWelcome.fromEvent((e) => ({ userId: e.userId })))`.
    * Each emit dispatches the job with the mapped payload.
    */
   fromEvent<E>(map: (event: E) => z.input<P>): { readonly kind: 'caldera.queued-listener'; readonly job: JobDefinition<P>; map(payload: E): unknown }

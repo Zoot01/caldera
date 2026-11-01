@@ -1,5 +1,5 @@
-import { createApp, defineEnv } from '@caldera/core'
-import { createRouter, defineRequest, defineRoutes, errorHandler } from '@caldera/http'
+import { createApp, defineEnv } from '@caldera-js/core'
+import { createRouter, defineRequest, defineRoutes, errorHandler } from '@caldera-js/http'
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { i18nProvider, type RequestI18n } from '../../src/index.js'

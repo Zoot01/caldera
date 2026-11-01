@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import { formatAddress, type Message } from './message.js'
 

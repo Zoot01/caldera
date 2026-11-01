@@ -12,7 +12,7 @@ pnpm exec caldera make:event NoteShared
 ```
 
 ```ts title="src/events/note-shared.ts"
-import { defineEvent } from '@caldera/events'
+import { defineEvent } from '@caldera-js/events'
 import { z } from 'zod'
 
 export const NoteShared = defineEvent({
@@ -26,7 +26,7 @@ As with jobs, `name` is a stable id and `payload` a Zod schema, checked when the
 ## Emitting
 
 ```ts
-import { emit } from '@caldera/events'
+import { emit } from '@caldera-js/events'
 
 await emit(NoteShared, { noteId: note.id, email })
 ```
@@ -42,7 +42,7 @@ pnpm exec caldera make:listener LogNoteShared --event NoteShared
 ```
 
 ```ts title="src/listeners/log-note-shared.ts"
-import { listen } from '@caldera/events'
+import { listen } from '@caldera-js/events'
 import { NoteShared } from '../events/note-shared'
 
 export const logNoteShared = listen(NoteShared, async ({ noteId, email }) => {
@@ -57,7 +57,7 @@ export const logNoteShared = listen(NoteShared, async ({ noteId, email }) => {
 A listener runs in the request that emitted the event, so the response waits for it. For anything slow, listen with a [job](/docs/queues) instead:
 
 ```ts title="src/listeners/publish-shared-note.ts"
-import { listen } from '@caldera/events'
+import { listen } from '@caldera-js/events'
 import { NoteShared } from '../events/note-shared'
 import { PublishNote } from '../jobs/publish-note'
 
@@ -74,7 +74,7 @@ Each emit dispatches the job, with the payload `fromEvent` makes from the event.
 `until` asks the listeners in turn and returns the first answer that isn't `undefined`. It suits hooks where one listener decides, like a price:
 
 ```ts
-import { until } from '@caldera/events'
+import { until } from '@caldera-js/events'
 
 const price = await until(PriceFor, { sku })
 ```

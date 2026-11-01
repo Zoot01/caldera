@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { CalderaError, CapabilityError, defineProvider, type RegisterContext } from '@caldera/core'
+import { CalderaError, CapabilityError, defineProvider, type RegisterContext } from '@caldera-js/core'
 
 /** What a database driver can do. Features that need a missing capability fail early (DESIGN principle 7). */
 export interface DatabaseCapabilities {
@@ -62,7 +62,7 @@ export interface Database<Client extends TransactionalClient = TransactionalClie
    * Testing only: opens a transaction that wraps everything until the returned `rollback()`.
    * Code joins it even outside its async context (a test body), transactions inside become
    * savepoints, and after-commit callbacks fire when those inner transactions commit, as they
-   * would in production. Use `useDatabase()` from `@caldera/db/testing` rather than this directly.
+   * would in production. Use `useDatabase()` from `@caldera-js/db/testing` rather than this directly.
    */
   beginTestTransaction(): Promise<{ rollback(): Promise<void> }>
 }

@@ -38,7 +38,7 @@ Data that belongs to a team has a `teamId` column pointing at the team:
 
 ```ts title="src/db/tables/project.ts"
 import { snakeCase, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from '@caldera/db/sqlite'
+import { timestamps } from '@caldera-js/db/sqlite'
 import { organization } from '../schema'
 
 export const projects = snakeCase.table('projects', {
@@ -70,7 +70,7 @@ export const Project = defineModel(projects, {
 In a teams app, policies get the current team as `g.org`: its id, and whether the person's role grants a permission from `src/roles.ts`.
 
 ```ts title="src/policies/project.ts"
-import { definePolicy, denyAsNotFound } from '@caldera/auth'
+import { definePolicy, denyAsNotFound } from '@caldera-js/auth'
 import { Project } from '../models/project'
 
 export const ProjectPolicy = definePolicy(Project, {

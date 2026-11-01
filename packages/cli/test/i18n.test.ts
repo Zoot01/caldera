@@ -24,7 +24,7 @@ it('generates the catalogue (app messages over the built-in ones) and each pageâ
   expect(gen).toContain('"validation.invalid_type.required": "Le champ {attribute} est obligatoire."')
   expect(gen).toContain('"Posts/Index": [\n    "posts.*",\n    "common.missing"\n  ]')
   const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
-  expect(register).toContain(`declare module '@caldera/i18n' {`)
+  expect(register).toContain(`declare module '@caldera-js/i18n' {`)
   expect(register).toContain('"posts.count": { "count": number }')
   expect(register).toContain('"posts.by": { "gender": "female" | (string & {}) }')
   expect(register).toContain('"posts.title.index": {}')
@@ -35,7 +35,7 @@ it('types t(): unknown keys, missing and wrong parameters are compile errors', a
   await generate(openProject(dir))
   writeFileSync(
     join(dir, 'src/usage.ts'),
-    `import { translator } from '@caldera/i18n'
+    `import { translator } from '@caldera-js/i18n'
 const { t } = translator('fr')
 t('posts.count', { count: 2 })
 t('posts.title.index')

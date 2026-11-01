@@ -14,7 +14,7 @@ pnpm exec caldera make:notification notes.SharedWithYou
 writes the notification and a [mail](/docs/mail) for it. Here it uses the mail from the Mail page:
 
 ```ts title="src/notifications/shared-with-you.ts"
-import { defineNotification } from '@caldera/notifications'
+import { defineNotification } from '@caldera-js/notifications'
 import { z } from 'zod'
 import { NoteSharedEmail } from '../mail/note-shared'
 
@@ -44,7 +44,7 @@ With `queue: true`, each channel is its own [job](/docs/queues), queued after th
 ## Sending
 
 ```ts
-import { notify } from '@caldera/notifications'
+import { notify } from '@caldera-js/notifications'
 
 await notify(bob, SharedWithYou, {
   from: c.var.user!.name,
@@ -72,7 +72,7 @@ The inbox stores what the notification's `database.data` returns, once. Store fa
 To notify an address with no account behind it, use `route`:
 
 ```ts
-import { route } from '@caldera/notifications'
+import { route } from '@caldera-js/notifications'
 
 await notify(route({ mail: 'cat@example.test' }), SharedWithYou, payload)
 ```
@@ -92,7 +92,7 @@ via: (to) => (to.onDemand ? ['mail'] : ['mail', 'database']),
 Notifications sent to `database` are rows in `caldera_notifications`. `inbox(user)` reads one person's:
 
 ```ts
-import { inbox } from '@caldera/notifications'
+import { inbox } from '@caldera-js/notifications'
 
 const unread = await inbox(c.var.user!).list({ unread: true })
 const count = await inbox(c.var.user!).unreadCount()
@@ -122,7 +122,7 @@ for (const n of unread) {
 A channel is a name and a way to send. Slack, by webhook:
 
 ```ts title="src/slack.ts"
-import { defineChannel } from '@caldera/notifications'
+import { defineChannel } from '@caldera-js/notifications'
 
 export const slack = defineChannel<{ text: string }>({
   name: 'slack',

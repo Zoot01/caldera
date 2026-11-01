@@ -37,7 +37,7 @@ const main = defineCommand({
     install: { type: 'boolean', description: 'Install dependencies (use --no-install to skip)' },
     git: { type: 'boolean', description: 'Create a git repository (use --no-git to skip)', default: true },
     json: { type: 'boolean', description: 'Print machine-readable JSON (default when output is not a terminal)' },
-    link: { type: 'string', description: 'Development: use @caldera/* packages from a local checkout' },
+    link: { type: 'string', description: 'Development: use @caldera-js/* packages from a local checkout' },
   },
   async run({ args }) {
     const json = args.json ?? !process.stdout.isTTY

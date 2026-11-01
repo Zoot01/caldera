@@ -1,4 +1,4 @@
-import { defineMail } from '@caldera/mail'
+import { defineMail } from '@caldera-js/mail'
 import { Body, Html, Text } from '@react-email/components'
 import { z } from 'zod'
 import { defineChannel, defineNotifiable, defineNotification } from '../../src/index.js'

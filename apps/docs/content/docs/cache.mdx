@@ -94,7 +94,7 @@ With more than one server, use `redis` or `database`, or each one keeps its own 
 A limiter says how often someone may do something:
 
 ```ts
-import { defineLimiter, perHour, perMinute } from '@caldera/cache'
+import { defineLimiter, perHour, perMinute } from '@caldera-js/cache'
 
 const createNotes = defineLimiter('notes.create', { limits: [perMinute(10), perHour(100)] })
 ```

@@ -1,1 +1,1 @@
-{"name": "fixture-mcp-app", "private": true, "type": "module", "dependencies": {"@caldera/db": "workspace:*", "@caldera/http": "workspace:*", "@caldera/mail": "workspace:*"}}
+{"name": "fixture-mcp-app", "private": true, "type": "module", "dependencies": {"@caldera-js/db": "workspace:*", "@caldera-js/http": "workspace:*", "@caldera-js/mail": "workspace:*"}}

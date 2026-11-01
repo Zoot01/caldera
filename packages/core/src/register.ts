@@ -8,7 +8,7 @@ import type { AnyEnvDefinition, EnvOf } from './env.js'
  * create an import cycle). `caldera` codegen writes this into `.caldera/register.d.ts`:
  *
  * ```ts
- * declare module '@caldera/core' {
+ * declare module '@caldera-js/core' {
  *   interface Register { env: typeof env; config: typeof config; app: typeof app }
  * }
  * ```

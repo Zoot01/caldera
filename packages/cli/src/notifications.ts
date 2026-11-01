@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { dialectOf, resolveStub } from './make.js'
 import { exportsOfKind, notificationFiles, type Project } from './project.js'
 
@@ -35,7 +35,7 @@ export function notificationsTable(project: Project, options: { force?: boolean 
     created: [NOTIFICATIONS_TABLE_FILE],
     hints: [
       'Create it with `caldera db:generate` then `caldera db:migrate` (or `caldera db:push` in development).',
-      "Pass `channels: [databaseChannel()]` (from '@caldera/notifications/database') to notificationsProvider().",
+      "Pass `channels: [databaseChannel()]` (from '@caldera-js/notifications/database') to notificationsProvider().",
     ],
   }
 }
@@ -54,7 +54,7 @@ export function cacheTable(project: Project, options: { force?: boolean } = {}) 
     created: [CACHE_TABLE_FILE],
     hints: [
       'Create it with `caldera db:generate` then `caldera db:migrate` (or `caldera db:push` in development).',
-      "Add a store `{ driver: 'database' }` in src/config/cache.ts and pass `drivers: [databaseCacheDriver]` (from '@caldera/cache/database') to cacheProvider().",
+      "Add a store `{ driver: 'database' }` in src/config/cache.ts and pass `drivers: [databaseCacheDriver]` (from '@caldera-js/cache/database') to cacheProvider().",
     ],
   }
 }

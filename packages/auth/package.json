@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/auth",
-  "version": "0.0.0",
+  "name": "@caldera-js/auth",
+  "version": "0.1.0",
   "description": "Caldera authentication (Better Auth) and authorization (policies and a per-request gate).",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/authentication",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "auth"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -36,11 +46,11 @@
     "hono": "^4.13.0"
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/db": "workspace:*",
-    "@caldera/http": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@libsql/client": "0.18.0",
     "better-auth": "1.7.14",
@@ -54,5 +64,11 @@
     "better-auth": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

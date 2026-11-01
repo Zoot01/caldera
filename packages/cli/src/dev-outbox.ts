@@ -4,7 +4,7 @@ const LIMIT_BYTES = 5 * 1024 * 1024
 
 /**
  * The shared dev mail outbox: what the `log` mailer "sent" from every process (the dev server,
- * queue workers, the scheduler), as JSON lines in one file. @caldera/mail calls this hook when it's
+ * queue workers, the scheduler), as JSON lines in one file. @caldera-js/mail calls this hook when it's
  * installed, so the mail package itself never touches the filesystem (edge bundles stay clean).
  */
 export function installMailOutbox(file: string) {

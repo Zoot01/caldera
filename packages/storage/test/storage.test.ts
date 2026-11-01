@@ -1,8 +1,8 @@
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createApp, defineEnv } from '@caldera/core'
-import { createRouter, defineRequest, defineRoutes, errorHandler } from '@caldera/http'
+import { createApp, defineEnv } from '@caldera-js/core'
+import { createRouter, defineRequest, defineRoutes, errorHandler } from '@caldera-js/http'
 import { Hono } from 'hono'
 import { afterAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -89,7 +89,7 @@ describe('local disk', () => {
     const storage = createStorage({ default: 'files', disks: { files: { driver: 'local', root: tempRoot() } } }, { drivers: [localStorageDriver] })
     expect(() => storage.url('a.txt')).toThrow(`The "files" disk can't make public URLs (no publicUrls).`)
     await expect(storage.temporaryUrl('a.txt', '5m')).rejects.toThrow(/can't make temporary URLs/)
-    expect(() => createStorage({ default: 'x', disks: { x: { driver: 'local', root: '.' } } })).toThrow(/It's in '@caldera\/storage\/local'/)
+    expect(() => createStorage({ default: 'x', disks: { x: { driver: 'local', root: '.' } } })).toThrow(/It's in '@caldera-js\/storage\/local'/)
   })
 })
 

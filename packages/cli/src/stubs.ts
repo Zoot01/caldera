@@ -5,7 +5,7 @@
  */
 export const STUBS = {
   table: `import { snakeCase, text, uuid } from 'drizzle-orm/pg-core'
-import { timestamps } from '@caldera/db/pg'
+import { timestamps } from '@caldera-js/db/pg'
 
 export const {{ plural }} = snakeCase.table('{{ table }}', {
   id: uuid().primaryKey().defaultRandom(),
@@ -14,7 +14,7 @@ export const {{ plural }} = snakeCase.table('{{ table }}', {
 })
 `,
   'table-sqlite': `import { snakeCase, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from '@caldera/db/sqlite'
+import { timestamps } from '@caldera-js/db/sqlite'
 
 export const {{ plural }} = snakeCase.table('{{ table }}', {
   id: text()
@@ -24,14 +24,14 @@ export const {{ plural }} = snakeCase.table('{{ table }}', {
   ...timestamps(),
 })
 `,
-  model: `import { defineModel } from '@caldera/db'
+  model: `import { defineModel } from '@caldera-js/db'
 import { {{ plural }} } from '../db/tables/{{ kebab }}.js'
 
 export const {{ Name }} = defineModel({{ plural }}, {
   name: '{{ name }}',
 })
 `,
-  policy: `import { definePolicy } from '@caldera/auth'
+  policy: `import { definePolicy } from '@caldera-js/auth'
 import { {{ Name }} } from '../models/{{ kebab }}.js'
 
 // Everything is denied until you allow it, and signed-out visitors are denied unless an ability
@@ -44,7 +44,7 @@ export const {{ Name }}Policy = definePolicy({{ Name }}, {
   delete: () => false,
 })
 `,
-  factory: `import { defineFactory } from '@caldera/db/factories'
+  factory: `import { defineFactory } from '@caldera-js/db/factories'
 import { {{ Name }} } from '../../models/{{ kebab }}.js'
 
 export const {{ Name }}Factory = defineFactory({{ Name }}, {
@@ -53,7 +53,7 @@ export const {{ Name }}Factory = defineFactory({{ Name }}, {
   }),
 })
 `,
-  seeder: `import { defineSeeder } from '@caldera/db/seeders'
+  seeder: `import { defineSeeder } from '@caldera-js/db/seeders'
 
 export const {{ name }}Seeder = defineSeeder({
   name: '{{ kebab }}',
@@ -63,18 +63,18 @@ export const {{ name }}Seeder = defineSeeder({
   },
 })
 `,
-  routes: `import { defineRoutes } from '@caldera/http'
+  routes: `import { defineRoutes } from '@caldera-js/http'
 
 export const {{ plural }} = defineRoutes('{{ plural }}', { prefix: '/{{ pluralKebab }}' })
   .get('index', '/', (c) => c.json({ data: [] }))
 `,
-  config: `import { defineConfig } from '@caldera/core'
+  config: `import { defineConfig } from '@caldera-js/core'
 
 export const {{ name }} = defineConfig('{{ name }}', (env) => ({
   // Read env here only: config is the one place env is available.
 }))
 `,
-  provider: `import { defineProvider } from '@caldera/core'
+  provider: `import { defineProvider } from '@caldera-js/core'
 
 export const {{ name }}Provider = defineProvider({
   name: '{{ kebab }}',
@@ -83,7 +83,7 @@ export const {{ name }}Provider = defineProvider({
   }),
 })
 `,
-  job: `import { defineJob } from '@caldera/queue'
+  job: `import { defineJob } from '@caldera-js/queue'
 import { z } from 'zod'
 
 export const {{ Name }} = defineJob({
@@ -144,7 +144,7 @@ export const calderaJobs = sqliteTable(
   (t) => [index('caldera_jobs_queue_available').on(t.queue, t.availableAt)],
 )
 `,
-  notification: `import { defineNotification } from '@caldera/notifications'
+  notification: `import { defineNotification } from '@caldera-js/notifications'
 import { z } from 'zod'
 import { {{ Name }}Email } from '../mail/{{ kebab }}.js'
 
@@ -171,7 +171,7 @@ export const {{ Name }} = defineNotification({
   'cache-table': `import { bigint, pgTable, text } from 'drizzle-orm/pg-core'
 
 /**
- * The \`database\` cache store (@caldera/cache/database): one row per key, plus rate-limit counters.
+ * The \`database\` cache store (@caldera-js/cache/database): one row per key, plus rate-limit counters.
  * Caldera reads and writes it; no model needed.
  */
 export const calderaCache = pgTable('caldera_cache', {
@@ -183,7 +183,7 @@ export const calderaCache = pgTable('caldera_cache', {
   'cache-table-sqlite': `import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 /**
- * The \`database\` cache store (@caldera/cache/database): one row per key, plus rate-limit counters.
+ * The \`database\` cache store (@caldera-js/cache/database): one row per key, plus rate-limit counters.
  * Caldera reads and writes it; no model needed. Works on SQLite, libSQL and D1.
  */
 export const calderaCache = sqliteTable('caldera_cache', {
@@ -196,7 +196,7 @@ export const calderaCache = sqliteTable('caldera_cache', {
 import { sql } from 'drizzle-orm'
 
 /**
- * Notifications for the \`database\` channel (@caldera/notifications/database): one row per send, read
+ * Notifications for the \`database\` channel (@caldera-js/notifications/database): one row per send, read
  * back with \`inbox(user)\`. Caldera reads and writes it; no model needed.
  */
 export const calderaNotifications = pgTable(
@@ -220,7 +220,7 @@ export const calderaNotifications = pgTable(
 import { sql } from 'drizzle-orm'
 
 /**
- * Notifications for the \`database\` channel (@caldera/notifications/database): one row per send, read
+ * Notifications for the \`database\` channel (@caldera-js/notifications/database): one row per send, read
  * back with \`inbox(user)\`. \`data\` is JSON text. Caldera reads and writes it; no model needed.
  */
 export const calderaNotifications = sqliteTable(
@@ -240,7 +240,7 @@ export const calderaNotifications = sqliteTable(
   ],
 )
 `,
-  mail: `import { defineMail } from '@caldera/mail'
+  mail: `import { defineMail } from '@caldera-js/mail'
 import { Body, Button, Container, Head, Heading, Html, Preview, Text } from '@react-email/components'
 import { z } from 'zod'
 
@@ -273,7 +273,7 @@ export const {{ Name }}Email = defineMail({
   component: {{ Name }},
 })
 `,
-  schedule: `import { defineSchedule } from '@caldera/schedule'
+  schedule: `import { defineSchedule } from '@caldera-js/schedule'
 import { {{ Job }} } from '../jobs/{{ jobKebab }}.js'
 
 export const {{ name }} = defineSchedule('{{ kebab }}', {
@@ -283,7 +283,7 @@ export const {{ name }} = defineSchedule('{{ kebab }}', {
   // withoutOverlapping: true, onOneServer: true, environments: ['production'],
 })
 `,
-  event: `import { defineEvent } from '@caldera/events'
+  event: `import { defineEvent } from '@caldera-js/events'
 import { z } from 'zod'
 
 export const {{ Name }} = defineEvent({
@@ -291,7 +291,7 @@ export const {{ Name }} = defineEvent({
   payload: z.object({ id: z.string() }),
 })
 `,
-  'event-broadcast': `import { defineEvent } from '@caldera/events'
+  'event-broadcast': `import { defineEvent } from '@caldera-js/events'
 import { z } from 'zod'
 import { {{ Channel }}Channel } from '../channels/{{ channelKebab }}.js'
 
@@ -307,7 +307,7 @@ export const {{ Name }} = defineEvent({
   },
 })
 `,
-  channel: `import { defineChannel } from '@caldera/broadcast'
+  channel: `import { defineChannel } from '@caldera-js/broadcast'
 
 // {{ channelKind }}. Browsers join through /_caldera/broadcast/auth, only when authorize()
 // allows: nobody, yet. To let in whoever may see a row, load it and check its policy's \`view\`:
@@ -317,7 +317,7 @@ export const {{ Name }}Channel = defineChannel('{{ channelName }}.{{{ name }}}',
 {{ presenceType }}  authorize: () => false,
 {{ presenceMember }}})
 `,
-  'channel-model': `import { defineChannel } from '@caldera/broadcast'
+  'channel-model': `import { defineChannel } from '@caldera-js/broadcast'
 import { {{ Name }} } from '../models/{{ kebab }}.js'
 
 // {{ channelKind }}. Browsers join through /_caldera/broadcast/auth, only when authorize()
@@ -328,7 +328,7 @@ export const {{ Name }}Channel = defineChannel('{{ channelName }}.{{{ name }}}',
   authorize: ({ gate, {{ name }} }) => gate.can({{ Name }}, 'view', {{ name }}),
 {{ presenceMember }}})
 `,
-  listener: `import { listen } from '@caldera/events'
+  listener: `import { listen } from '@caldera-js/events'
 import { {{ Event }} } from '../events/{{ eventKebab }}.js'
 
 export const {{ name }} = listen({{ Event }}, async (event, ctx) => {

@@ -1,5 +1,5 @@
-import { defer } from '@caldera/inertia'
-import { defineRoutes } from '@caldera/http'
+import { defer } from '@caldera-js/inertia'
+import { defineRoutes } from '@caldera-js/http'
 
 export const pages = defineRoutes('pages')
   .get('home', '/', (c) => c.render('Home', { greeting: 'hi' }))

@@ -1,4 +1,4 @@
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import type { Metadata } from 'next'
 import { requireUser } from '@/lib/caldera'
 import { http } from '@/src/http'

@@ -2,7 +2,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 /**
- * Notifications for the `database` channel (@caldera/notifications/database): one row per send, read
+ * Notifications for the `database` channel (@caldera-js/notifications/database): one row per send, read
  * back with `inbox(user)`. `data` is JSON text. Caldera reads and writes it; no model needed.
  */
 export const calderaNotifications = sqliteTable(

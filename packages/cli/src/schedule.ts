@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { loadApp, projectEnv, shareMailOutbox } from './describe.js'
 import { CONVENTIONS, exportsOfKind, scheduleFiles, type Project } from './project.js'
 
-/** The parts of a schedule definition the CLI reads, so it doesn't depend on @caldera/schedule. */
+/** The parts of a schedule definition the CLI reads, so it doesn't depend on @caldera-js/schedule. */
 export interface ScheduleLike {
   name: string
   cron: string

@@ -1,4 +1,4 @@
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineEnv } from '@caldera-js/core'
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
 import { errorHandler, intended, INTENDED_KEY, sessionOf, sessionProvider, startSession, UnauthenticatedError } from '../src/index.js'

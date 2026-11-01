@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/schedule",
-  "version": "0.0.0",
+  "name": "@caldera-js/schedule",
+  "version": "0.1.0",
   "description": "Caldera scheduling: cron schedules that dispatch jobs, run from a worker, OS cron, Cloudflare cron triggers or Vercel Cron.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/scheduling",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "schedule"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -28,14 +38,20 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
-    "@caldera/queue": "workspace:*",
+    "@caldera-js/core": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
     "croner": "10.0.1"
   },
   "devDependencies": {
-    "@caldera/cache": "workspace:*",
+    "@caldera-js/cache": "workspace:*",
     "hono": "^4.13.14",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,1 +1,1 @@
-{ "name": "fixture-basic-app", "private": true, "type": "module", "dependencies": { "@caldera/auth": "workspace:*" } }
+{ "name": "fixture-basic-app", "private": true, "type": "module", "dependencies": { "@caldera-js/auth": "workspace:*" } }

@@ -1,4 +1,4 @@
-import { CalderaError, type Duration } from '@caldera/core'
+import { CalderaError, type Duration } from '@caldera-js/core'
 import type { z } from 'zod'
 
 /** Who a notification goes to: a stored notifiable (a user, a team) or an on-demand route. */
@@ -77,7 +77,7 @@ export function defineChannel<M>(options: { name: string; send: ChannelDefinitio
 
 export const isNotifiable = (value: unknown): value is Notifiable => (value as { kind?: unknown } | null)?.kind === 'caldera.recipient'
 
-/** What the mail channel sends: a mail from @caldera/mail, its props, and optionally another address. */
+/** What the mail channel sends: a mail from @caldera-js/mail, its props, and optionally another address. */
 export interface MailMessage {
   mail: { readonly kind: 'caldera.mail'; readonly name: string }
   props: unknown

@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { defineCommand, runMain } from 'citty'
 import { generate } from './codegen.js'
 import { describeProject, projectEnv, shareMailOutbox } from './describe.js'
@@ -46,7 +46,7 @@ async function run(json: boolean, task: () => Promise<{ data: unknown; text: str
     if (exitCode) process.exitCode = exitCode
   } catch (error) {
     // By shape, not instanceof: the project's code runs in its own module graph with its own copy
-    // of @caldera/core, so its errors aren't instances of the CLI's CalderaError class.
+    // of @caldera-js/core, so its errors aren't instances of the CLI's CalderaError class.
     const body =
       isCalderaError(error)
         ? error.toJSON()

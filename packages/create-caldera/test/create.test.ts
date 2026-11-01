@@ -80,8 +80,8 @@ describe('createProject', () => {
     }
     for (const file of ['resources', 'vite.config.ts', 'src/inertia.ts', 'src/server.ts']) expect(existsSync(join(dir, file)), file).toBe(false)
     const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
-    expect(manifest.dependencies).toMatchObject({ '@caldera/next': expect.any(String), next: expect.any(String) })
-    expect(manifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(manifest.dependencies).toMatchObject({ '@caldera-js/next': expect.any(String), next: expect.any(String) })
+    expect(manifest.dependencies['@caldera-js/inertia']).toBeUndefined()
     expect(manifest.devDependencies.vite).toBeUndefined()
     expect(manifest.scripts).toMatchObject({ dev: 'caldera dev', build: 'next build', start: 'next start' })
     expect(readFileSync(join(dir, 'src/app.ts'), 'utf8')).toContain("from '../.caldera/config.gen'")
@@ -118,7 +118,7 @@ describe('createProject', () => {
     expect(existsSync(join(dir, 'public/favicon.svg'))).toBe(true)
     // The kit's package.json is merged into the app's, not copied over it.
     const manifest = JSON.parse(read('package.json'))
-    expect(manifest.dependencies).toMatchObject({ '@base-ui/react': expect.any(String), '@caldera/inertia': expect.any(String), '@caldera/core': expect.any(String), 'lucide-react': expect.any(String) })
+    expect(manifest.dependencies).toMatchObject({ '@base-ui/react': expect.any(String), '@caldera-js/inertia': expect.any(String), '@caldera-js/core': expect.any(String), 'lucide-react': expect.any(String) })
     expect(manifest.devDependencies).toMatchObject({ tailwindcss: expect.any(String), vite: expect.any(String), vitest: expect.any(String) })
     expect(manifest.scripts).toMatchObject({ build: 'vite build && vite build --ssr', dev: 'caldera dev' })
     expect(manifest).not.toHaveProperty('//')
@@ -127,7 +127,7 @@ describe('createProject', () => {
     expect(existsSync(join(next.directory, 'components.json'))).toBe(false)
     const nextManifest = JSON.parse(readFileSync(join(next.directory, 'package.json'), 'utf8'))
     expect(nextManifest.dependencies['@base-ui/react']).toBeUndefined()
-    expect(nextManifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(nextManifest.dependencies['@caldera-js/inertia']).toBeUndefined()
     expect(readFileSync(join(next.directory, 'AGENTS.md'), 'utf8')).not.toContain('coss ui')
   })
 
@@ -146,11 +146,11 @@ describe('createProject', () => {
     expect(read('src/auth.ts')).toMatch(/twoFactor\(\{[\s\S]*passkey\(\{/)
     expect(read('src/db/auth-schema.ts')).toMatch(/snakeCase\.table\('twoFactor'[\s\S]*snakeCase\.table\('passkey'/)
     expect(read('src/config/auth.ts')).toMatch(/twoFactor: true,[\s\S]*passkeys: true,/)
-    expect(read('src/db/schema.ts')).toContain("from '@caldera/auth/sqlite'")
+    expect(read('src/db/schema.ts')).toContain("from '@caldera-js/auth/sqlite'")
     expect(read('AGENTS.md')).toContain('Auth (the starter kit)')
     // No public list of users (the blank kit's /users route) once there are accounts.
     expect(read('src/routes/home.ts')).not.toContain('/users')
-    expect(JSON.parse(read('package.json')).dependencies).toMatchObject({ 'better-auth': expect.any(String), '@caldera/auth': expect.any(String), '@base-ui/react': expect.any(String) })
+    expect(JSON.parse(read('package.json')).dependencies).toMatchObject({ 'better-auth': expect.any(String), '@caldera-js/auth': expect.any(String), '@base-ui/react': expect.any(String) })
     // The blank kit has none of it.
     const blank = await createProject({ directory: join(base, 'blank-kit'), ...offline, kit: 'blank' })
     expect(existsSync(join(blank.directory, 'src/auth.ts'))).toBe(false)
@@ -243,7 +243,7 @@ describe('createProject', () => {
     const { directory: dir } = await createProject({ directory: join(base, 'starter-pg'), ...offline, database: 'postgres' })
     const read = (file: string) => readFileSync(join(dir, file), 'utf8')
     expect(read('src/auth.ts')).toContain("provider: 'pg'")
-    expect(read('src/db/schema.ts')).toContain("from '@caldera/auth'\n")
+    expect(read('src/db/schema.ts')).toContain("from '@caldera-js/auth'\n")
     expect(read('src/db/auth-schema.ts')).toContain("from 'drizzle-orm/pg-core'")
     expect(read('src/app.ts')).toContain("from 'drizzle-orm/node-postgres'")
     // Test files share the one test database: run one at a time (also in the Next.js variant's own config).
@@ -288,9 +288,14 @@ describe('createProject', () => {
     expect(read('src/app.ts')).toContain('authorizationProvider({ policies })')
     expect(read('AGENTS.md')).toContain('`submit(http, \'/login\', data)`')
     const manifest = JSON.parse(read('package.json'))
-    expect(manifest.dependencies).toMatchObject({ '@caldera/next': expect.any(String), 'better-auth': expect.any(String), '@base-ui/react': expect.any(String) })
-    expect(manifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(manifest.dependencies).toMatchObject({ '@caldera-js/next': expect.any(String), 'better-auth': expect.any(String), '@base-ui/react': expect.any(String) })
+    expect(manifest.dependencies['@caldera-js/inertia']).toBeUndefined()
     expect(manifest.scripts).toMatchObject({ build: 'next build', 'test:browser': 'playwright test' })
+    // Caldera's packages are released together, at create-caldera's own version.
+    const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf8'))
+    const caldera = Object.entries({ ...manifest.dependencies, ...manifest.devDependencies }).filter(([name]) => name.startsWith('@caldera-js/'))
+    expect(caldera.length).toBeGreaterThan(5)
+    for (const [, range] of caldera) expect(range).toBe(`^${version}`)
   })
 
   it('adds teams to the Next.js starter: the Inertia kit’s server side, Next pages, the switcher', async () => {
@@ -397,9 +402,9 @@ describe('createProject', () => {
   it('installs @caldera packages from local tarballs in development, as npm would', async () => {
     const result = await createProject({ directory: join(base, 'linked'), ...offline, packageManager: 'pnpm', link: repo })
     const manifest = JSON.parse(readFileSync(join(result.directory, 'package.json'), 'utf8'))
-    expect(manifest.dependencies['@caldera/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-core-.+\.tgz$/)
-    expect(manifest.devDependencies['@caldera/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-cli-/)
-    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera\/\w+': 'file:.+'\n){12}/)
+    expect(manifest.dependencies['@caldera-js/core']).toMatch(/^file:\.\/\.caldera-local\/caldera-js-core-.+\.tgz$/)
+    expect(manifest.devDependencies['@caldera-js/cli']).toMatch(/^file:\.\/\.caldera-local\/caldera-js-cli-/)
+    expect(readFileSync(join(result.directory, 'pnpm-workspace.yaml'), 'utf8')).toMatch(/overrides:\n(  '@caldera-js\/\w+': 'file:.+'\n){12}/)
     expect(readFileSync(join(result.directory, '.gitignore'), 'utf8')).toContain('.caldera-local')
     expect(manifest.dependencies.hono).toMatch(/^\^/)
   }, 60_000)
@@ -588,7 +593,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     // A route using each Workers service, as an app would.
     writeFileSync(
       join(dir, 'src/routes/edge.ts'),
-      `import { defineRoutes } from '@caldera/http'\nimport { User } from '../models/user.js'\n\nexport const edge = defineRoutes('edge', { prefix: '/edge' })\n  .get('users', '/users', async (c) => c.json({ users: await User.findMany(), cache: c.var.cache.name, hits: await c.var.cache.increment('hits') }))\n  .get('file', '/file', async (c) => {\n    const disk = c.var.storage.disk(c.var.storage.name as 'r2')\n    await disk.put('hi.txt', 'hi from r2')\n    return c.json({ disk: disk.name, text: await disk.getText('hi.txt') })\n  })\n`,
+      `import { defineRoutes } from '@caldera-js/http'\nimport { User } from '../models/user.js'\n\nexport const edge = defineRoutes('edge', { prefix: '/edge' })\n  .get('users', '/users', async (c) => c.json({ users: await User.findMany(), cache: c.var.cache.name, hits: await c.var.cache.increment('hits') }))\n  .get('file', '/file', async (c) => {\n    const disk = c.var.storage.disk(c.var.storage.name as 'r2')\n    await disk.put('hi.txt', 'hi from r2')\n    return c.json({ disk: disk.name, text: await disk.getText('hi.txt') })\n  })\n`,
     )
     ok(run('pnpm', 'exec', 'caldera', 'generate'))
     ok(run('pnpm', 'typecheck'))
@@ -656,7 +661,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
     writeFileSync(
       join(dir, 'src/routes/signup.ts'),
-      `import { defineRoutes } from '@caldera/http'\nimport { inbox, notify } from '@caldera/notifications'\nimport { User } from '../models/user.js'\nimport { Welcome } from '../notifications/welcome.js'\n\nexport const signup = defineRoutes('signup')\n  .post('store', '/signup', async (c) => {\n    const user = await User.create(await c.req.json())\n    await notify(user, Welcome, { name: user.name, url: 'https://example.test' })\n    return c.json({ id: user.id })\n  })\n  .get('inbox', '/inbox/:id', async (c) => c.json(await inbox(await User.findOrFail(c.req.param('id'))).list()))\n`,
+      `import { defineRoutes } from '@caldera-js/http'\nimport { inbox, notify } from '@caldera-js/notifications'\nimport { User } from '../models/user.js'\nimport { Welcome } from '../notifications/welcome.js'\n\nexport const signup = defineRoutes('signup')\n  .post('store', '/signup', async (c) => {\n    const user = await User.create(await c.req.json())\n    await notify(user, Welcome, { name: user.name, url: 'https://example.test' })\n    return c.json({ id: user.id })\n  })\n  .get('inbox', '/inbox/:id', async (c) => c.json(await inbox(await User.findOrFail(c.req.param('id'))).list()))\n`,
     )
     ok(run('pnpm', 'exec', 'caldera', 'generate'))
     ok(run('pnpm', 'typecheck'))

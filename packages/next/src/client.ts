@@ -7,7 +7,7 @@ import type { ActionResult } from './action.js'
 
 export type { ActionResult }
 
-// This browser's realtime connection id, from @caldera/broadcast/client's state when it's in use.
+// This browser's realtime connection id, from @caldera-js/broadcast/client's state when it's in use.
 const socketId = (): string | undefined =>
   ((globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.broadcast.client')] as { transport?: { socketId(): string | undefined } } | undefined)?.transport?.socketId()
 
@@ -57,7 +57,7 @@ export interface SubmitCallbacks<T> {
 
 /**
  * Form state for a server action, like Inertia's `useForm`: `form.submit(login)` sends `form.data` to
- * the action (which calls a route with `submit` from @caldera/next), and the route's validation errors
+ * the action (which calls a route with `submit` from @caldera-js/next), and the route's validation errors
  * land in `form.errors`. A redirect from the route is Next's navigation.
  */
 export function useForm<D extends Record<string, unknown>>(initial: D): Form<D> {

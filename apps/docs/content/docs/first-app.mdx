@@ -18,7 +18,7 @@ That writes the table, `src/db/tables/note.ts`, and the model, `src/models/note.
 
 ```ts title="src/db/tables/note.ts"
 import { snakeCase, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from '@caldera/db/sqlite'
+import { timestamps } from '@caldera-js/db/sqlite'
 import { users } from '../schema'
 
 export const notes = snakeCase.table('notes', {
@@ -68,7 +68,7 @@ pnpm exec caldera make:routes notes
 Then write them: a page listing your notes, a form posting new ones, and deleting one.
 
 ```ts title="src/routes/notes.ts"
-import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera/http'
+import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera-js/http'
 import { z } from 'zod'
 import { mw } from '../middleware'
 import { Note } from '../models/note'
@@ -185,7 +185,7 @@ Open [localhost:3000/notes](http://localhost:3000/notes), sign up, and add a not
 ### Test it
 
 ```ts title="tests/notes.test.ts"
-import { setupApp } from '@caldera/testing'
+import { setupApp } from '@caldera-js/testing'
 import { expect, it } from 'vitest'
 import { app } from '../src/app'
 import { http } from '../src/http'

@@ -1,5 +1,5 @@
-import { CalderaError, CapabilityError } from '@caldera/core'
-import { defaultDatabase, type Database } from '@caldera/db'
+import { CalderaError, CapabilityError } from '@caldera-js/core'
+import { defaultDatabase, type Database } from '@caldera-js/db'
 import { sql, type SQL } from 'drizzle-orm'
 import type { Notifiable } from './notification.js'
 import type { DatabaseChannel, Inbox, StoredNotification } from './service.js'

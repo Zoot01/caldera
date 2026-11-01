@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const broadcast = defineConfig('broadcast', (env) => {
   // A self-hosted server (ours, or the Durable Object) shares a secret with the app: BROADCAST_SECRET,

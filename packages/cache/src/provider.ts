@@ -1,4 +1,4 @@
-import { createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
+import { createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext } from '@caldera-js/core'
 import { createCache, type Cache } from './cache.js'
 import { memoryDriver } from './memory.js'
 import type { CacheCapabilities, CacheStore } from './store.js'
@@ -21,7 +21,7 @@ export type CacheService<N extends string = string> = Cache & {
 export const CACHE_DRIVERS: readonly DriverDefinition<CacheStore, CacheCapabilities>[] = [memoryDriver]
 
 const HINTS = {
-  redis: "It's in '@caldera/cache/redis': import { redisDriver } from it and pass `drivers: [redisDriver]`.",
+  redis: "It's in '@caldera-js/cache/redis': import { redisDriver } from it and pass `drivers: [redisDriver]`.",
 }
 
 export function createCacheService<const N extends string>(
@@ -53,7 +53,7 @@ export function createCacheService<const N extends string>(
 
 /**
  * Registers `cache` from your config: `cacheProvider((app) => app.config.cache)`. Stores connect on
- * first use; their config is checked at boot. Other drivers (`redisDriver` from `@caldera/cache/redis`, your
+ * first use; their config is checked at boot. Other drivers (`redisDriver` from `@caldera-js/cache/redis`, your
  * own) go in `drivers`.
  */
 export function cacheProvider<const N extends string>(

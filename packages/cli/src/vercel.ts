@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import type { WorkersIssue } from './cloudflare.js'
 import { broadcastNowhere } from './broadcast.js'
 import type { Project } from './project.js'
@@ -21,7 +21,7 @@ export { default } from '../${VERCEL_BUNDLE}'
 // packages stay imports, so Vercel traces and ships them as usual.
 const bundleEntry = (http: string, ssr: string | undefined) => `import { waitUntil } from '@vercel/functions'
 import { http } from ${JSON.stringify(http)}
-${ssr ? `import { setSsrRender } from '@caldera/inertia'\nimport render from ${JSON.stringify(ssr)}\n\n// Server-side rendering: the SSR build (vite build --ssr), bundled into the function.\nsetSsrRender(render)\n` : ''}
+${ssr ? `import { setSsrRender } from '@caldera-js/inertia'\nimport render from ${JSON.stringify(ssr)}\n\n// Server-side rendering: the SSR build (vite build --ssr), bundled into the function.\nsetSsrRender(render)\n` : ''}
 export default {
   fetch: (request) => http.fetch(request, undefined, { waitUntil, passThroughOnException() {}, props: {} }),
 }

@@ -1,4 +1,4 @@
-import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
+import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredConfig, type RegisteredServices } from '@caldera-js/core'
 import { cloudflareDriver } from './cloudflare.js'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
 import { deferredDriver, memoryDriver, memoryQueue, syncDriver } from './drivers.js'
@@ -36,7 +36,7 @@ export interface DispatchResult {
 
 /**
  * What unique jobs and batches keep their state in: a cache with atomic writes, e.g. `c.var.cache`
- * from `@caldera/cache` (Redis in production; memory on a single server).
+ * from `@caldera-js/cache` (Redis in production; memory on a single server).
  */
 export interface QueueStore {
   readonly capabilities: { locks: boolean; atomicCounters: boolean }
@@ -85,9 +85,9 @@ const BATCH_TTL = '7d'
 export const QUEUE_DRIVERS: readonly DriverDefinition<QueueDriver, QueueCapabilities>[] = [syncDriver, deferredDriver, memoryDriver, cloudflareDriver]
 
 const HINTS = {
-  bullmq: "It's in '@caldera/queue/bullmq': import { bullmqDriver } from it and pass `drivers: [bullmqDriver]`.",
-  qstash: "It's in '@caldera/queue/qstash': import { qstashDriver } from it and pass `drivers: [qstashDriver]`.",
-  database: "It's in '@caldera/queue/database': import { databaseDriver } from it and pass `drivers: [databaseDriver]`.",
+  bullmq: "It's in '@caldera-js/queue/bullmq': import { bullmqDriver } from it and pass `drivers: [bullmqDriver]`.",
+  qstash: "It's in '@caldera-js/queue/qstash': import { qstashDriver } from it and pass `drivers: [qstashDriver]`.",
+  database: "It's in '@caldera-js/queue/database': import { databaseDriver } from it and pass `drivers: [databaseDriver]`.",
 }
 
 export interface Queue<N extends string = string> {
@@ -388,7 +388,7 @@ interface AfterCommitDatabase {
   afterCommit(callback: () => unknown): Promise<void>
 }
 
-// The app's database, as @caldera/db registers it, read without depending on that package.
+// The app's database, as @caldera-js/db registers it, read without depending on that package.
 function defaultDatabase(): AfterCommitDatabase | undefined {
   const resolver = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.db.defaultDatabase')] as (() => AfterCommitDatabase) | undefined
   try {

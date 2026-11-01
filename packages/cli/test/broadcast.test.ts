@@ -39,19 +39,19 @@ const fresh = async () => {
 it('generate lists channels for the server, their types for the browser, and types the hooks', async () => {
   const dir = await fresh()
   expect(readFileSync(join(dir, '.caldera/channels.gen.ts'), 'utf8')).toContain(
-    "import type { AnyChannel } from '@caldera/broadcast'\nimport * as channels0 from '../src/channels/posts.js'\n\nexport const channels: readonly AnyChannel[] = [channels0.PostChannel, channels0.RoomChannel]\n",
+    "import type { AnyChannel } from '@caldera-js/broadcast'\nimport * as channels0 from '../src/channels/posts.js'\n\nexport const channels: readonly AnyChannel[] = [channels0.PostChannel, channels0.RoomChannel]\n",
   )
   const client = readFileSync(join(dir, '.caldera/broadcast.client.gen.ts'), 'utf8')
-  expect(client).toContain("import { registerChannels } from '@caldera/broadcast/client'")
+  expect(client).toContain("import { registerChannels } from '@caldera-js/broadcast/client'")
   expect(client).toContain('registerChannels({\n  "posts.{post}": "private",\n  "rooms.{room}": "presence"\n})')
   // Types only, never imported at runtime: the browser bundle stays free of server code.
   expect(client).not.toContain('src/channels')
   const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
-  expect(register).toContain("declare module '@caldera/broadcast' {")
+  expect(register).toContain("declare module '@caldera-js/broadcast' {")
   expect(register).toContain('"posts.{post}": typeof broadcast0.PostChannel')
   expect(register).toMatch(/"post.updated": typeof broadcast\d\.PostUpdated/)
   // Model broadcasting: the model's events, typed from its `with`.
-  expect(register).toMatch(/"post.updated": import\('@caldera\/broadcast'\)\.ModelBroadcastEvent<typeof broadcast\d\.Post>/)
+  expect(register).toMatch(/"post.updated": import\('@caldera-js\/broadcast'\)\.ModelBroadcastEvent<typeof broadcast\d\.Post>/)
   const agents = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
   expect(agents).toContain('| `posts.{post}` | private | post |  | src/channels/posts.ts:')
   expect(agents).toContain('| `rooms.{room}` | presence |  | typing | src/channels/posts.ts:')
@@ -93,7 +93,7 @@ it('caldera dev runs the realtime server the app publishes to, unless something 
   // Without a secret in config, the dev server derives the app's (from APP_KEY), as the app does.
   writeFileSync(join(dir, 'src/config/broadcast.ts'), readFileSync(join(dir, 'src/config/broadcast.ts'), 'utf8').replace("secret: 'fixture-secret'", "appKey: 'k'.repeat(43)"))
   const { hubSettings } = await import('../src/index.js')
-  const { deriveSecret } = await import('@caldera/broadcast')
+  const { deriveSecret } = await import('@caldera-js/broadcast')
   expect((await hubSettings(openProject(dir))).secret).toBe(await deriveSecret('k'.repeat(43)))
   writeFileSync(join(dir, '.env'), `DATABASE_URL=file:${join(dir, 'app.db')}\nBROADCAST_CONNECTION=log\n`)
   expect(await startDevBroadcastServer(openProject(dir))).toBeUndefined()
@@ -107,7 +107,7 @@ it('cloudflare:setup adds the BroadcastHub Durable Object, and check refuses a l
   expect(wrangler.migrations).toEqual([{ tag: 'v1', new_sqlite_classes: ['BroadcastHub'] }])
   expect(wrangler.vars.BROADCAST_CONNECTION).toBe('cloudflare')
   const worker = readFileSync(join(dir, 'src/worker.ts'), 'utf8')
-  expect(worker).toContain("export { BroadcastHub } from '@caldera/broadcast/cloudflare'")
+  expect(worker).toContain("export { BroadcastHub } from '@caldera-js/broadcast/cloudflare'")
   expect(worker).toContain('const hub = broadcastHubRoute(request, env as never)')
   // The hub's app id and key are vars; its secret comes from APP_KEY, so no second secret to put.
   expect(wrangler.vars).toMatchObject({ BROADCAST_APP_ID: 'fixture-broadcast-app', BROADCAST_KEY: 'fixture-broadcast-app-key' })

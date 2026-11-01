@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const auth = defineConfig('auth', () => ({
   // Where people land after signing in or registering.

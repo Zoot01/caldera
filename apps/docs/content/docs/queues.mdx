@@ -12,7 +12,7 @@ pnpm exec caldera make:job PublishNote
 ```
 
 ```ts title="src/jobs/publish-note.ts"
-import { defineJob } from '@caldera/queue'
+import { defineJob } from '@caldera-js/queue'
 import { z } from 'zod'
 import { Note } from '../models/note'
 
@@ -51,7 +51,7 @@ Pass ids, not rows: the job reads the row when it runs, so it sees the latest ve
 ## Dispatching
 
 ```ts
-import { dispatch } from '@caldera/queue'
+import { dispatch } from '@caldera-js/queue'
 
 await dispatch(PublishNote, { noteId: note.id })
 ```
@@ -107,7 +107,7 @@ Where jobs go is set in `src/config/queue.ts`, and `QUEUE_CONNECTION` picks one:
 | `redis` | BullMQ on Redis, run by a worker. Set `REDIS_URL`. |
 | `cloudflare` | Cloudflare Queues, on Workers. See `caldera cloudflare:setup`. |
 
-QStash, for serverless apps without workers, is in `@caldera/queue/qstash`.
+QStash, for serverless apps without workers, is in `@caldera-js/queue/qstash`.
 
 ### Running a worker
 
@@ -156,7 +156,7 @@ const { dispatched } = await dispatch(RebuildSearchIndex, { userId })
 Middleware wraps a job's runs. Two come with Caldera:
 
 ```ts
-import { rateLimited, withoutOverlapping } from '@caldera/queue'
+import { rateLimited, withoutOverlapping } from '@caldera-js/queue'
 
 middleware: [withoutOverlapping({ key: (p) => p.userId })],
 ```
@@ -173,7 +173,7 @@ Both put the job back to wait, which counts as one of its tries, so give such jo
 A chain runs jobs one after another. If one fails, the rest don't run:
 
 ```ts
-import { chain } from '@caldera/queue'
+import { chain } from '@caldera-js/queue'
 
 await chain([
   ExportNotes.with({ userId }),
@@ -187,7 +187,7 @@ await chain([
 A batch runs jobs side by side and tracks them together:
 
 ```ts
-import { batch } from '@caldera/queue'
+import { batch } from '@caldera-js/queue'
 
 const notes = await Note.ownedBy(userId).findMany()
 const { batchId } = await batch(notes.map((note) => PublishNote.with({ noteId: note.id })))

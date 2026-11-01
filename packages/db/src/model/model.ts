@@ -1,4 +1,4 @@
-import { CalderaError, CapabilityError } from '@caldera/core'
+import { CalderaError, CapabilityError } from '@caldera-js/core'
 import {
   eq,
   getColumns,
@@ -31,7 +31,7 @@ export interface QueryApi<K extends TableKey, Reveal extends boolean = false> {
   findMany<C extends ManyConfig<K>>(config?: ManyConfig<K> extends C ? C : ManyConfig<K>): Promise<ModelResult<K, C, Reveal>[]>
   findFirst<C extends OneConfig<K>>(config?: OneConfig<K> extends C ? C : OneConfig<K>): Promise<ModelResult<K, C, Reveal> | undefined>
   find(id: string | number): Promise<ModelResult<K, true, Reveal> | undefined>
-  /** Throws `ModelNotFoundError`, which `@caldera/http` renders as a 404. */
+  /** Throws `ModelNotFoundError`, which `@caldera-js/http` renders as a 404. */
   findOrFail(id: string | number): Promise<ModelResult<K, true, Reveal>>
   /** Looks up by the model's `routeKey` (or primary key). Used by route model binding. */
   findByRouteKey(value: string | number): Promise<ModelResult<K, true, Reveal> | undefined>
@@ -70,7 +70,7 @@ export interface Hooks<K extends TableKey, H, G> {
 
 type RowRef = string | number | Record<string, unknown>
 
-/** A channel to broadcast on: `PostChannel.with({ post: row.id })` from `@caldera/broadcast`. */
+/** A channel to broadcast on: `PostChannel.with({ post: row.id })` from `@caldera-js/broadcast`. */
 export interface BroadcastChannelRef {
   readonly kind: 'caldera.channel-ref'
   readonly name: string
@@ -167,7 +167,7 @@ export interface ModelConfig<T extends Table, Name extends string, H, G, A, Sc, 
   scopes?: Sc & Record<keyof Sc, (...args: any[]) => Filter<K>>
   appends?: { [P in keyof A]: (row: OmitKeys<SelOf<T>, H>) => A[P] }
   hooks?: Hooks<K, H, G>
-  /** Sends created/updated/deleted to browsers after commit (needs broadcastProvider from @caldera/broadcast). */
+  /** Sends created/updated/deleted to browsers after commit (needs broadcastProvider from @caldera-js/broadcast). */
   broadcast?: ModelBroadcast<OmitKeys<SelOf<T>, H>, W>
 }
 
@@ -243,12 +243,12 @@ export function defineModel<
   const hooks = (config.hooks ?? {}) as LooseHooks
   const broadcast = config.broadcast as ModelBroadcast<AnyRecord, unknown> | undefined
   const broadcastEvents: readonly ModelBroadcastEvent[] = broadcast ? (broadcast.events ?? ['created', 'updated', 'deleted']) : []
-  // The app's broadcaster, as @caldera/broadcast registers it, read without depending on it.
+  // The app's broadcaster, as @caldera-js/broadcast registers it, read without depending on it.
   const broadcaster = () => {
     const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.broadcast.default')] as
       | { prepare(on: unknown, event: string, data: unknown, options: { toOthers: boolean }): () => void }
       | undefined
-    if (!found) throw new CalderaError('no_broadcast', `Model "${config.name}" broadcasts, which needs broadcastProvider() from @caldera/broadcast in the app.`)
+    if (!found) throw new CalderaError('no_broadcast', `Model "${config.name}" broadcasts, which needs broadcastProvider() from @caldera-js/broadcast in the app.`)
     return found
   }
   // Prepared inside the write (a bad channel or an oversized payload fails it); sent after commit.

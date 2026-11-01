@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient } from '@caldera/next/client'
+import { createClient } from '@caldera-js/next/client'
 import { useEffect, useState } from 'react'
 import type { AppType } from '../src/http'
 

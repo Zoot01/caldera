@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import { Check, Copy, Download, ShieldCheck, Smartphone, TriangleAlert } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { cancelTwoFactorSetup, confirmTwoFactor, disableTwoFactor, enableTwoFactor, newRecoveryCodes } from '@/app/actions/settings'

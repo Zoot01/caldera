@@ -12,8 +12,8 @@ pnpm exec caldera make:mail NoteShared
 ```
 
 ```tsx title="src/mail/note-shared.tsx"
-import { attach, defineMail, useApp } from '@caldera/mail'
-import { Tailwind } from '@caldera/mail/tailwind'
+import { attach, defineMail, useApp } from '@caldera-js/mail'
+import { Tailwind } from '@caldera-js/mail/tailwind'
 import { Body, Button, Container, Head, Heading, Html, Preview, Text } from '@react-email/components'
 import { z } from 'zod'
 
@@ -66,7 +66,7 @@ export const NoteSharedEmail = defineMail({
 
 ### Tailwind
 
-Import `Tailwind` from `@caldera/mail/tailwind`, not React Email's. `caldera generate` compiles the classes your mails use once, and sending only copies the styles inline: Tailwind never runs while a mail is sent. Write classes as plain strings in `className` so it can find them.
+Import `Tailwind` from `@caldera-js/mail/tailwind`, not React Email's. `caldera generate` compiles the classes your mails use once, and sending only copies the styles inline: Tailwind never runs while a mail is sent. Write classes as plain strings in `className` so it can find them.
 
 ## Previewing
 
@@ -75,7 +75,7 @@ Import `Tailwind` from `@caldera/mail/tailwind`, not React Email's. `caldera gen
 ## Sending
 
 ```ts
-import { mail } from '@caldera/mail'
+import { mail } from '@caldera-js/mail'
 
 await mail.to(email).send(NoteSharedEmail, {
   from: c.var.user!.name,
@@ -106,8 +106,8 @@ await mail.to(user).locale(user.locale).send(DailyDigestEmail, props)
 In the component, `useLocale()` gives that language (`undefined` without one), and a subject function gets it as `locale`. With [localization](/docs/localization), translate with it:
 
 ```tsx
-import { translator } from '@caldera/i18n'
-import { useLocale } from '@caldera/mail'
+import { translator } from '@caldera-js/i18n'
+import { useLocale } from '@caldera-js/mail'
 
 function DailyDigest({ issues }: Props) {
   const { t } = translator(useLocale())

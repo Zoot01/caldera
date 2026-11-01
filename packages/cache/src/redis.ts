@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { CacheCapabilities, CacheStore, ThrottleResult } from './store.js'
 
@@ -113,7 +113,7 @@ export const redisDriver = defineDriver<CacheStore, CacheCapabilities, { url: st
   create: (config) =>
     redisStore(async () => {
       // Imported on first use, so apps without Redis don't need ioredis (and edge bundles never load it).
-      // Imported on first use; this whole file is a separate entry (@caldera/cache/redis), so apps
+      // Imported on first use; this whole file is a separate entry (@caldera-js/cache/redis), so apps
       // that never use Redis (and edge bundles) never reference ioredis at all.
       const module = (await import('ioredis').catch(() => {
         throw new CalderaError('missing_dependency', 'The redis cache store needs ioredis: install it in your app.', { package: 'ioredis' })

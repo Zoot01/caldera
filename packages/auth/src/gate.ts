@@ -1,5 +1,5 @@
-import { CalderaError } from '@caldera/core'
-import type { AnyModel, Filter, Row } from '@caldera/db'
+import { CalderaError } from '@caldera-js/core'
+import type { AnyModel, Filter, Row } from '@caldera-js/db'
 import { sql } from 'drizzle-orm'
 import {
   policyFor,

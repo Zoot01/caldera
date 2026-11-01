@@ -1,4 +1,4 @@
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import type { Metadata } from 'next'
 import { DeleteUser } from '@/components/delete-user'
 import { flash, requireUser } from '@/lib/caldera'

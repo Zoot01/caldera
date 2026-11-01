@@ -1,14 +1,14 @@
-import { CalderaError, defineProvider, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
+import { CalderaError, defineProvider, type RegisteredConfig, type RegisteredServices } from '@caldera-js/core'
 import type { z } from 'zod'
 
-/** A channel to broadcast on: `PostChannel.with({ postId })` from `@caldera/broadcast`. */
+/** A channel to broadcast on: `PostChannel.with({ postId })` from `@caldera-js/broadcast`. */
 export interface BroadcastTarget {
   readonly kind: 'caldera.channel-ref'
   readonly pattern: string
   readonly name: string
 }
 
-/** Sends the event to browsers too, over `@caldera/broadcast`. */
+/** Sends the event to browsers too, over `@caldera-js/broadcast`. */
 export interface BroadcastOptions<Out = any, With = unknown> {
   /** The channels, from the payload: `(p) => PostChannel.with({ postId: p.postId })`. */
   on: (payload: Out) => BroadcastTarget | readonly BroadcastTarget[]
@@ -36,7 +36,7 @@ export type EventPayload<E> = E extends EventDefinition<infer P, any> ? z.output
 export function defineEvent<P extends z.ZodType, W = z.output<P>>(options: {
   name: string
   payload: P
-  /** Also send it to browsers subscribed to these channels (needs broadcastProvider from @caldera/broadcast). */
+  /** Also send it to browsers subscribed to these channels (needs broadcastProvider from @caldera-js/broadcast). */
   broadcast?: BroadcastOptions<z.output<P>, W>
 }): EventDefinition<P, W> {
   if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(options.name)) {
@@ -58,7 +58,7 @@ export interface ListenerContext {
 
 /**
  * A listener that queues a job instead of running in the emitting process: `SendWelcome.fromEvent(map)`
- * from `@caldera/queue`. It is the job, so it has the job's retries, backoff and uniqueness.
+ * from `@caldera-js/queue`. It is the job, so it has the job's retries, backoff and uniqueness.
  */
 export interface QueuedListener<P = any> {
   readonly kind: 'caldera.queued-listener'
@@ -211,10 +211,10 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
   return events
 }
 
-// The app's queue and database, as @caldera/queue and @caldera/db register them, read without depending on them.
+// The app's queue and database, as @caldera-js/queue and @caldera-js/db register them, read without depending on them.
 function queue(): QueueLike {
   const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.queue.default')] as QueueLike | undefined
-  if (!found) throw new CalderaError('no_queue', 'A queued listener needs a queue: add queueProvider() from @caldera/queue to the app.')
+  if (!found) throw new CalderaError('no_queue', 'A queued listener needs a queue: add queueProvider() from @caldera-js/queue to the app.')
   return found
 }
 
@@ -224,7 +224,7 @@ interface BroadcasterLike {
 
 function broadcaster(event: AnyEvent): BroadcasterLike {
   const found = (globalThis as { [key: symbol]: unknown })[Symbol.for('caldera.broadcast.default')] as BroadcasterLike | undefined
-  if (!found) throw new CalderaError('no_broadcast', `"${event.name}" is a broadcast event, which needs broadcastProvider() from @caldera/broadcast in the app.`)
+  if (!found) throw new CalderaError('no_broadcast', `"${event.name}" is a broadcast event, which needs broadcastProvider() from @caldera-js/broadcast in the app.`)
   return found
 }
 

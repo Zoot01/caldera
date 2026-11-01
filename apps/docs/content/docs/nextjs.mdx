@@ -34,7 +34,7 @@ The rest of this page builds the notes list from [Your first app](/docs/first-ap
 A route gives a page its data as JSON, where an Inertia route would render the page:
 
 ```ts title="src/routes/notes.ts"
-import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera/http'
+import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera-js/http'
 import { z } from 'zod'
 import { mw } from '../route-middleware'
 import { Note } from '../models/note'
@@ -72,7 +72,7 @@ Middleware, validation, binding and flash messages work as anywhere else: the ne
 A page is a Server Component. `load` runs one of the app's GET routes for it, as the browser's own request (with its cookies), and returns the JSON:
 
 ```tsx title="app/(app)/notes/page.tsx"
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import type { Metadata } from 'next'
 import { http } from '@/src/http'
 import { type Note, Notes } from './notes'
@@ -104,7 +104,7 @@ A form calls a server action, and the action calls the route with `submit`:
 ```ts title="app/actions/notes.ts"
 'use server'
 
-import { submit } from '@caldera/next'
+import { submit } from '@caldera-js/next'
 import { http } from '@/src/http'
 
 export const addNote = async (data: { title: string; body: string }) => submit(http, '/notes', data)
@@ -113,12 +113,12 @@ export const deleteNote = async (id: string) => submit(http, `/notes/${encodeURI
 
 `submit` runs the route as the browser's request, then makes its answer Next's: cookies it sets (the session, Better Auth's) are set, a redirect becomes Next's navigation, and validation errors come back for the form. Pass `{ method: 'PUT' }`, `'PATCH'` or `'DELETE'` for other methods.
 
-In the page's client component, `useForm` from `@caldera/next/client` holds the form's data and errors, the way Inertia's does:
+In the page's client component, `useForm` from `@caldera-js/next/client` holds the form's data and errors, the way Inertia's does:
 
 ```tsx title="app/(app)/notes/notes.tsx"
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import type { FormEvent } from 'react'
 import { addNote, deleteNote } from '@/app/actions/notes'
 import { FormField } from '@/components/form-field'
@@ -209,7 +209,7 @@ and `(await context()).gate.can(Note, 'update', note)` asks the [policies](/docs
 
 Changes still go through a route, from a server action, so validation and authorization stay in one place.
 
-Rendering can't change the session, so a page shows what was flashed and the layout clears it once shown (`components/flash-toasts.tsx`). Translations come from `(await context()).i18n.t(...)`, and `createClientTranslator` from `@caldera/i18n/translator` handles messages with tags (the welcome page, `app/page.tsx`, uses it).
+Rendering can't change the session, so a page shows what was flashed and the layout clears it once shown (`components/flash-toasts.tsx`). Translations come from `(await context()).i18n.t(...)`, and `createClientTranslator` from `@caldera-js/i18n/translator` handles messages with tags (the welcome page, `app/page.tsx`, uses it).
 
 ## In client components
 
@@ -218,7 +218,7 @@ For calls that aren't form submissions, `createClient` is a typed client for the
 ```tsx title="components/note-count.tsx"
 'use client'
 
-import { createClient } from '@caldera/next/client'
+import { createClient } from '@caldera-js/next/client'
 import { useEffect, useState } from 'react'
 import type { AppType } from '@/src/http'
 
@@ -244,7 +244,7 @@ The paths, inputs and JSON are typed from the routes. Only the types are importe
 Route tests call the routes under `/api`:
 
 ```ts title="tests/notes.test.ts"
-import { setupApp } from '@caldera/testing'
+import { setupApp } from '@caldera-js/testing'
 import { expect, it } from 'vitest'
 import { app } from '../src/app'
 import { http } from '../src/http'

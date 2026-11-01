@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { CalderaError } from '@caldera/core'
-import { compareSignatures, flattenMessages, signatureOf, signatureType, type Signature } from '@caldera/i18n/icu'
+import { CalderaError } from '@caldera-js/core'
+import { compareSignatures, flattenMessages, signatureOf, signatureType, type Signature } from '@caldera-js/i18n/icu'
 import { pageFiles } from './pages.js'
 import { CONVENTIONS, type Project } from './project.js'
 
@@ -11,16 +11,16 @@ export interface LoadedLang {
   canonical: string
   /** locale → key → message: the app's own, over the built-in validation and error messages. */
   messages: Record<string, Record<string, string>>
-  /** locale → key → file it came from (`built-in` for @caldera/i18n's). */
+  /** locale → key → file it came from (`built-in` for @caldera-js/i18n's). */
   sources: Record<string, Record<string, string>>
   /** Page component → the message patterns it declared with `export const messages = [...]`. */
   pages: Record<string, string[]>
 }
 
-/** Messages @caldera/i18n ships, for the frameworks' own keys (`validation.*`, `errors.*`). */
+/** Messages @caldera-js/i18n ships, for the frameworks' own keys (`validation.*`, `errors.*`). */
 function builtinLangDir(project: Project): string | undefined {
   try {
-    const manifest = createRequire(project.path('package.json')).resolve('@caldera/i18n/package.json')
+    const manifest = createRequire(project.path('package.json')).resolve('@caldera-js/i18n/package.json')
     const dir = join(dirname(manifest), 'lang')
     return existsSync(dir) ? dir : undefined
   } catch {
@@ -113,18 +113,18 @@ export function loadLang(project: Project): LoadedLang | undefined {
 export function i18nGen(lang: LoadedLang, header: string): string {
   return (
     header +
-    `import type { Catalog } from '@caldera/i18n'\n\n` +
+    `import type { Catalog } from '@caldera-js/i18n'\n\n` +
     `/** Canonical locale: ${lang.canonical}. */\n` +
     `export const messages: Catalog = ${JSON.stringify(lang.messages, null, 2)}\n\n` +
     `export const pages: Record<string, readonly string[]> = ${JSON.stringify(lang.pages, null, 2)}\n`
   )
 }
 
-/** The `@caldera/i18n` block of register.d.ts: each canonical key and its parameters. */
+/** The `@caldera-js/i18n` block of register.d.ts: each canonical key and its parameters. */
 export function i18nRegister(lang: LoadedLang): string {
   const entries = Object.entries(lang.messages[lang.canonical] ?? {}).sort(([a], [b]) => a.localeCompare(b))
   return (
-    `\ndeclare module '@caldera/i18n' {\n` +
+    `\ndeclare module '@caldera-js/i18n' {\n` +
     `  interface I18nRegister {\n` +
     `    messages: {\n` +
     entries.map(([key, message]) => `      ${JSON.stringify(key)}: ${signatureType(signatureOf(message))}\n`).join('') +
@@ -149,7 +149,7 @@ export interface I18nReport {
 /** `caldera i18n:missing`: what each locale lacks, has extra, or takes differently from the canonical. */
 export function i18nReport(project: Project): I18nReport {
   const lang = loadLang(project)
-  if (!lang) throw new CalderaError('i18n_not_used', `No ${CONVENTIONS.langDir}/ folder and no @caldera/i18n in this app.`)
+  if (!lang) throw new CalderaError('i18n_not_used', `No ${CONVENTIONS.langDir}/ folder and no @caldera-js/i18n in this app.`)
   const canonical = lang.messages[lang.canonical] ?? {}
   const signatures = new Map<string, Signature>(Object.entries(canonical).map(([key, message]) => [key, signatureOf(message)]))
   const locales = Object.entries(lang.messages)

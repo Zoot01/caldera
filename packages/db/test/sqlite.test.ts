@@ -1,7 +1,7 @@
 // Runtime-only: the model types are registered for the Postgres fixtures (one schema per app),
 // so this file is excluded from the package typecheck. Types are covered by model.test.ts.
 import { DatabaseSync } from 'node:sqlite'
-import { CapabilityError } from '@caldera/core'
+import { CapabilityError } from '@caldera-js/core'
 import { defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'

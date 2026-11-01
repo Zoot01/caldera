@@ -1,5 +1,5 @@
-import { allows } from '@caldera/auth'
-import { defineRoutes } from '@caldera/http'
+import { allows } from '@caldera-js/auth'
+import { defineRoutes } from '@caldera-js/http'
 import Post from '../models/post.js'
 
 export const posts = defineRoutes('posts', { prefix: '/posts' })

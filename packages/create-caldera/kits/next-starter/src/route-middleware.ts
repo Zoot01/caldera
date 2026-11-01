@@ -1,5 +1,5 @@
-import { redirect, signed, UnauthenticatedError, defineMiddleware, type Redirect } from '@caldera/http'
-import type { RegisteredHonoEnv } from '@caldera/core'
+import { redirect, signed, UnauthenticatedError, defineMiddleware, type Redirect } from '@caldera-js/http'
+import type { RegisteredHonoEnv } from '@caldera-js/core'
 import type { Context as HonoContext, Next } from 'hono'
 
 // Every request already knows its user (authenticate() in src/http.ts sets c.var.user, or null).
@@ -8,7 +8,7 @@ const PASSWORD_CONFIRMED_AT = 'auth.password_confirmed_at'
 
 /** Named middleware for routes: `{ middleware: [mw.auth(), mw.verified()] }`. */
 export const mw = defineMiddleware({
-  // Only links the app signed (`signedUrl` from @caldera/http), unexpired: a 403 otherwise.
+  // Only links the app signed (`signedUrl` from @caldera-js/http), unexpired: a 403 otherwise.
   signed: () => signed(),
   // Signed in. Otherwise a 401: page visits go to /login, and come back here after signing in.
   auth: () => async (c: Context, next: Next) => {

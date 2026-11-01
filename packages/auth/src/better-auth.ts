@@ -1,5 +1,5 @@
-import { BootError, CalderaError, defineProvider, type ProviderDefinition, type RegisteredConfig, type RegisteredEnv, type Singleton } from '@caldera/core'
-import { defaultDatabase, type Database } from '@caldera/db'
+import { BootError, CalderaError, defineProvider, type ProviderDefinition, type RegisteredConfig, type RegisteredEnv, type Singleton } from '@caldera-js/core'
+import { defaultDatabase, type Database } from '@caldera-js/db'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import type { AuthUser } from './policy.js'
 
@@ -41,7 +41,7 @@ export interface BetterAuthProviderOptions<A extends BetterAuthLike> {
     request: () => Context | undefined
   }) => A
   /**
-   * The same list you pass to `originCheck()` from `@caldera/http`. Hand it to Better Auth as
+   * The same list you pass to `originCheck()` from `@caldera-js/http`. Hand it to Better Auth as
    * `trustedOrigins: ctx.trustedOrigins`; Caldera refuses to start if the two disagree, so one
    * layer can never block requests the other allows.
    */
@@ -130,7 +130,7 @@ export function authenticate(options: { required?: boolean } = {}): MiddlewareHa
 
 /**
  * Mounts Better Auth's endpoints (sign-up, sign-in, OAuth callbacks…) under `basePath`. With
- * Caldera's app session (`startSession()` from `@caldera/http`), signing in regenerates it and
+ * Caldera's app session (`startSession()` from `@caldera-js/http`), signing in regenerates it and
  * signing out clears it, so flash data and remembered pages don't carry across users.
  */
 export function authRoutes(basePath = '/api/auth'): Hono {
@@ -204,7 +204,7 @@ export const CLIENT_IP_HEADER = 'x-caldera-client-ip'
 /**
  * The request, with the client's address in `CLIENT_IP_HEADER`: `c.var.ip` (set it behind a proxy you
  * trust), Cloudflare's `cf-connecting-ip`, else the socket's (Node). A copy sent by the client is
- * dropped, so it can't be spoofed. The same order as `ipOf()` in @caldera/cache.
+ * dropped, so it can't be spoofed. The same order as `ipOf()` in @caldera-js/cache.
  */
 function withClientIp(c: Context): Request {
   const raw = c.req.raw

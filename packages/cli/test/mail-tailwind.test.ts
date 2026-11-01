@@ -10,8 +10,8 @@ afterAll(() => {
   for (const entry of existsSync(tmp) ? readdirSync(tmp) : []) if (entry.startsWith(PREFIX)) rmSync(join(tmp, entry), { recursive: true, force: true })
 })
 
-const template = (classes: string) => `import { defineMail } from '@caldera/mail'
-import { pixelBasedPreset, Tailwind } from '@caldera/mail/tailwind'
+const template = (classes: string) => `import { defineMail } from '@caldera-js/mail'
+import { pixelBasedPreset, Tailwind } from '@caldera-js/mail/tailwind'
 import { Body, Head, Html, Text } from '@react-email/components'
 import { z } from 'zod'
 
@@ -38,7 +38,7 @@ it('generate compiles the Tailwind mail templates use, and recompiles only when 
   writeFileSync(join(dir, 'src/mail/promo.tsx'), template('bg-white p-6'))
   await generate(openProject(dir))
   const first = readFileSync(join(dir, '.caldera/mails.gen.ts'), 'utf8')
-  expect(first).toContain("import { setMailStyles } from '@caldera/mail/tailwind'")
+  expect(first).toContain("import { setMailStyles } from '@caldera-js/mail/tailwind'")
   const hash = /tailwind:([0-9a-f]+)/.exec(first)![1]
   const styles = JSON.parse(/^setMailStyles\((.*)\)$/m.exec(first)![1]!) as Record<string, { strings: Record<string, { style: Record<string, string>; keep: string[] }>; css: string }>
   const [compiled] = Object.values(styles)

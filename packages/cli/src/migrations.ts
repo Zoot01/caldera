@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import type { Project } from './project.js'
 
 export type MigrationCommand = 'generate' | 'migrate' | 'push'

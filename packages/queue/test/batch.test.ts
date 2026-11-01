@@ -1,4 +1,4 @@
-import { createCacheService, defineLimiter, perMinute } from '@caldera/cache'
+import { createCacheService, defineLimiter, perMinute } from '@caldera-js/cache'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createQueue, defineJob, rateLimited, withoutOverlapping, type Queue } from '../src/index.js'

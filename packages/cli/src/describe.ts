@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
-import { CalderaError, type AppDescription } from '@caldera/core'
+import { CalderaError, type AppDescription } from '@caldera-js/core'
 import { installMailOutbox } from './dev-outbox.js'
 import { CONVENTIONS, type Project } from './project.js'
 

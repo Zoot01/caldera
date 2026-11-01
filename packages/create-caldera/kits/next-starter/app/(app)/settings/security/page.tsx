@@ -1,4 +1,4 @@
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import type { Metadata } from 'next'
 import type { PasskeySummary } from '@/components/passkeys'
 import type { TwoFactorState } from '@/components/two-factor'

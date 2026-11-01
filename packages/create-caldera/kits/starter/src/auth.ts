@@ -1,6 +1,6 @@
 import { passkey } from '@better-auth/passkey'
-import { betterAuthProvider, CLIENT_IP_HEADER } from '@caldera/auth'
-import { mail } from '@caldera/mail'
+import { betterAuthProvider, CLIENT_IP_HEADER } from '@caldera-js/auth'
+import { mail } from '@caldera-js/mail'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { twoFactor } from 'better-auth/plugins'

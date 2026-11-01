@@ -1,6 +1,6 @@
 'use server'
 
-import { submit } from '@caldera/next'
+import { submit } from '@caldera-js/next'
 import { http } from '@/src/http'
 
 // The teams pages' server actions, posting to src/routes/teams.ts (which checks every permission).

@@ -1,5 +1,5 @@
-import { CalderaError } from '@caldera/core'
-import type { AuthUser, Gate } from '@caldera/auth'
+import { CalderaError } from '@caldera-js/core'
+import type { AuthUser, Gate } from '@caldera-js/auth'
 import type { Context } from 'hono'
 import type { z } from 'zod'
 
@@ -138,7 +138,7 @@ function callSite(): { file: string; line: number } | undefined {
     if (!match) continue
     // Loaders (tsx) give modules URLs with a query and percent-encoding: keep just the path.
     const file = decodeURIComponent(match[1]!.replace(/^file:\/\//, '').replace(/\?.*$/, ''))
-    if (file.includes('/packages/broadcast/src/') || file.includes('/packages/broadcast/dist/') || file.includes('/@caldera/broadcast/') || file.startsWith('node:') || file.includes('/node_modules/')) continue
+    if (file.includes('/packages/broadcast/src/') || file.includes('/packages/broadcast/dist/') || file.includes('/@caldera-js/broadcast/') || file.startsWith('node:') || file.includes('/node_modules/')) continue
     return { file, line: Number(match[2]) }
   }
   return undefined

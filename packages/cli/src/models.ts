@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { CONVENTIONS, exportsOfKind, modelFiles, type Project } from './project.js'
 
 interface RelationsEntry {

@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { defineJob } from '@caldera/queue'
+import { defineJob } from '@caldera-js/queue'
 import { z } from 'zod'
 
 export const Stamp = defineJob({

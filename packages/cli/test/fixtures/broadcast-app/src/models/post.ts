@@ -1,5 +1,5 @@
-import { channel } from '@caldera/broadcast'
-import { defineModel } from '@caldera/db'
+import { channel } from '@caldera-js/broadcast'
+import { defineModel } from '@caldera-js/db'
 import { posts } from '../db/schema.js'
 
 export const Post = defineModel(posts, {

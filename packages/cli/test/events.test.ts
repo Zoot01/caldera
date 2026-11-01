@@ -30,11 +30,11 @@ it('make:event and make:listener, then generate registers the listener and lists
   // A queued listener: the existing Greet job, on the same event.
   writeFileSync(
     join(root, 'src/listeners/greet-new-users.ts'),
-    `import { listen } from '@caldera/events'\nimport { UserRegistered } from '../events/user-registered.js'\nimport { Greet } from '../jobs/greet.js'\n\nexport const greetNewUsers = listen(UserRegistered, Greet.fromEvent<{ id: string }>((e) => ({ name: e.id })))\n`,
+    `import { listen } from '@caldera-js/events'\nimport { UserRegistered } from '../events/user-registered.js'\nimport { Greet } from '../jobs/greet.js'\n\nexport const greetNewUsers = listen(UserRegistered, Greet.fromEvent<{ id: string }>((e) => ({ name: e.id })))\n`,
   )
   await generate(openProject(root))
   expect(readFileSync(join(root, '.caldera/listeners.gen.ts'), 'utf8')).toContain(
-    `import type { AnyListener } from '@caldera/events'\nimport * as listeners0 from '../src/listeners/greet-new-users.js'\nimport * as listeners1 from '../src/listeners/notify-admins.js'\n\nexport const listeners: readonly AnyListener[] = [listeners0.greetNewUsers, listeners1.notifyAdmins]\n`,
+    `import type { AnyListener } from '@caldera-js/events'\nimport * as listeners0 from '../src/listeners/greet-new-users.js'\nimport * as listeners1 from '../src/listeners/notify-admins.js'\n\nexport const listeners: readonly AnyListener[] = [listeners0.greetNewUsers, listeners1.notifyAdmins]\n`,
   )
   const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
   expect(agents).toContain('| `user.registered` | `greetNewUsers` | queued: job `fixture.greet` | src/listeners/greet-new-users.ts |')

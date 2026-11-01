@@ -1,6 +1,6 @@
 'use server'
 
-import { submit } from '@caldera/next'
+import { submit } from '@caldera-js/next'
 import { http } from '@/src/http'
 
 // Each form's server action: it posts to the app's route (src/routes/auth.ts), as the browser would.

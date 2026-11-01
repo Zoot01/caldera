@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import type { Context, ErrorHandler, NotFoundHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -35,7 +35,7 @@ export class HttpError extends CalderaError {
   }
 }
 
-/** 429. `@caldera/cache` limiters throw their own `rate_limited` error, which maps to this. */
+/** 429. `@caldera-js/cache` limiters throw their own `rate_limited` error, which maps to this. */
 export class TooManyRequestsError extends HttpError {
   readonly retryAfter: number
 
@@ -106,7 +106,7 @@ export interface ErrorHandlerOptions {
   loginUrl?: string | ((c: Context) => string)
   /**
    * Renders errors as a page for people: browsers asking for a page, and Inertia visits (which
-   * otherwise show the JSON as raw text). `errorPage()` from @caldera/inertia renders
+   * otherwise show the JSON as raw text). `errorPage()` from @caldera-js/inertia renders
    * `resources/pages/Error.tsx`. Return undefined to send the JSON after all. Validation errors and
    * sign-in redirects keep their own handling; API clients always get JSON.
    */
@@ -127,7 +127,7 @@ async function asPage(page: ErrorPage | undefined, c: Context, body: ErrorBody, 
   }
 }
 
-/** The messages Caldera's own errors use; with @caldera/i18n these come from `errors.<code>` instead. */
+/** The messages Caldera's own errors use; with @caldera-js/i18n these come from `errors.<code>` instead. */
 const DEFAULT_MESSAGES: Record<string, string> = {
   validation_failed: 'The given data was invalid.',
   not_found: 'Not found.',

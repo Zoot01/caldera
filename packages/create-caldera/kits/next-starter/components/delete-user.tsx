@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import { type FormEvent, useState } from 'react'
 import { FormField } from '@/components/form-field'
 import { deleteAccount } from '@/app/actions/settings'

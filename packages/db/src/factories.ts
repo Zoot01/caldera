@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { Faker, en } from '@faker-js/faker'
 import { getColumns, type Table, type TablesRelationalConfig } from 'drizzle-orm'
 import { defaultDatabase } from './database.js'

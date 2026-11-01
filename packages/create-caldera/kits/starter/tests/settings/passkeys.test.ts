@@ -1,5 +1,5 @@
-import { defaultDatabase } from '@caldera/db'
-import { setupApp } from '@caldera/testing'
+import { defaultDatabase } from '@caldera-js/db'
+import { setupApp } from '@caldera-js/testing'
 import { expect, it } from 'vitest'
 import { app } from '../../src/app.js'
 import { http } from '../../src/http.js'

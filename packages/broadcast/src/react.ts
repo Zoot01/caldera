@@ -1,4 +1,4 @@
-import type { BroadcastPayload } from '@caldera/events'
+import type { BroadcastPayload } from '@caldera-js/events'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { z } from 'zod'
 import type { BroadcastRegister } from './broadcaster.js'

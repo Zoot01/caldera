@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const session = defineConfig('session', (env) => ({
   // The first key encrypts; the rest still decrypt, so rotating APP_KEY doesn't drop sessions.

@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/inertia",
-  "version": "0.0.0",
+  "name": "@caldera-js/inertia",
+  "version": "0.1.0",
   "description": "Caldera's Inertia adapter: typed pages, shared props, partial reloads and deferred props over Hono, with Vite asset tags.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/pages",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "inertia"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -32,13 +42,19 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
-    "@caldera/http": "workspace:*"
+    "@caldera-js/core": "workspace:*",
+    "@caldera-js/http": "workspace:*"
   },
   "devDependencies": {
     "hono": "^4.13.14",
     "typescript": "5.9.3",
     "vite": "8.3.5",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

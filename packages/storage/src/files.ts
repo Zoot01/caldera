@@ -1,4 +1,4 @@
-import { CalderaError, type Duration } from '@caldera/core'
+import { CalderaError, type Duration } from '@caldera-js/core'
 import type { Disk } from './disk.js'
 import type { FileRef } from './uploads.js'
 

@@ -1,9 +1,19 @@
 {
-  "name": "@caldera/cache",
-  "version": "0.0.0",
+  "name": "@caldera-js/cache",
+  "version": "0.1.0",
   "description": "Caldera cache: remember, stale-while-revalidate, locks, tags and rate limiting over memory, Redis and edge stores.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
+  "homepage": "https://calderajs.dev/docs/cache",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "cache"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -30,7 +40,7 @@
     "hono": "^4.13.0",
     "ioredis": ">=5.0.0",
     "zod": "^4.6.0",
-    "@caldera/db": "workspace:*",
+    "@caldera-js/db": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5"
   },
   "peerDependenciesMeta": {
@@ -40,7 +50,7 @@
     "ioredis": {
       "optional": true
     },
-    "@caldera/db": {
+    "@caldera-js/db": {
       "optional": true
     },
     "drizzle-orm": {
@@ -48,11 +58,11 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/db": "workspace:*",
-    "@caldera/http": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/http": "workspace:*",
     "@libsql/client": "0.18.0",
     "@types/pg": "^8.15.0",
     "drizzle-orm": "1.0.0-rc.5",
@@ -62,5 +72,11 @@
     "pg": "8.23.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

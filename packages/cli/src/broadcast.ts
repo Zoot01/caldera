@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { createConnection } from 'node:net'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { loadApp, projectEnv } from './describe.js'
 import { loadModels } from './models.js'
 import { channelFiles, eventFiles, exportsOfKind, type Project } from './project.js'
@@ -116,7 +116,7 @@ export async function authorizeChannel(project: Project, request: { channel: str
     }
     let gate: unknown
     try {
-      const { createGate } = await project.importPackage<{ createGate(options: { user: unknown }): unknown }>('@caldera/auth')
+      const { createGate } = await project.importPackage<{ createGate(options: { user: unknown }): unknown }>('@caldera-js/auth')
       gate = createGate({ user })
     } catch {
       gate = undefined
@@ -154,8 +154,8 @@ export async function hubSettings(project: Project, options: { connection?: stri
     if (connection.driver !== 'pusher' || !connection.host) {
       throw new CalderaError('broadcast_not_self_hosted', `The "${name}" connection uses the ${String(connection.driver)} driver${connection.driver === 'pusher' ? ' without a host (hosted Pusher)' : ''}: there's no server to run. Point a pusher connection at a host (BROADCAST_HOST) to serve it yourself.`)
     }
-    // The same secret the app signs with: set, or derived from APP_KEY (by the app's own @caldera/broadcast).
-    const { resolveSecret } = await importFromProject<{ resolveSecret(config: { secret?: unknown; appKey?: unknown }, where: string): Promise<string> }>(project.root, '@caldera/broadcast')
+    // The same secret the app signs with: set, or derived from APP_KEY (by the app's own @caldera-js/broadcast).
+    const { resolveSecret } = await importFromProject<{ resolveSecret(config: { secret?: unknown; appKey?: unknown }, where: string): Promise<string> }>(project.root, '@caldera-js/broadcast')
     const secret = await resolveSecret({ secret: connection.secret, appKey: connection.appKey }, `The "${name}" broadcast connection`)
     return { connection: name, appId: String(connection.appId), key: String(connection.key), secret, host: String(connection.host), port: Number(connection.port ?? 6001), ...(typeof connection.redis === 'string' && connection.redis ? { redis: connection.redis } : {}) }
   } finally {
@@ -163,10 +163,10 @@ export async function hubSettings(project: Project, options: { connection?: stri
   }
 }
 
-/** `caldera broadcast:serve`: the app's realtime server, from the project's own @caldera/broadcast. */
+/** `caldera broadcast:serve`: the app's realtime server, from the project's own @caldera-js/broadcast. */
 export async function serveBroadcast(project: Project, options: { connection?: string; host?: string; port?: number } = {}) {
   const settings = await hubSettings(project, options)
-  const { startBroadcastServer } = await importFromProject<{ startBroadcastServer(options: Record<string, unknown>): Promise<{ port: number; close(): Promise<void> }> }>(project.root, '@caldera/broadcast/server')
+  const { startBroadcastServer } = await importFromProject<{ startBroadcastServer(options: Record<string, unknown>): Promise<{ port: number; close(): Promise<void> }> }>(project.root, '@caldera-js/broadcast/server')
   const server = await startBroadcastServer({ appId: settings.appId, key: settings.key, secret: settings.secret, port: options.port ?? settings.port, host: options.host ?? '127.0.0.1', ...(settings.redis ? { redis: settings.redis } : {}) })
   return { settings, server }
 }
@@ -184,7 +184,7 @@ export async function startDevBroadcastServer(project: Project): Promise<{ port:
   }
   if (!['127.0.0.1', 'localhost', '0.0.0.0', '::1'].includes(settings.host)) return undefined
   if (await listening(settings.port)) return undefined
-  const { startBroadcastServer } = await importFromProject<{ startBroadcastServer(options: Record<string, unknown>): Promise<{ port: number; close(): Promise<void> }> }>(project.root, '@caldera/broadcast/server')
+  const { startBroadcastServer } = await importFromProject<{ startBroadcastServer(options: Record<string, unknown>): Promise<{ port: number; close(): Promise<void> }> }>(project.root, '@caldera-js/broadcast/server')
   return startBroadcastServer({ appId: settings.appId, key: settings.key, secret: settings.secret, port: settings.port, host: '127.0.0.1' })
 }
 

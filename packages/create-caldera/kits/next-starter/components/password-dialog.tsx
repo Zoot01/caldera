@@ -1,6 +1,6 @@
 'use client'
 
-import { type ActionResult, useForm } from '@caldera/next/client'
+import { type ActionResult, useForm } from '@caldera-js/next/client'
 import { type FormEvent, type ReactElement, type ReactNode, useState } from 'react'
 import { FormField } from '@/components/form-field'
 import { Button } from '@/components/ui/button'

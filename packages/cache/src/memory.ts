@@ -1,4 +1,4 @@
-import { defineDriver } from '@caldera/core'
+import { defineDriver } from '@caldera-js/core'
 import { gcra } from './gcra.js'
 import type { CacheCapabilities, CacheStore, ThrottleRequest, ThrottleResult } from './store.js'
 

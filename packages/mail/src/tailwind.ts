@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { Children, cloneElement, createElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react'
 
 /** What React Email's <Tailwind> produced for one className (string or single class). */
@@ -66,7 +66,7 @@ const isProduction = () => (globalThis as { process?: { env?: { NODE_ENV?: strin
 
 /**
  * Tailwind for mail templates, without compiling Tailwind when a mail is sent: a drop-in for React
- * Email's <Tailwind> (`import { Tailwind } from '@caldera/mail/tailwind'`). `caldera generate` runs
+ * Email's <Tailwind> (`import { Tailwind } from '@caldera-js/mail/tailwind'`). `caldera generate` runs
  * React Email's own Tailwind over your templates' classes and keeps the result; this applies it.
  * Light enough for Workers, where compiling Tailwind on every send is too slow and too big.
  */

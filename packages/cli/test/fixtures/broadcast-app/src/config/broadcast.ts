@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const broadcast = defineConfig('broadcast', (env) => ({
   default: env.BROADCAST_CONNECTION,

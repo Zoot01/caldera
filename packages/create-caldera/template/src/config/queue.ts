@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const queue = defineConfig('queue', (env) => ({
   // sync runs a job as soon as it's dispatched (development, tests); deferred runs it right after the

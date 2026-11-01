@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { z } from 'zod'
 import { describeAbilities } from '../policies.js'
 import { check } from '../check.js'
@@ -169,7 +169,7 @@ export function calderaTools({ root, allowWrites }: ToolOptions): ToolDefinition
           withApp(project, async (app) => {
             const mail = (app.services.mail as { find(name: string): { preview?: unknown } | undefined } | undefined)?.find(name)
             if (!mail) throw new CalderaError('mail_missing', `No mail named "${name}" (see mail_list).`)
-            const { renderMail } = await project.importPackage<{ renderMail(mail: unknown, props: unknown): Promise<{ subject: string; html: string; text: string }> }>('@caldera/mail')
+            const { renderMail } = await project.importPackage<{ renderMail(mail: unknown, props: unknown): Promise<{ subject: string; html: string; text: string }> }>('@caldera-js/mail')
             const rendered = await renderMail(mail, props ?? mail.preview ?? {})
             return { subject: rendered.subject, text: rendered.text, html: rendered.html.slice(0, MAX_BODY), htmlBytes: new TextEncoder().encode(rendered.html).length }
           }),
@@ -285,7 +285,7 @@ export function calderaTools({ root, allowWrites }: ToolOptions): ToolDefinition
 }
 
 async function readOnlyQuery(project: Project, statement: string, limit: number) {
-  const { defaultDatabase } = await project.importPackage<{ defaultDatabase(): QueryableDatabase }>('@caldera/db')
+  const { defaultDatabase } = await project.importPackage<{ defaultDatabase(): QueryableDatabase }>('@caldera-js/db')
   // The project's own drizzle-orm, so the SQL object is one its driver recognises.
   const { sql } = await project.importPackage<{ sql: { raw(text: string): unknown } }>('drizzle-orm')
   let db: QueryableDatabase

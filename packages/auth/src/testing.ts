@@ -11,7 +11,7 @@ interface AuthContextLike {
 
 /**
  * A real Better Auth session for `user`, as the cookie a browser would send after signing in: what
- * `client.actingAs(user)` in @caldera/testing uses. Through Better Auth's own session store and
+ * `client.actingAs(user)` in @caldera-js/testing uses. Through Better Auth's own session store and
  * signing, so `authenticate()` (and anything else reading the session) sees a signed-in user.
  * For tests only: it skips the password.
  */

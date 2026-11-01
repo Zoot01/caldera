@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
-import { createApp, defineEnv, type HonoEnvOf } from '@caldera/core'
-import { databaseProvider, type Row } from '@caldera/db'
-import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, redirect, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera/http'
+import { createApp, defineEnv, type HonoEnvOf } from '@caldera-js/core'
+import { databaseProvider, type Row } from '@caldera-js/db'
+import { createRouter, defineMiddleware, defineRoutes, errorHandler, originCheck, redirect, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera-js/http'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -42,7 +42,7 @@ function makeApp(client: PGlite) {
 }
 
 // What `caldera generate` writes for a real app, so route handlers see typed c.var services.
-declare module '@caldera/core' {
+declare module '@caldera-js/core' {
   interface Register {
     app: ReturnType<typeof makeApp>
   }
@@ -251,7 +251,7 @@ describe('trusted origins', () => {
   })
 })
 
-describe('sessionCookieFor (actingAs in @caldera/testing)', () => {
+describe('sessionCookieFor (actingAs in @caldera-js/testing)', () => {
   it('signs in as a user through Better Auth’s own sessions, without a password', async () => {
     const { sessionCookieFor } = await import('../src/testing.js')
     const { http, app } = await makeServer()
