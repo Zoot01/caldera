@@ -238,3 +238,9 @@ describe('fileResponse', () => {
     expect((await fileResponse(ref, { inline: true }, storage)).headers.get('content-disposition')).toBeNull()
   })
 })
+
+it('a pending upload can be sent as Inertia form data (its type has an index signature)', () => {
+  // Inertia's router.post and useForm take Record<string, FormDataConvertible>; an interface never fits.
+  const sendable: Record<string, string | number> = {} as PendingUpload
+  expect(sendable).toEqual({})
+})

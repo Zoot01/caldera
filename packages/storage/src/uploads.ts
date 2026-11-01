@@ -21,9 +21,10 @@ export type FileRef = z.infer<typeof fileRef>
  * A checked direct upload, as `/_caldera/uploads/complete` answers it: the file waits under
  * `tmp/uploads/`, and the ref is signed with the app's key. A form sends it back, `zupload(name)`
  * checks it, and `claimUpload(file)` moves the file into place (once) and gives the FileRef to store.
- * It has no `key`, so it can't be stored by mistake before it's claimed.
+ * It has no `key`, so it can't be stored by mistake before it's claimed. A type, not an interface:
+ * Inertia's router and useForm only take data whose type has an index signature, which interfaces lack.
  */
-export interface PendingUpload {
+export type PendingUpload = {
   upload: string
   disk: string
   /** Where the file waits until it's claimed (under `tmp/uploads/`). */
