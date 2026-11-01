@@ -1,6 +1,9 @@
 import { CalderaError } from '@caldera/core'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cache } from 'react'
+import { executionContext } from './action.js'
+
+export { actionResult, parseSetCookie, submit, type ActionResult, type ParsedCookie, type SubmitOptions } from './action.js'
 
 /** The parts of a Caldera app the adapter uses (structural, so any app's own @caldera/core copy fits). */
 interface AppLike<S = Record<string, unknown>> {
@@ -26,8 +29,7 @@ type Handler = (request: Request) => Promise<Response>
 export function handle(http: FetchApp, options: { basePath?: string } = {}): Record<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD', Handler> {
   const basePath = (options.basePath ?? '/api').replace(/\/$/, '')
   const handler: Handler = async (incoming) => {
-    const { after } = await import('next/server.js')
-    const executionCtx = { waitUntil: (promise: Promise<unknown>) => after(() => promise), passThroughOnException() {}, props: {} }
+    const executionCtx = await executionContext()
     const url = new URL(incoming.url)
     let request = incoming
     if (basePath && url.pathname !== basePath && !url.pathname.startsWith(`${basePath}/`)) {
