@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,7 +8,7 @@ export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 /** `inertia`: React pages over Inertia, served by the app (Vite). `next`: a Next.js app with Caldera behind /api. */
 export type Frontend = 'inertia' | 'next'
 export const FRONTENDS = ['inertia', 'next'] as const
-/** `starter`: auth, settings and a dashboard (Inertia). `blank`: the UI setup and one page. */
+/** `starter`: auth, settings and a dashboard. `blank`: the UI setup and one page (Inertia), or the Next.js demo page. */
 export type Kit = 'starter' | 'blank'
 export const KITS = ['starter', 'blank'] as const
 export type Database = 'sqlite' | 'postgres'
@@ -23,9 +23,9 @@ export interface CreateOptions {
   packageManager?: PackageManager
   /** Default `inertia`. */
   frontend?: Frontend
-  /** Default `starter`. Inertia only: the Next.js variant has no kits yet. */
+  /** Default `starter`. */
   kit?: Kit
-  /** Teams (Better Auth organizations): the starter kit only. Default false. */
+  /** Teams (Better Auth organizations): the Inertia starter kit only, for now. Default false. */
   teams?: boolean
   /** Default `sqlite` (libSQL: a local file, or Turso). */
   database?: Database
@@ -54,8 +54,7 @@ export interface CreateResult {
   name: string
   packageManager: PackageManager
   frontend: Frontend
-  /** null for the Next.js variant. */
-  kit: Kit | null
+  kit: Kit
   teams: boolean
   database: Database
   target: Target
@@ -84,6 +83,9 @@ const KIT_LAYERS: Record<Kit, URL[]> = {
   starter: [new URL('../kits/blank/', import.meta.url), new URL('../kits/starter/', import.meta.url)],
 }
 const POSTGRES = new URL('../databases/postgres/', import.meta.url)
+// The Next.js starter: its own pages, layouts and routes; the rest comes from the Inertia kits (KITS).
+const NEXT_STARTER = new URL('../kits/next-starter/', import.meta.url)
+const KITS_DIR = new URL('../kits/', import.meta.url)
 // The starter's auth tables for Postgres (its own files are SQLite's).
 const STARTER_POSTGRES = new URL('../kits/starter-postgres/', import.meta.url)
 // Teams, over the starter; and its auth tables for Postgres.
@@ -127,11 +129,12 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   }
   if (!existsSync(TEMPLATE)) throw new CreateError('template_missing', 'The bundled template is missing; reinstall create-caldera.')
   const frontend = options.frontend ?? 'inertia'
-  const kit = frontend === 'next' ? null : (options.kit ?? 'starter')
+  const kit = options.kit ?? 'starter'
   const database = options.database ?? 'sqlite'
   const target = options.target ?? 'node'
   const teams = options.teams ?? false
-  if (teams && kit !== 'starter') throw new CreateError('unsupported', 'Teams come with the starter kit: leave out --blank and --next, or --teams.', { kit, frontend })
+  if (teams && kit !== 'starter') throw new CreateError('unsupported', 'Teams come with the starter kit: leave out --blank, or --teams.', { kit, frontend })
+  if (teams && frontend === 'next') throw new CreateError('unsupported', 'Teams aren’t in the Next.js starter kit yet: leave out --next, or --teams.', { kit, frontend })
   const problem = unsupported(frontend, database, target)
   if (problem) throw new CreateError('unsupported', problem, { frontend, database, target })
 
@@ -146,16 +149,23 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   renameSync(join(directory, '_gitignore'), join(directory, '.gitignore'))
   // The database's files first, so a kit can replace them (the starter's users table has auth columns).
   if (database === 'postgres') cpSync(POSTGRES, directory, { recursive: true, force: true })
-  if (kit) {
-    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) copyLayer(layer, directory)
+  // Browser tests (Playwright) come with every kit but the Next.js demo page.
+  const browserTests = frontend === 'inertia' || kit === 'starter'
+  if (browserTests) {
     edit(directory, 'AGENTS.md', [
       [/^Tests \(`pnpm test`, Vitest\).*$/m, `$&\n\n${BROWSER_AGENTS}`],
       ['- `pnpm typecheck`, `pnpm test`', '- `pnpm typecheck`, `pnpm test`, `pnpm test:browser`'],
     ])
     edit(directory, 'README.md', [['{{ run }} test       # run the tests\n', '{{ run }} test       # run the tests\n{{ run }} test:browser  # browser tests (Playwright; once: npx playwright install chromium)\n']])
+  }
+  if (frontend === 'inertia') {
+    for (const layer of KIT_LAYERS[kit]) if (existsSync(layer)) copyLayer(layer, directory)
     if (kit === 'starter') applyStarter(directory, database)
     if (teams) applyTeams(directory, database)
-  } else applyNext(directory)
+  } else {
+    applyNext(directory)
+    if (kit === 'starter') applyNextStarter(directory, database)
+  }
   if (database === 'postgres') applyPostgres(directory, name)
   // Both variants resolve like a bundler (Vite, Next, tsx): relative imports have no extension,
   // which is also what `caldera generate` and `make` write.
@@ -177,7 +187,7 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   }
   if (target === 'cloudflare') appendFileSync(join(directory, '.gitignore'), '.dev.vars\n.wrangler\n')
   const version = packageManagerVersion(pm, env)
-  if (kit) {
+  if (browserTests) {
     // Browser tests (Playwright) and CI that runs them.
     appendFileSync(join(directory, '.gitignore'), 'test-results/\nplaywright-report/\nblob-report/\n')
     mkdirSync(join(directory, '.github/workflows'), { recursive: true })
@@ -245,7 +255,8 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     const step = steps.at(-1)!
     step.command = `${step.command} && ${migrate.join(' ')}`
   }
-  if (target !== 'node' && kit) {
+  // Next.js deploys to Vercel as it is; the Inertia app gets a function (vercel:setup) or a Worker.
+  if (target !== 'node' && frontend === 'inertia') {
     await attempt('target', installed, [...exec, 'caldera', `${target}:setup`])
     report()
   }
@@ -383,7 +394,7 @@ function applyNext(directory: string) {
   const agentsPath = join(directory, 'AGENTS.md')
   let agents = readFileSync(agentsPath, 'utf8')
   agents = agents
-    .replace(/^A \[Caldera\].*$/m, 'A [Caldera](https://caldera.dev) app with a Next.js frontend: TypeScript, Hono, Drizzle, Zod. Next renders the pages (`app/`); the Caldera app serves `/api` and does the backend work.')
+    .replace(/^A \[Caldera\].*$/m, 'A [Caldera](https://calderajs.dev) app with a Next.js frontend: TypeScript, Hono, Drizzle, Zod. Next renders the pages (`app/`); the Caldera app serves `/api` and does the backend work.')
     .replace(
       /^Pages get their data.*$/m,
       "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera/auth` for `user`), both from `@caldera/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
@@ -462,6 +473,12 @@ function applyTeams(directory: string, database: Database) {
 
 /** The starter kit's sign-in (src/auth.ts) as a provider of the app, and its tables for Postgres. */
 function applyStarter(directory: string, database: Database) {
+  addAuth(directory, database)
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${STARTER_AGENTS}\n\nTests (\`pnpm test\``]])
+}
+
+/** Better Auth and the gate as providers of the app (src/app.ts), and Better Auth's tables for Postgres. */
+function addAuth(directory: string, database: Database) {
   edit(directory, 'src/app.ts', [
     ["import { env } from './env.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { auth } from './auth.js'\nimport { env } from './env.js'\n"],
     ["import { notifications } from '../.caldera/notifications.gen.js'\n", "import { notifications } from '../.caldera/notifications.gen.js'\nimport { policies } from '../.caldera/policies.gen.js'\n"],
@@ -470,12 +487,81 @@ function applyStarter(directory: string, database: Database) {
       '  providers: [\n    // Sign-in, sessions and passwords (Better Auth): c.var.auth, and c.var.user on every request.\n    auth,\n    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`).\n    authorizationProvider({ policies }),\n',
     ],
   ])
-  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${STARTER_AGENTS}\n\nTests (\`pnpm test\``]])
   if (database === 'postgres') {
     cpSync(STARTER_POSTGRES, directory, { recursive: true, force: true })
     edit(directory, 'src/auth.ts', [["provider: 'sqlite'", "provider: 'pg'"]])
   }
 }
+
+// From the Inertia kits, unchanged: the coss ui components (made client components), and the kit's
+// own components, hooks and helpers that don't use Inertia. `true`: a client component.
+const NEXT_SHARED: [from: string, to: string, client: boolean][] = [
+  ['blank/resources/components/appearance-tabs.tsx', 'components/appearance-tabs.tsx', true],
+  ['starter/resources/components/appearance-picker.tsx', 'components/appearance-picker.tsx', true],
+  ['starter/resources/components/one-time-code.tsx', 'components/one-time-code.tsx', true],
+  ...['app-footer', 'app-logo-icon', 'caldera-logo', 'form-field', 'heading', 'section', 'user-info', 'welcome-art'].map(
+    (name) => [`starter/resources/components/${name}.tsx`, `components/${name}.tsx`, false] as [string, string, boolean],
+  ),
+  ['blank/resources/hooks/use-media-query.ts', 'hooks/use-media-query.ts', true],
+  ['blank/resources/lib/utils.ts', 'lib/utils.ts', false],
+  ['starter/resources/lib/auth-client.ts', 'lib/auth-client.ts', false],
+  ['starter/resources/lib/avatar-color.ts', 'lib/avatar-color.ts', false],
+  // The theme (Tailwind and coss ui's colors), and the tab icon.
+  ['blank/resources/app.css', 'app/app.css', false],
+  ['blank/public/favicon.svg', 'public/favicon.svg', false],
+  // Sign-in on the server: Better Auth, its settings, tables and emails.
+  ['starter/src/auth.ts', 'src/auth.ts', false],
+  ['starter/src/config/auth.ts', 'src/config/auth.ts', false],
+  ['starter/src/db/schema.ts', 'src/db/schema.ts', false],
+  ['starter/src/db/auth-schema.ts', 'src/db/auth-schema.ts', false],
+  ['starter/src/mail/reset-password.tsx', 'src/mail/reset-password.tsx', false],
+  ['starter/src/mail/verify-email.tsx', 'src/mail/verify-email.tsx', false],
+  // Browser tests that need no change.
+  ['starter/tests/totp.ts', 'tests/totp.ts', false],
+  ['starter/tests/browser/helpers.ts', 'tests/browser/helpers.ts', false],
+  ['starter/tests/browser/command-menu.spec.ts', 'tests/browser/command-menu.spec.ts', false],
+  ['blank/tests/browser/appearance.spec.ts', 'tests/browser/appearance.spec.ts', false],
+]
+
+/**
+ * The starter kit for Next.js: the Inertia starter's pages as Next pages (app/), the same components,
+ * and the same routes answering in JSON, called from server actions (`submit`) and pages (`load`).
+ */
+function applyNextStarter(directory: string, database: Database) {
+  const kits = fileURLToPath(KITS_DIR)
+  // The demo page's files; the kit has its own home page.
+  for (const file of ['app/hello.tsx', 'app/sign-up.tsx', 'app/actions.ts', 'app/globals.css']) rmSync(join(directory, file), { force: true })
+  mkdirSync(join(directory, 'components/ui'), { recursive: true })
+  for (const kit of ['blank', 'starter']) {
+    const ui = join(kits, kit, 'resources/components/ui')
+    for (const file of readdirSync(ui)) writeFileSync(join(directory, 'components/ui', file), asClient(readFileSync(join(ui, file), 'utf8')))
+  }
+  for (const [from, to, client] of NEXT_SHARED) {
+    mkdirSync(join(directory, to, '..'), { recursive: true })
+    const text = readFileSync(join(kits, from))
+    writeFileSync(join(directory, to), client ? asClient(text.toString('utf8')) : text)
+  }
+  // Next reads src/middleware.ts as its own middleware, so the routes' named middleware is src/route-middleware.ts.
+  edit(directory, 'src/auth.ts', [["import { confirmPassword } from './middleware.js'", "import { confirmPassword } from './route-middleware.js'"]])
+  copyLayer(NEXT_STARTER, directory)
+  addAuth(directory, database)
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${NEXT_STARTER_AGENTS}\n\nTests (\`pnpm test\``]])
+}
+
+/** Marks a component as a client component (Next.js); Vite doesn't need it. */
+function asClient(text: string): string {
+  return text.startsWith("'use client'") ? text : `'use client'\n\n${text}`
+}
+
+const NEXT_STARTER_AGENTS =
+  'Auth (the starter kit): Better Auth in `src/auth.ts`, on the app-owned users table (`src/db/schema.ts`; its own tables are in `src/db/auth-schema.ts`, regenerated by `caldera auth:schema` after changing plugins). ' +
+  'The routes do the work, as JSON (`src/routes/auth.ts`, `settings.ts`, `dashboard.ts`), and the pages call them: a page loads its data with `await load(http, \'/settings/security\')` from `@caldera/next` (the route runs as the browser\'s request, with its middleware: its redirect is Next\'s, a 401 goes to /login?redirect=… and back, a 404 is `notFound()`); a form calls a server action in `app/actions/*.ts`, which posts to the route with `submit(http, \'/login\', data)` (the route\'s cookies are set, its redirect is Next\'s, its validation errors come back for the form). Forms use `useForm` from `@caldera/next/client` (`data`, `setData`, `errors`, `processing`, `submit(action)`). ' +
+  '`c.var.user` is set on every request (null for guests); named middleware in `src/route-middleware.ts` (not src/middleware.ts: Next.js reads that as its own): `mw.auth()`, `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()` (to /confirm-password?redirect=… and back). Sign-in pages pass `?redirect=` on as a `redirect` field; `intendedPage(c, to, fallback)` follows it, only to this site. ' +
+  'In Server Components, `lib/caldera.ts` gives `context()` (user, session, gate, i18n), `currentUser()`, `requireUser()`, `requireGuest()` and `flash()`. Rendering can\'t set cookies: a page shows what a route flashed (`back(c).with(\'success\', …)` as a toast in the app layouts, `status` on the page), then `components/flash-toasts.tsx` clears it. `proxy.ts` tells pages their own path (`x-pathname`). ' +
+  'Two-factor (Better Auth `twoFactor`) and passkeys (`@better-auth/passkey`, through `authClient()` from `lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`). ' +
+  'Layouts: `app/(auth)` and `app/(app)` (the signed-in pages); `layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (header with tabs, the default, or sidebar; split, the default, simple or card). Components are in `components/` (coss ui in `components/ui`: client components), navigation in `components/navigation.ts`, the command menu (⌘K) in `components/command-menu.tsx`. Colors are CSS variables in `app/app.css`. ' +
+  'Authorization: `c.var.gate` in routes, `(await context()).gate` in pages, against the policies in `src/policies` (`caldera make:policy <Model>`). ' +
+  'Tests call the routes under /api (`await t.client(http).actingAs(user)`, `createUser(t)` from `tests/helpers.ts`); browser tests sign up with `register(page)` and use passkeys through `virtualAuthenticator(context, page)` (`tests/browser/helpers.ts`).'
 
 /**
  * Copies a layer over the app. Its package.json isn't copied but merged: its dependencies,

@@ -29,22 +29,8 @@ const FORWARDED = ['cookie', 'user-agent', 'accept-language', 'origin', 'referer
  * as `errors` for the form. `export async function login(form) { return submit(http, '/login', form) }`.
  */
 export async function submit<T = unknown>(http: FetchApp, path: string, data?: unknown, options: SubmitOptions = {}): Promise<ActionResult<T>> {
-  const [{ cookies, headers }, { redirect }] = await Promise.all([import('next/headers.js'), import('next/navigation.js')])
-  const incoming = await headers()
-  const basePath = (options.basePath ?? '/api').replace(/\/$/, '')
-  const host = incoming.get('x-forwarded-host') ?? incoming.get('host') ?? 'localhost'
-  const protocol = incoming.get('x-forwarded-proto') ?? (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https')
-  const forwarded = new Headers({ accept: 'application/json', 'content-type': 'application/json', host })
-  for (const name of FORWARDED) {
-    const value = incoming.get(name)
-    if (value !== null) forwarded.set(name, value)
-  }
-  const request = new Request(`${protocol}://${host}${basePath}${path}`, {
-    method: options.method ?? 'POST',
-    headers: forwarded,
-    body: JSON.stringify(data ?? {}),
-  })
-  const response = await http.fetch(request, process.env, await executionContext())
+  const [{ cookies }, { redirect }] = await Promise.all([import('next/headers.js'), import('next/navigation.js')])
+  const { response, origin } = await call(http, options.method ?? 'POST', path, options.basePath, JSON.stringify(data ?? {}))
 
   const store = await cookies()
   for (const header of response.headers.getSetCookie()) {
@@ -53,8 +39,56 @@ export async function submit<T = unknown>(http: FetchApp, path: string, data?: u
   }
 
   const location = response.headers.get('location')
-  if (response.status >= 300 && response.status < 400 && location) redirect(sameOriginPath(location, `${protocol}://${host}`))
+  if (response.status >= 300 && response.status < 400 && location) redirect(sameOriginPath(location, origin))
   return actionResult<T>(response)
+}
+
+export interface LoadOptions {
+  /** Default `/api`. */
+  basePath?: string
+  /** Where guests go (a 401), with `?redirect=` back to this page. Default `/login`. */
+  loginUrl?: string
+}
+
+/**
+ * A page's data in a Server Component, from one of the app's GET routes: `await load<Props>(http,
+ * '/settings/security')`. The route runs as the browser's request (its cookies), with its middleware:
+ * a redirect it answers is Next's `redirect()`, a 401 sends guests to the login page and back, a 404
+ * is Next's `notFound()`. Anything else that fails throws. Rendering never sets cookies, so a route
+ * used this way should only read.
+ */
+export async function load<T = unknown>(http: FetchApp, path: string, options: LoadOptions = {}): Promise<T> {
+  const [{ headers }, { notFound, redirect }] = await Promise.all([import('next/headers.js'), import('next/navigation.js')])
+  const { response, origin } = await call(http, 'GET', path, options.basePath)
+  const location = response.headers.get('location')
+  if (response.status >= 300 && response.status < 400 && location) redirect(sameOriginPath(location, origin))
+  if (response.status === 401) {
+    const page = (await headers()).get('x-pathname') ?? path
+    redirect(`${options.loginUrl ?? '/login'}?redirect=${encodeURIComponent(page)}`)
+  }
+  if (response.status === 404) notFound()
+  if (!response.ok) {
+    const result = await actionResult(response)
+    throw new Error(`GET ${path} answered ${response.status}: ${result.message}`)
+  }
+  return (await response.json()) as T
+}
+
+/** Runs a route of the app in-process, as the browser's request. */
+async function call(http: FetchApp, method: string, path: string, base: string | undefined, body?: string) {
+  const { headers } = await import('next/headers.js')
+  const incoming = await headers()
+  const basePath = (base ?? '/api').replace(/\/$/, '')
+  const host = incoming.get('x-forwarded-host') ?? incoming.get('host') ?? 'localhost'
+  const protocol = incoming.get('x-forwarded-proto') ?? (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https')
+  const forwarded = new Headers({ accept: 'application/json', host, ...(body === undefined ? {} : { 'content-type': 'application/json' }) })
+  for (const name of FORWARDED) {
+    const value = incoming.get(name)
+    if (value !== null) forwarded.set(name, value)
+  }
+  const origin = `${protocol}://${host}`
+  const request = new Request(`${origin}${basePath}${path}`, { method, headers: forwarded, ...(body === undefined ? {} : { body }) })
+  return { response: await http.fetch(request, process.env, await executionContext()), origin }
 }
 
 /** The route's answer as an `ActionResult` (redirects and cookies are `submit`'s). */

@@ -3,7 +3,7 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import { cache } from 'react'
 import { executionContext } from './action.js'
 
-export { actionResult, parseSetCookie, submit, type ActionResult, type ParsedCookie, type SubmitOptions } from './action.js'
+export { actionResult, load, parseSetCookie, submit, type ActionResult, type LoadOptions, type ParsedCookie, type SubmitOptions } from './action.js'
 
 /** The parts of a Caldera app the adapter uses (structural, so any app's own @caldera/core copy fits). */
 interface AppLike<S = Record<string, unknown>> {

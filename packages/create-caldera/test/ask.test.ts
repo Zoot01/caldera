@@ -77,11 +77,11 @@ describe('askCreateOptions', () => {
     ])
   })
 
-  it('asks no kit for the Next.js variant (--next)', async () => {
+  it('asks for a kit in the Next.js variant (--next) too, but not for teams', async () => {
     const { prompter, asked } = scripted([])
     const options = await askCreateOptions(prompter, { directory: 'x', frontend: 'next', packageManager: 'pnpm', install: false })
-    expect(options).toEqual({ directory: 'x', frontend: 'next', database: 'sqlite', target: 'node', packageManager: 'pnpm', install: false })
-    expect(asked).toEqual(['Database (sqlite)', 'Deploy target (node)'])
+    expect(options).toEqual({ directory: 'x', frontend: 'next', kit: 'starter', database: 'sqlite', target: 'node', packageManager: 'pnpm', install: false })
+    expect(asked).toEqual(['Starter kit (starter)', 'Database (sqlite)', 'Deploy target (node)'])
   })
 
   it('asks nothing that was given as a flag', async () => {

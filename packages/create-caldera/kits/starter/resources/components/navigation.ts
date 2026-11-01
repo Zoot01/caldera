@@ -12,7 +12,7 @@ export const settingsNavItems: NavItem[] = [
 ]
 
 /** Links at the bottom of the sidebar (and the right of the header). */
-export const footerNavItems: NavItem[] = [{ title: 'Documentation', href: 'https://caldera.dev/docs', icon: BookOpen }]
+export const footerNavItems: NavItem[] = [{ title: 'Documentation', href: 'https://calderajs.dev/docs', icon: BookOpen }]
 
 /** Is `href` the current page (or a page under it)? */
 export const isCurrent = (url: string, href: string) => {

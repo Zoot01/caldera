@@ -32,7 +32,7 @@ const main = defineCommand({
     teams: { type: 'boolean', description: 'Teams (with the starter kit): a personal team for everyone, invitations and roles' },
     database: { type: 'enum', options: ['sqlite', 'postgres'], description: 'sqlite (libSQL, the default) or postgres' },
     target: { type: 'enum', options: ['node', 'vercel', 'cloudflare'], description: 'Where it will run: node (the default), vercel or cloudflare' },
-    next: { type: 'boolean', description: 'A Next.js app with Caldera at /api, instead of Inertia pages (no kits yet)' },
+    next: { type: 'boolean', description: 'A Next.js app with Caldera at /api, instead of Inertia pages' },
     yes: { type: 'boolean', alias: 'y', description: 'Ask nothing: the defaults for everything not given' },
     install: { type: 'boolean', description: 'Install dependencies (use --no-install to skip)' },
     git: { type: 'boolean', description: 'Create a git repository (use --no-git to skip)', default: true },
@@ -57,7 +57,6 @@ const main = defineCommand({
     }
     try {
       if (args.blank && args.starter) throw new CreateError('unsupported', 'Pick one kit: --starter or --blank.')
-      if (args.next && kit) throw new CreateError('unsupported', 'The Next.js variant (--next) has no kits yet; leave out --starter/--blank.')
       if (interactive) intro(' create-caldera ')
       const chosen = interactive ? await askCreateOptions(clackPrompter(), given) : given
       const options: CreateOptions = {
@@ -116,7 +115,7 @@ const main = defineCommand({
 
 /** "Starter kit, SQLite, Node server" */
 function describe(result: CreateResult): string {
-  const frontend = result.kit ? `${result.kit === 'starter' ? 'Starter' : 'Blank'} kit${result.teams ? ' with teams' : ''}` : 'Next.js'
+  const frontend = `${result.frontend === 'next' ? 'Next.js, ' : ''}${result.kit === 'starter' ? 'Starter' : 'Blank'} kit${result.teams ? ' with teams' : ''}`
   const database = result.database === 'postgres' ? 'Postgres' : 'SQLite'
   const target = { node: 'Node server', vercel: 'Vercel', cloudflare: 'Cloudflare Workers' }[result.target]
   return `${frontend}, ${database}, ${target}`

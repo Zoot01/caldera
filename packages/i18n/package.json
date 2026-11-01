@@ -14,6 +14,10 @@
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
     },
+    "./translator": {
+      "types": "./dist/translator.d.ts",
+      "default": "./dist/translator.js"
+    },
     "./icu": {
       "types": "./dist/icu.d.ts",
       "default": "./dist/icu.js"
