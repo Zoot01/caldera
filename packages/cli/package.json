@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The caldera command: the dev server, code generation, generators, migrations, workers, deploy setup and checks, and an MCP server for AI agents.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/cli",
   "keywords": [
     "caldera",

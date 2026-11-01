@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/queue",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera queues: typed jobs with retries, backoff, timeouts, uniqueness, chains and batches, on the database, Redis (BullMQ), Cloudflare Queues, QStash, or right after the response.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/queues",
   "keywords": [
     "caldera",

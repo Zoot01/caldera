@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/notifications",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera notifications: one notification over mail, the database and your own channels, sent now or one job per channel.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/notifications",
   "keywords": [
     "caldera",

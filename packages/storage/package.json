@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/storage",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera file storage: disks (local, S3, R2), signed links, uploads checked by their bytes, and direct uploads to a bucket.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/storage",
   "keywords": [
     "caldera",

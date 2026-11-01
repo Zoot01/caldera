@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/broadcast",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera realtime broadcasting: typed channels and events over the pusher protocol (Pusher, Soketi, Reverb, a Cloudflare Durable Object, or its own server).",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/realtime",
   "keywords": [
     "caldera",

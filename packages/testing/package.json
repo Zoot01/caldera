@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/testing",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera testing: boot the app per test file, a migrated database rolled back per test, self-restoring fakes, and an HTTP client with Laravel-style assertions.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/testing",
   "keywords": [
     "caldera",

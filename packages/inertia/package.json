@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/inertia",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera's Inertia adapter: typed pages, shared props, partial reloads and deferred props over Hono, with Vite asset tags.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/pages",
   "keywords": [
     "caldera",

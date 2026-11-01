@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/http",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera HTTP layer: named typed routes, request validation, middleware, signed links, trusted proxies, the error envelope and security defaults.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/routing",
   "keywords": [
     "caldera",

@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/i18n",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera i18n: typed ICU messages, per-request locales, localized validation errors, and only the messages a page needs on the client.",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/localization",
   "keywords": [
     "caldera",

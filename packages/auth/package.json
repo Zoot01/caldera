@@ -1,9 +1,10 @@
 {
   "name": "@caldera-js/auth",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Caldera authentication (Better Auth) and authorization (policies and a per-request gate).",
   "type": "module",
   "license": "MIT",
+  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/authentication",
   "keywords": [
     "caldera",
