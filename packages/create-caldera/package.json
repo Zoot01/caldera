@@ -4,8 +4,14 @@
   "description": "Create a Caldera app: npm create caldera@latest my-app",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/installation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/create-caldera"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

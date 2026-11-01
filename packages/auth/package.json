@@ -4,8 +4,14 @@
   "description": "Caldera authentication (Better Auth) and authorization (policies and a per-request gate).",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/authentication",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/auth"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

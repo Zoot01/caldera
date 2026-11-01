@@ -4,8 +4,14 @@
   "description": "Caldera realtime broadcasting: typed channels and events over the pusher protocol (Pusher, Soketi, Reverb, a Cloudflare Durable Object, or its own server).",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/realtime",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/broadcast"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

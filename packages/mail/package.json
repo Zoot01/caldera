@@ -4,8 +4,14 @@
   "description": "Caldera mail: React Email templates with typed props, sent now or queued, over Resend, Postmark, SES, SMTP and more.",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/mail",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/mail"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

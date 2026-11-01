@@ -4,8 +4,14 @@
   "description": "Caldera database layer over Drizzle ORM 1.0: transactions with after-commit hooks, column helpers and models.",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/models",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/db"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

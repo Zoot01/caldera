@@ -4,8 +4,14 @@
   "description": "Caldera queues: typed jobs with retries, backoff, timeouts, uniqueness, chains and batches, on the database, Redis (BullMQ), Cloudflare Queues, QStash, or right after the response.",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/queues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/queue"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

@@ -4,8 +4,14 @@
   "description": "Caldera scheduling: cron schedules that dispatch jobs, run from a worker, OS cron, Cloudflare cron triggers or Vercel Cron.",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/scheduling",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/schedule"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",

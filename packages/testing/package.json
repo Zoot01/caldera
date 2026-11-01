@@ -4,8 +4,14 @@
   "description": "Caldera testing: boot the app per test file, a migrated database rolled back per test, self-restoring fakes, and an HTTP client with Laravel-style assertions.",
   "type": "module",
   "license": "MIT",
-  "author": "Zoot01",
   "homepage": "https://calderajs.dev/docs/testing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zoot01/caldera.git",
+    "directory": "packages/testing"
+  },
+  "bugs": "https://github.com/Zoot01/caldera/issues",
+  "author": "Zoot01",
   "keywords": [
     "caldera",
     "framework",
