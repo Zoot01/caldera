@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -309,6 +309,16 @@ describe('caldera auth:schema', () => {
     const code = readFileSync(join(authApp, 'src/db/auth-schema.ts'), 'utf8')
     expect(code).toContain('impersonatedBy') // admin plugin's session field
     expect(code).toContain('uuid().primaryKey().defaultRandom()') // generateId: 'uuid'
+  }, 60_000)
+
+  it('check boots a fresh app for each deploy target after checking the auth schema', async () => {
+    await generateProjectAuthSchema(openProject(authApp))
+    writeFileSync(join(authApp, 'vercel.json'), '{}\n')
+    mkdirSync(join(authApp, '.vercel'), { recursive: true })
+    writeFileSync(join(authApp, '.vercel/.env.production.local'), 'QUEUE_CONNECTION=sync\n')
+    const codes = (await check(openProject(authApp))).issues.map((i) => i.code)
+    expect(codes).not.toContain('app_shut_down')
+    expect(codes).toContain('vercel_local_database')
   }, 60_000)
 
   it('reports drift with --check and is unchanged on rerun', async () => {
