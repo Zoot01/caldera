@@ -50,7 +50,7 @@ export async function describeAbilities(project: Project) {
       model: policy.model.name,
       file: rel(file),
       before: typeof policy.definition.before === 'function',
-      scope: typeof policy.definition.scope === 'function',
+      scope: policy.definition.scope !== undefined,
       prefetch: typeof policy.definition.prefetch === 'function',
       abilities: Object.entries(policy.definition)
         .filter(([name]) => !RESERVED.has(name))
