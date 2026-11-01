@@ -1,0 +1,285 @@
+---
+title: Next.js
+description: Caldera behind a Next.js app, with Next rendering the pages and Caldera doing the backend work.
+---
+
+A Caldera app can have Next.js in front instead of Inertia pages. Next renders the pages and owns their URLs. Caldera serves `/api` and does what it always does: routes, validation, models, auth, mail, queues. Pages and forms reach it through the same routes the [Inertia](/docs/pages) version uses.
+
+```bash
+pnpm create caldera my-app --next
+```
+
+Everything else is the same as for an Inertia app: the starter kit (sign-up and sign-in, two-factor, passkeys, settings, a dashboard) or blank, teams with `--teams`, SQLite or Postgres. Choose Next.js when you want its routing, React Server Components or its ecosystem; choose Inertia for one server and nothing in between.
+
+## How it fits together
+
+| | |
+| --- | --- |
+| `app/` | Next's pages and layouts. Signed-out pages are in `app/(auth)`, signed-in ones in `app/(app)`. |
+| `app/actions/` | Server actions: each one calls a Caldera route. |
+| `app/api/[[...route]]/route.ts` | Hands every `/api/*` request to the Caldera app. |
+| `src/` | The Caldera app: routes, models, mail, jobs. The same as in any Caldera app. |
+| `components/`, `layouts/`, `lib/` | The UI, as in the Inertia kit but for Next. `lib/caldera.ts` has helpers for Server Components. |
+
+The Caldera app has `basePath('/api')`, so a route at `/notes` answers at `/api/notes`. Caldera's own URLs, such as mail previews and signed file links, are under `/_caldera`, which `next.config.ts` passes to the app.
+
+<Callout title="src/route-middleware.ts">
+  Next treats a `src/middleware.ts` file as its own middleware, so in a Next app the routes' named middleware (`mw.auth()` and the rest) lives in `src/route-middleware.ts`.
+</Callout>
+
+The rest of this page builds the notes list from [Your first app](/docs/first-app) the Next way. The model and the migration are the same: follow those two steps, then come back here.
+
+## Routes answer in JSON
+
+A route gives a page its data as JSON, where an Inertia route would render the page:
+
+```ts title="src/routes/notes.ts"
+import { back, defineRequest, defineRoutes, NotFoundError } from '@caldera/http'
+import { z } from 'zod'
+import { mw } from '../route-middleware'
+import { Note } from '../models/note'
+
+const NoteForm = defineRequest({
+  body: z.object({
+    title: z.string().trim().min(1, 'Give the note a title.').max(200),
+    body: z.string().max(10_000).default(''),
+  }),
+})
+
+export const notes = defineRoutes('notes', { prefix: '/notes', middleware: [mw.auth()] })
+  .get('index', '/', async (c) => {
+    const mine = await Note.findMany({ where: { userId: c.var.user!.id }, orderBy: { createdAt: 'desc' } })
+    return c.json({
+      notes: mine.map((note) => ({ id: note.id, title: note.title, body: note.body, createdAt: note.createdAt.toISOString() })),
+    })
+  })
+  .post('store', '/', { request: NoteForm }, async (c) => {
+    await Note.create({ ...c.req.valid('json'), userId: c.var.user!.id })
+    return back(c).with('success', 'Note added.')
+  })
+  .delete('destroy', '/:note', { bind: { note: Note } }, async (c) => {
+    // Only your own notes: anyone else's is "not found".
+    if (c.var.note.userId !== c.var.user!.id) throw new NotFoundError()
+    await Note.delete(c.var.note)
+    return back(c)
+  })
+```
+
+Middleware, validation, binding and flash messages work as anywhere else: the next two sections show how pages and forms use them.
+
+## Pages load their data
+
+A page is a Server Component. `load` runs one of the app's GET routes for it, as the browser's own request (with its cookies), and returns the JSON:
+
+```tsx title="app/(app)/notes/page.tsx"
+import { load } from '@caldera/next'
+import type { Metadata } from 'next'
+import { http } from '@/src/http'
+import { type Note, Notes } from './notes'
+
+export const metadata: Metadata = { title: 'Notes' }
+
+export default async function NotesPage() {
+  const { notes } = await load<{ notes: Note[] }>(http, '/notes')
+  return <Notes notes={notes} />
+}
+```
+
+Because the route runs with its middleware, the route decides who sees the page:
+
+| The route answers | The page |
+| --- | --- |
+| JSON | Gets it. |
+| A redirect | Redirects there, with Next's `redirect()`. |
+| 401 (`mw.auth()` for a guest) | Sends them to `/login?redirect=/notes`, and back here after they sign in. |
+| 404 | Shows Next's not-found page. |
+| Anything else | Throws, for Next's error page. |
+
+`load` never changes cookies, because Next can't set them while it renders a page. Routes that a page loads from should only read.
+
+## Forms call server actions
+
+A form calls a server action, and the action calls the route with `submit`:
+
+```ts title="app/actions/notes.ts"
+'use server'
+
+import { submit } from '@caldera/next'
+import { http } from '@/src/http'
+
+export const addNote = async (data: { title: string; body: string }) => submit(http, '/notes', data)
+export const deleteNote = async (id: string) => submit(http, `/notes/${encodeURIComponent(id)}`, {}, { method: 'DELETE' })
+```
+
+`submit` runs the route as the browser's request, then makes its answer Next's: cookies it sets (the session, Better Auth's) are set, a redirect becomes Next's navigation, and validation errors come back for the form. Pass `{ method: 'PUT' }`, `'PATCH'` or `'DELETE'` for other methods.
+
+In the page's client component, `useForm` from `@caldera/next/client` holds the form's data and errors, the way Inertia's does:
+
+```tsx title="app/(app)/notes/notes.tsx"
+'use client'
+
+import { useForm } from '@caldera/next/client'
+import type { FormEvent } from 'react'
+import { addNote, deleteNote } from '@/app/actions/notes'
+import { FormField } from '@/components/form-field'
+import { Section } from '@/components/section'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+export type Note = { id: string; title: string; body: string; createdAt: string }
+
+export function Notes({ notes }: { notes: Note[] }) {
+  const form = useForm({ title: '', body: '' })
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    form.submit(addNote, { onSuccess: () => form.reset() })
+  }
+  return (
+    <>
+      <Section title="New note">
+        <form onSubmit={submit} className="space-y-4">
+          <FormField label="Title" error={form.errors.title}>
+            <Input value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} />
+          </FormField>
+          <FormField label="Body" error={form.errors.body}>
+            <Input value={form.data.body} onChange={(e) => form.setData('body', e.target.value)} />
+          </FormField>
+          <Button type="submit" loading={form.processing}>
+            Add note
+          </Button>
+        </form>
+      </Section>
+      <Section title="Your notes">
+        {notes.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No notes yet.</p>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {notes.map((note) => (
+              <li key={note.id} className="flex items-center gap-3 p-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{note.title}</p>
+                  {note.body && <p className="text-muted-foreground">{note.body}</p>}
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => void deleteNote(note.id)}>
+                  Delete
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+    </>
+  )
+}
+```
+
+| `useForm` | |
+| --- | --- |
+| `data`, `setData(key, value)` | The fields. |
+| `errors` | The route's validation errors, one message per field. |
+| `processing` | True while the action runs, and while Next navigates after. |
+| `submit(action, { onSuccess, onError, onFinish })` | Calls the action with `data`. |
+| `reset(...keys)`, `clearErrors(...keys)`, `setError(key, message)` | |
+
+After the route's `back(c)`, Next renders the page again with the new note, and the app layout shows “Note added.” as a toast. Add the page to `components/navigation.ts`:
+
+```ts title="components/navigation.ts"
+{ title: 'Notes', href: '/notes', icon: NotebookPen },
+```
+
+## In Server Components
+
+`lib/caldera.ts` gives Server Components this request's Caldera context:
+
+| | |
+| --- | --- |
+| `await context()` | `user`, `gate`, `i18n`, `session`: what a route has on `c.var`. |
+| `await currentUser()` | The signed-in user, or `null`. |
+| `await requireUser()` | The user, or a redirect to the login page and back. |
+| `await flash()` | What the last route flashed: `success`, `error`, `status`. |
+
+Models work in Server Components too, for reading:
+
+```tsx title="app/(app)/dashboard/page.tsx"
+const user = await requireUser()
+const latest = await Note.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } })
+```
+
+and `(await context()).gate.can(Note, 'update', note)` asks the [policies](/docs/authorization), as `c.var.gate` does in a route.
+
+Changes still go through a route, from a server action, so validation and authorization stay in one place.
+
+Rendering can't change the session, so a page shows what was flashed and the layout clears it once shown (`components/flash-toasts.tsx`). Translations come from `(await context()).i18n.t(...)`, and `createClientTranslator` from `@caldera/i18n/translator` handles messages with tags (the welcome page, `app/page.tsx`, uses it).
+
+## In client components
+
+For calls that aren't form submissions, `createClient` is a typed client for the app's routes:
+
+```tsx title="components/note-count.tsx"
+'use client'
+
+import { createClient } from '@caldera/next/client'
+import { useEffect, useState } from 'react'
+import type { AppType } from '@/src/http'
+
+const api = createClient<AppType>()
+
+export function NoteCount() {
+  const [count, setCount] = useState<number>()
+  useEffect(() => {
+    void api.notes.$get().then(async (res) => {
+      if (res.ok) setCount((await res.json()).notes.length)
+    })
+  }, [])
+  return <span>{count ?? '…'} notes</span>
+}
+```
+
+The paths, inputs and JSON are typed from the routes. Only the types are imported, so no server code reaches the browser. The browser's cookies go with each call.
+
+[Realtime](/docs/realtime) works in client components as in Inertia pages: `useChannel` and `usePresence`, connected by `app/realtime.tsx` in the root layout.
+
+## Testing
+
+Route tests call the routes under `/api`:
+
+```ts title="tests/notes.test.ts"
+import { setupApp } from '@caldera/testing'
+import { expect, it } from 'vitest'
+import { app } from '../src/app'
+import { http } from '../src/http'
+import { createUser } from './helpers'
+
+const t = setupApp(app)
+
+it('lists, adds and deletes your notes', async () => {
+  const ann = await t.client(http).actingAs(await createUser(t))
+  ;(await ann.post('/api/notes', { json: { title: 'Groceries', body: 'Milk, eggs' } })).assertRedirect()
+  const page = await ann.get('/api/notes')
+  page.assertOk().assertJson({ notes: [{ title: 'Groceries', body: 'Milk, eggs' }] })
+
+  // A note needs a title.
+  await (await ann.post('/api/notes', { json: { title: '' } })).assertValidationErrors(['title'])
+
+  // Nobody else can delete it.
+  const [note] = page.json<{ notes: { id: string }[] }>().notes
+  const bob = await t.client(http).actingAs(await createUser(t, { name: 'Bob', email: 'bob@example.test' }))
+  ;(await bob.delete(`/api/notes/${note!.id}`)).assertNotFound()
+  ;(await ann.delete(`/api/notes/${note!.id}`)).assertRedirect()
+  expect((await ann.get('/api/notes')).json().notes).toEqual([])
+})
+
+it('keeps guests out', async () => {
+  ;(await t.client(http).get('/api/notes')).assertUnauthorized()
+})
+```
+
+What a page gets is what its route answers, so checking the route's JSON checks the page's data. [Browser tests](/docs/testing#browser-tests) work as in the Inertia kit: `pnpm test:browser` builds the app with `next build` and serves it on port 3100.
+
+## Deploying
+
+| | |
+| --- | --- |
+| Vercel | Nothing to set up: Vercel builds Next.js apps itself. Set the [production settings](/docs/deployment#production-settings) in the project. |
+| A Node server | `pnpm build`, then `pnpm start` (`next start`), with the worker and scheduler beside it as for any [server](/docs/deployment#on-a-server). |
+| Cloudflare Workers | Not yet for the Next.js version. |
