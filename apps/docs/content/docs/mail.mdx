@@ -123,4 +123,4 @@ mail.assertSent(NoteSharedEmail, ({ message }) => message.to[0]!.email === 'bob@
 mail.rendered(NoteSharedEmail).subject // 'Ann shared “Groceries” with you'
 ```
 
-`assertQueued` checks queued mail by its props, and `mail.sent(NoteSharedEmail)` lists each message as sent, attachments and all.
+`assertNotSent` and `assertNotQueued` check what wasn't, `assertQueued` checks queued mail by its props, and `mail.sent(NoteSharedEmail)` lists each message as sent, attachments and all.

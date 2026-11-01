@@ -89,6 +89,8 @@ export interface Scheduler {
   runDue(now?: Date): Promise<{ minute: string; results: RunResult[] }>
   /** Runs one schedule now, whatever its cron says (a platform cron already decided the time). */
   run(name: string, now?: Date): Promise<RunResult>
+  /** Forgets which schedules this process ran this minute (`setupApp` calls it between tests). */
+  reset(): void
   /** Every schedule with its next run, for `caldera schedule:list`. */
   list(now?: Date): { name: string; cron: string; tz: string; job: string; next: string | null; onOneServer: boolean; withoutOverlapping: number | null; environments: readonly string[] | null; description: string | null }[]
 }
@@ -144,6 +146,7 @@ export function createScheduler(options: {
       if (!schedule) throw new CalderaError('schedule_missing', `No schedule named "${name}". Schedules: ${[...byName.keys()].join(', ') || 'none'}.`)
       return dispatchOne(schedule, startOfMinute(now).toISOString())
     },
+    reset: () => ranThisProcess.clear(),
     list: (now = new Date()) =>
       options.schedules.map((s) => ({
         name: s.name,

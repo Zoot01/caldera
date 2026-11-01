@@ -1,4 +1,4 @@
-import { CalderaError, defineProvider, type RegisteredServices } from '@caldera/core'
+import { CalderaError, defineProvider, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
 import type { z } from 'zod'
 
 /** A channel to broadcast on: `PostChannel.with({ postId })` from `@caldera/broadcast`. */
@@ -52,6 +52,8 @@ export function defineEvent<P extends z.ZodType, W = z.output<P>>(options: {
 export interface ListenerContext {
   readonly event: string
   readonly services: RegisteredServices
+  /** The app's settings (src/config), as `c.var.config` in a route. */
+  readonly config: RegisteredConfig
 }
 
 /**
@@ -113,6 +115,7 @@ export interface Events {
   /** Records emitted events without running listeners: all events, or only those listed. */
   fake(events?: readonly AnyEvent[]): EventsFake
   services: RegisteredServices
+  config: RegisteredConfig
 }
 
 interface QueueLike {
@@ -137,7 +140,7 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
   const run = async (event: AnyEvent, payload: unknown, opts: EmitOptions) => {
     const listeners = byEvent.get(event.name) ?? []
     for (const listener of listeners) {
-      if (listener.handle) await listener.handle(payload, { event: event.name, services: events.services })
+      if (listener.handle) await listener.handle(payload, { event: event.name, services: events.services, config: events.config })
       else if (listener.queued) await queue().dispatch(listener.queued.job, listener.queued.map(payload))
     }
     // Once the listeners succeeded: a failed emit doesn't tell browsers it happened.
@@ -147,6 +150,7 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
 
   const events: Events = {
     services: {} as RegisteredServices,
+    config: {} as RegisteredConfig,
     register(...list) {
       for (const listener of list) register(listener)
     },
@@ -173,7 +177,7 @@ export function createEvents(options: { listeners?: readonly AnyListener[] } = {
       const payload = event.payload.parse(input)
       for (const listener of byEvent.get(event.name) ?? []) {
         if (!listener.handle) continue
-        const result = await listener.handle(payload, { event: event.name, services: events.services })
+        const result = await listener.handle(payload, { event: event.name, services: events.services, config: events.config })
         if (result !== undefined) return result as never
       }
       return undefined
@@ -271,8 +275,9 @@ export function eventsProvider(options: { listeners?: readonly AnyListener[] } =
       setDefaultEvents(events)
       return { events }
     },
-    boot: ({ services }) => {
+    boot: ({ services, config }) => {
       services.events.services = services as never
+      services.events.config = config
     },
   })
 }

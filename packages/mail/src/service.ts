@@ -51,6 +51,8 @@ export interface MailFake {
   queued<M extends AnyMail>(mail?: M): { mail: string; props: MailProps<M>; envelope: Envelope }[]
   assertSent<M extends AnyMail>(mail: M, match?: (sent: { props: MailProps<M>; message: Message }) => boolean, times?: number): void
   assertQueued<M extends AnyMail>(mail: M, match?: (queued: { props: MailProps<M>; envelope: Envelope }) => boolean, times?: number): void
+  assertNotSent<M extends AnyMail>(mail: M, match?: (sent: { props: MailProps<M>; message: Message }) => boolean): void
+  assertNotQueued<M extends AnyMail>(mail: M, match?: (queued: { props: MailProps<M>; envelope: Envelope }) => boolean): void
   assertNothingSent(): void
   assertNothingQueued(): void
   /** The last sent message of this mail, as rendered. */
@@ -276,6 +278,14 @@ export function createMail<const N extends string>(
         queued: (mail) => state.queued.filter((s) => !mail || s.mail === mail.name) as never,
         assertSent: (mail, match, times) => check(count(state.sent, mail, match as never), times, `Expected "${mail.name}" to be sent${match ? ' matching' : ''}`),
         assertQueued: (mail, match, times) => check(count(state.queued, mail, match as never), times, `Expected "${mail.name}" to be queued${match ? ' matching' : ''}`),
+        assertNotSent(mail, match) {
+          const found = count(state.sent, mail, match as never)
+          if (found) throw new CalderaError('assertion_failed', `Expected "${mail.name}" not to be sent${match ? ' matching' : ''}; it was ${found} time(s).`)
+        },
+        assertNotQueued(mail, match) {
+          const found = count(state.queued, mail, match as never)
+          if (found) throw new CalderaError('assertion_failed', `Expected "${mail.name}" not to be queued${match ? ' matching' : ''}; it was ${found} time(s).`)
+        },
         assertNothingSent() {
           if (state.sent.length) throw new CalderaError('assertion_failed', `Expected no mail; sent ${state.sent.map((s) => s.mail).join(', ')}.`)
         },

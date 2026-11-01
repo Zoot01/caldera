@@ -1,10 +1,11 @@
-import { CalderaError, parseDuration, type RegisteredServices } from '@caldera/core'
+import { CalderaError, parseDuration, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
 import type { Envelope, Outcome } from './envelope.js'
 import { backoffFor, JobFailedError, JobReleasedError, JobTimeoutError, type AnyJob, type JobContext } from './job.js'
 
 export interface ProcessContext {
   jobs: { get(name: string): AnyJob | undefined }
   services: RegisteredServices
+  config: RegisteredConfig
   /** Queues the next job of a chain. */
   dispatchEnvelope(envelope: Envelope, delaySeconds: number): Promise<void>
   /** Releases a `unique` lock. */
@@ -40,7 +41,7 @@ export async function processEnvelope(envelope: Envelope, context: ProcessContex
     if (error === undefined) return
     try {
       const payload = job.payload.safeParse(envelope.payload)
-      await job.failed?.(payload.success ? payload.data : envelope.payload, error, { services: context.services })
+      await job.failed?.(payload.success ? payload.data : envelope.payload, error, { services: context.services, config: context.config })
     } catch (hookError) {
       console.error(`[caldera] failed() hook of "${job.name}" threw`, hookError)
     }
@@ -61,6 +62,7 @@ export async function processEnvelope(envelope: Envelope, context: ProcessContex
     batchId: envelope.batchId ?? envelope.batchCallbackOf ?? null,
     signal: controller.signal,
     services: context.services,
+    config: context.config,
     fail: (reason) => {
       throw new JobFailedError(job.name, reason)
     },

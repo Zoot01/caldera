@@ -1,7 +1,7 @@
 import { CalderaError } from '@caldera/core'
 import { defineCommand, runMain } from 'citty'
 import { generate } from './codegen.js'
-import { describeProject } from './describe.js'
+import { describeProject, shareMailOutbox } from './describe.js'
 import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
 import { runMigrations, type MigrationCommand } from './migrations.js'
@@ -496,12 +496,19 @@ const scheduleListCommand = defineCommand({
 })
 
 const scheduleRunCommand = defineCommand({
-  meta: { name: 'schedule:run', description: 'Dispatch the schedules due this minute, once (for an OS crontab: * * * * *)' },
-  args: shared,
+  meta: { name: 'schedule:run', description: 'Dispatch the schedules due this minute, once (for an OS crontab: * * * * *); --name runs one now' },
+  args: { ...shared, name: { type: 'string', description: 'Run this schedule now, whatever its cron says (try one out, like Laravel’s schedule:test)' } },
   run: ({ args }) =>
     run(wantsJson(args.json), async () => {
-      const { scheduler, shutdown } = await bootScheduler(openProject(args.cwd))
+      const project = openProject(args.cwd)
+      // Mail sent by the jobs lands in `caldera dev`'s outbox, as from the app.
+      shareMailOutbox(project)
+      const { scheduler, shutdown } = await bootScheduler(project)
       try {
+        if (args.name) {
+          const one = await scheduler.run(args.name)
+          return { data: { schemaVersion: 1, results: [one] }, text: `${one.status === 'dispatched' ? '✓' : '-'} ${one.name}${one.reason ? ` (${one.reason})` : ''}` }
+        }
         const result = await scheduler.runDue()
         const text = result.results.map((r) => `${r.status === 'dispatched' ? '✓' : '-'} ${r.name}${r.reason ? ` (${r.reason})` : ''}`).join('\n')
         return { data: { schemaVersion: 1, ...result }, text: text || `Nothing due at ${result.minute}.` }

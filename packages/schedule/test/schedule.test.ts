@@ -49,6 +49,14 @@ describe('runDue', () => {
     expect(ran).toEqual(['tick', 'hourly', 'tick'])
   })
 
+  it('forgets what ran this minute after reset() (tests, between cases)', async () => {
+    const { scheduler } = setup([everyMinute])
+    await scheduler.runDue(at('2026-11-02T10:00:05Z'))
+    expect((await scheduler.runDue(at('2026-11-02T10:00:40Z'))).results[0]!.reason).toBe('already-ran')
+    scheduler.reset()
+    expect((await scheduler.runDue(at('2026-11-02T10:00:40Z'))).results[0]!.status).toBe('dispatched')
+  })
+
   it('respects environments', async () => {
     const prodOnly = defineSchedule('prod', { cron: '* * * * *', job: Report, environments: ['production'] })
     expect((await setup([prodOnly], 'local').scheduler.runDue(at('2026-11-02T10:00:00Z'))).results).toEqual([{ name: 'prod', status: 'skipped', reason: 'environment' }])

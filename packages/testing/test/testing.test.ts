@@ -106,3 +106,13 @@ describe('actingAs', () => {
     await expect(new TestClient({ request: () => new Response() }).actingAs({ id: 'u1' })).rejects.toThrow(/needs the app’s Better Auth instance/)
   })
 })
+
+describe('between tests', () => {
+  // Two tests in order: what the first leaves in the cache, the second doesn't see.
+  it('empties the cache after each test (1/2)', async () => {
+    await (t.services as unknown as { cache: { put(key: string, value: unknown): Promise<void> } }).cache.put('left-behind', 1)
+  })
+  it('empties the cache after each test (2/2)', async () => {
+    expect(await (t.services as unknown as { cache: { get(key: string): Promise<unknown> } }).cache.get('left-behind')).toBeUndefined()
+  })
+})

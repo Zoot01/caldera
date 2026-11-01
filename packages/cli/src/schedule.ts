@@ -18,6 +18,7 @@ export interface ScheduleLike {
 
 interface SchedulerLike {
   runDue(now?: Date): Promise<{ minute: string; results: { name: string; status: string; reason?: string; jobId?: string }[] }>
+  run(name: string): Promise<{ name: string; status: string; reason?: string; jobId?: string }>
 }
 
 export async function loadSchedules(project: Project): Promise<{ file: string; exportName: string; schedule: ScheduleLike }[]> {

@@ -70,6 +70,8 @@ pnpm scheduler
 
 Or, from the system's crontab, run `caldera schedule:run` every minute: it dispatches what's due and exits.
 
+To try a schedule out now, whatever its cron says, name it: `caldera schedule:run --name digest.daily`. In development, mail its jobs send shows up in `caldera dev`'s [outbox](/docs/mail#mailers).
+
 **On Vercel**, platform crons call your app. Write them into `vercel.json`:
 
 ```bash

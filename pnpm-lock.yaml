@@ -791,6 +791,9 @@ importers:
       '@caldera/auth':
         specifier: workspace:*
         version: link:../auth
+      '@caldera/cache':
+        specifier: workspace:*
+        version: link:../cache
       '@caldera/db':
         specifier: workspace:*
         version: link:../db

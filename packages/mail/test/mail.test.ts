@@ -77,6 +77,10 @@ describe('sending', () => {
     fake.assertQueued(WelcomeEmail, ({ props: p }) => p.name === 'Bob')
     expect(fake.rendered(WelcomeEmail).subject).toBe('Welcome, Ann')
     expect(() => fake.assertNothingSent()).toThrow(/sent users.welcome/)
+    // And what wasn't: to Bob it was only queued, and nothing went to Cat.
+    fake.assertNotSent(WelcomeEmail, ({ message }) => message.to[0]!.email === 'bob@example.test')
+    fake.assertNotQueued(WelcomeEmail, ({ props: p }) => p.name === 'Cat')
+    expect(() => fake.assertNotSent(WelcomeEmail)).toThrow(/not to be sent; it was 1 time/)
     expect(service.outbox()!.messages).toHaveLength(0)
     fake.restore()
   })

@@ -41,6 +41,15 @@ it('schedule:run dispatches what is due (and onOneServer works with the app’s 
   expect(readFileSync(join(root, 'stamps.log'), 'utf8')).toBe('tick\n')
 })
 
+it('schedule:run --name runs one schedule now, whatever its cron says', () => {
+  const result = spawnSync(process.execPath, [bin, 'schedule:run', '--name', 'stamp.nightly', '--cwd', root, '--json'], { encoding: 'utf8', env: { ...process.env, OUT_DIR: root } })
+  expect(result.status, result.stderr).toBe(0)
+  expect(JSON.parse(result.stdout).results).toEqual([expect.objectContaining({ name: 'stamp.nightly', status: 'dispatched' })])
+  const missing = spawnSync(process.execPath, [bin, 'schedule:run', '--name', 'nope', '--cwd', root, '--json'], { encoding: 'utf8' })
+  expect(missing.status).not.toBe(0)
+  expect(JSON.parse(missing.stdout).error).toMatchObject({ code: 'schedule_missing', message: expect.stringContaining('stamp.nightly') })
+})
+
 it('schedule:work runs the current minute at once, then stops cleanly', async () => {
   process.env.OUT_DIR = root
   const ticks: unknown[] = []

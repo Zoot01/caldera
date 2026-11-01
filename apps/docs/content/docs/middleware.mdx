@@ -24,6 +24,33 @@ The starter kit's:
 | `mw.guest()` | Signed out (the login and register pages); signed-in people go to the dashboard. |
 | `mw.verified()` | A confirmed email address, when `mustVerifyEmail` is on in `src/config/auth.ts`. |
 | `mw.passwordConfirmed()` | The password typed recently (three hours by default), for sensitive settings; otherwise `/confirm-password` first. |
+| `mw.signed()` | A link the app signed, not yet expired: see [signed links](#signed-links). Otherwise a 403. |
+
+### Signed links
+
+Some links must work without signing in, and only as the app made them: an email's unsubscribe link, a download that expires. `signedUrl` adds a signature to a URL, made with `APP_KEY`:
+
+```ts
+import { signedUrl } from '@caldera/http'
+
+const link = await signedUrl(`${config.app.url}/unsubscribe/digest?user=${user.id}`)
+const download = await signedUrl(`/reports/${report.id}`, { expiresIn: '1h' })
+```
+
+A route with `mw.signed()` only lets those through: changing anything in the path or query, or a link past its `expiresIn`, gets a 403.
+
+```ts
+export const unsubscribe = defineRoutes('unsubscribe', { prefix: '/unsubscribe/digest', middleware: [mw.signed()] })
+  .get('show', '/', async (c) => {
+    const user = await User.find(c.req.query('user') ?? '')
+    if (!user) throw new NotFoundError()
+    return c.render('mail/Unsubscribe', { email: user.email, subscribed: user.digest })
+  })
+```
+
+The host isn't signed, so links keep working behind a proxy. When `APP_KEY` changes, keep the old key after the new one in `src/config/session.ts` and older links still work. `hasValidSignature(c)` checks the current request in your own code.
+
+Mail scanners open links to check them, so a link that changes something should open a page with a button, not make the change itself.
 
 ## Writing your own
 

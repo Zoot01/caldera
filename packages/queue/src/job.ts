@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration, type RegisteredServices } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
 import type { z } from 'zod'
 
 export interface JobContext {
@@ -13,6 +13,8 @@ export interface JobContext {
   readonly signal: AbortSignal
   /** The app's services (db, cache, mail…), typed once `caldera generate` has registered the app. */
   readonly services: RegisteredServices
+  /** The app's settings (src/config), as `c.var.config` in a route: `ctx.config.app.url` for links in mail. */
+  readonly config: RegisteredConfig
   /** Stop retrying: the job fails now, and its `failed` hook runs. */
   fail(reason?: string): never
   /** Try again later (counts as an attempt). */
@@ -42,7 +44,7 @@ export interface JobOptions<P extends z.ZodType> {
   middleware?: readonly JobMiddleware[]
   handle(payload: z.output<P>, context: JobContext): Promise<void> | void
   /** After the last attempt fails (or `fail()`), e.g. to tell someone. */
-  failed?(payload: z.output<P>, error: unknown, context: { services: RegisteredServices }): Promise<void> | void
+  failed?(payload: z.output<P>, error: unknown, context: { services: RegisteredServices; config: RegisteredConfig }): Promise<void> | void
 }
 
 export interface JobDefinition<P extends z.ZodType = z.ZodType> {

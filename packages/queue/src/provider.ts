@@ -5,7 +5,7 @@ import { createQueue, setDefaultQueue, type Queue, type QueueConfig, type QueueS
 /**
  * Registers `queue` from your config: `queueProvider((app) => app.config.queue)`. Unique-job locks and
  * batch counters live in the app's `cache` service (add `cacheProvider()`), or in `store` if given.
- * It also becomes the default for `dispatch()`. Jobs get the app's services as `context.services`.
+ * It also becomes the default for `dispatch()`. Jobs get the app's services as `context.services`, and its config as `context.config`.
  */
 export function queueProvider<const N extends string>(
   resolve: (app: RegisterContext<unknown>) => QueueConfig<N>,
@@ -36,8 +36,9 @@ export function queueProvider<const N extends string>(
       setDefaultQueue(queue)
       return { queue }
     },
-    boot: ({ services }) => {
+    boot: ({ services, config }) => {
       services.queue.services = services as never
+      services.queue.config = config
     },
     shutdown: async ({ services }) => {
       await services.queue.manager.purge()
