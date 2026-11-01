@@ -60,8 +60,19 @@ function plan(kind: MakeKind, n: Names & { page: string; id: string }, project: 
   }
 }
 
+function dependsOn(project: Project, name: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(project.path('package.json'), 'utf8')) as Record<string, Record<string, string> | undefined>
+    return Boolean(pkg.dependencies?.[name] ?? pkg.devDependencies?.[name])
+  } catch {
+    return false
+  }
+}
+
 /** Next steps generators print instead of editing files you own. */
-function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean; channel: boolean; presence: boolean }): string[] {
+function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean; channel: boolean; presence: boolean; faker: boolean }): string[] {
+  // Factories use faker, an optional peer of @caldera/db that apps don't have until they need it.
+  if (kind === 'factory' && !options.faker) return ['Factories use faker: `pnpm add -D @faker-js/faker`.']
   if (kind === 'model' && options.table) {
     return [`Add \`${n.plural}\` (from src/db/tables/${n.kebab}.ts) to defineRelations in ${CONVENTIONS.relations}, then run \`caldera db:generate\`.`]
   }
@@ -150,7 +161,12 @@ export async function make(
     throw new CalderaError('invalid_name', (error as Error).message)
   }
   const table = options.table ?? true
-  const flags = { table, channel: kind === 'event' && Boolean(options.channel), presence: kind === 'channel' && Boolean(options.presence) }
+  const flags = {
+    table,
+    channel: kind === 'event' && Boolean(options.channel),
+    presence: kind === 'channel' && Boolean(options.presence),
+    faker: kind === 'factory' && dependsOn(project, '@faker-js/faker'),
+  }
   const files = plan(kind, n, project, flags).filter((f) => !(f.keep && existsSync(project.path(f.path))))
   const existing = files.filter((f) => existsSync(project.path(f.path))).map((f) => f.path)
   if (existing.length > 0 && !options.force) {

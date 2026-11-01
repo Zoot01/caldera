@@ -1,0 +1,77 @@
+---
+title: Relations
+description: Relating tables, loading related rows, and filtering by them.
+---
+
+Relations are Drizzle's, declared once in `src/db/relations.ts`. Every model's reads can then load related rows, typed all the way down.
+
+## Declaring them
+
+Notes have an author and comments; comments belong to a note and have an author:
+
+```ts title="src/db/relations.ts"
+import { defineRelations } from 'drizzle-orm'
+import { users } from './schema'
+import { comments } from './tables/comment'
+import { notes } from './tables/note'
+
+export const relations = defineRelations({ users, notes, comments }, (r) => ({
+  users: {
+    notes: r.many.notes(),
+  },
+  notes: {
+    author: r.one.users({ from: r.notes.userId, to: r.users.id, optional: false }),
+    comments: r.many.comments(),
+  },
+  comments: {
+    note: r.one.notes({ from: r.comments.noteId, to: r.notes.id, optional: false }),
+    author: r.one.users({ from: r.comments.userId, to: r.users.id, optional: false }),
+  },
+}))
+```
+
+`r.one` is the side with the foreign key: `from` is its column, `to` the column it points at. `optional: false` says there's always a row (the column is `notNull`), so the loaded author is typed `User`, not `User | null`. `r.many` is the other side; Drizzle finds the matching `r.one` itself.
+
+A relation is a query-time thing: the foreign key itself is the column's `.references()` in the table. Changing relations needs no migration.
+
+## Loading related rows
+
+`with` loads relations along with the rows, in the same query:
+
+```ts
+const note = await Note.findFirst({
+  where: { id },
+  with: {
+    author: true,
+    comments: {
+      with: { author: { columns: { name: true } } },
+      orderBy: { createdAt: 'asc' },
+    },
+  },
+})
+
+note!.author.name
+note!.comments[0]!.author.name
+```
+
+Each level takes the same options as a query: `columns`, `where`, `orderBy`, `limit`, and its own `with`.
+
+The related models' rules apply on the way: hidden columns are left out (a loaded `author` has no `apiToken`), and soft-deleted rows are left out of has-many relations. `serialize` adds the related models' appends.
+
+## Filtering by a relation
+
+`where` can test related rows. Users who wrote a note titled "Groceries":
+
+```ts
+await User.findMany({ where: { notes: { title: 'Groceries' } } })
+```
+
+## Writing
+
+Relations don't write. Set the foreign key:
+
+```ts
+await Comment.create({ noteId: note.id, userId: user.id, body: 'Nice' })
+```
+
+and let `onDelete: 'cascade'` on the reference remove a note's comments with it. Soft-deleting a note doesn't touch its comments, since the row is still there.

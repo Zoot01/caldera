@@ -11,7 +11,7 @@ export const users = snakeCase.table('users', {
   name: text().notNull(),
   email: text().notNull().unique(),
   passwordHash: text().notNull(),
-  role: text().notNull().default('member'),
+  role: text({ enum: ['member', 'admin'] }).notNull().default('member'),
   deletedAt: timestamp({ withTimezone: true }),
 })
 

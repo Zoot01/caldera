@@ -1,0 +1,169 @@
+---
+title: Tables and migrations
+description: Defining tables with Drizzle, migrating them, the drivers, transactions, and raw queries.
+---
+
+Caldera's database layer is [Drizzle](https://orm.drizzle.team). Tables are Drizzle tables, migrations are Drizzle Kit's, and every query Drizzle can write is still available. On top of it, [models](/docs/models) add what apps need every day: hidden columns, soft deletes, scopes, hooks.
+
+## Drivers
+
+| Database | Where | Set with |
+| --- | --- | --- |
+| SQLite (libSQL) | The default. A file locally, or Turso. | `DATABASE_URL=file:local.db` |
+| Postgres | Any Postgres, or Neon. | `--database postgres` when creating the app, then `DATABASE_URL` |
+| Cloudflare D1 | On Workers, picked when the `DB` binding exists. | `--target cloudflare` |
+
+The app connects in `src/app.ts`, with `databaseProvider`. The connection opens the first time something uses it.
+
+## Tables
+
+A table lives in `src/db/tables/`, one per file. `caldera make:model Note` writes one with an id and timestamps; you add the columns.
+
+<Tabs items={['SQLite', 'Postgres']}>
+<Tab value="SQLite">
+
+```ts title="src/db/tables/note.ts"
+import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
+import { timestamps } from '@caldera/db/sqlite'
+import { users } from '../schema'
+
+export const notes = snakeCase.table('notes', {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text().notNull(),
+  body: text().notNull().default(''),
+  pinned: integer({ mode: 'boolean' }).notNull().default(false),
+  deletedAt: integer({ mode: 'timestamp_ms' }),
+  ...timestamps(),
+})
+```
+
+</Tab>
+<Tab value="Postgres">
+
+```ts title="src/db/tables/note.ts"
+import { boolean, snakeCase, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { timestamps } from '@caldera/db/pg'
+import { users } from '../schema'
+
+export const notes = snakeCase.table('notes', {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text().notNull(),
+  body: text().notNull().default(''),
+  pinned: boolean().notNull().default(false),
+  deletedAt: timestamp({ withTimezone: true }),
+  ...timestamps(),
+})
+```
+
+</Tab>
+</Tabs>
+
+`snakeCase.table` names the columns in snake case (`user_id`) while your code uses camel case (`userId`). `timestamps()` adds `createdAt` and `updatedAt`, both set for you.
+
+The users table is different: it's in `src/db/schema.ts`, because Better Auth signs people in against it. Add your own columns there.
+
+### JSON columns
+
+`zjson` (SQLite) and `zjsonb` (Postgres) store JSON checked by a Zod schema, both when it's written and when it's read. The column's type is the schema's.
+
+```ts
+import { timestamps, zjson } from '@caldera/db/sqlite'
+import { z } from 'zod'
+
+export const comments = snakeCase.table('comments', {
+  // …
+  reactions: zjson(z.array(z.object({ emoji: z.string(), userId: z.string() })))
+    .notNull()
+    .$defaultFn(() => []),
+})
+```
+
+Writing anything that doesn't match throws, so bad data never reaches the table.
+
+## Relations
+
+Every table is listed in `src/db/relations.ts`, which is also where tables are related to each other. A table that isn't listed can't have a model. See [Relations](/docs/relations).
+
+## Migrations
+
+```bash
+pnpm exec caldera db:generate --name comments
+pnpm exec caldera db:migrate
+```
+
+`db:generate` compares your tables with the migrations in `drizzle/` and writes the SQL for what changed, into a folder named for the time and `--name`. `db:migrate` applies the ones that haven't run. Read the SQL before committing it: renaming a column, for one, is written as a drop and an add unless you answer drizzle-kit's prompt.
+
+Commit migrations with the code. Tests build their database from them, and so does production: run `db:migrate` when you deploy.
+
+`db:push` skips the migration files and changes the database to match your tables directly. It's for prototyping, never for production.
+
+To see what's there:
+
+```bash
+pnpm exec caldera db:schema
+```
+
+lists every table, its columns, its relations, and the model that uses it.
+
+## Transactions
+
+`c.var.db.transaction` runs a function in a transaction. Everything inside it joins, models included, without passing anything down. If the function throws, every write in it is rolled back.
+
+```ts
+.post('clear', '/clear', async (c) => {
+  // All or nothing: if one delete fails, none of them happened.
+  await c.var.db.transaction(async () => {
+    for (const note of await Note.ownedBy(c.var.user!.id).findMany()) await Note.delete(note)
+  })
+  return back(c).with('success', 'Notes cleared.')
+})
+```
+
+A transaction inside another becomes a savepoint, so a service that opens one can be called from code that already has one.
+
+### After the commit
+
+Some work must only happen once the data is really saved, such as telling another service about it. `afterCommit` waits for the commit, and is dropped if the transaction rolls back:
+
+```ts
+await c.var.db.transaction(async () => {
+  const note = await Note.create({ userId, title })
+  await c.var.db.afterCommit(() =>
+    fetch(webhookUrl, { method: 'POST', body: JSON.stringify({ id: note.id }) }),
+  )
+})
+```
+
+Outside a transaction, it runs right away. Caldera's own side effects already wait like this: queued jobs, mail, notifications, events, broadcasts, and model hooks like `created` (see [Models](/docs/models#hooks)).
+
+<Callout title="D1">
+D1 can't hold a transaction open while your code runs, so `transaction()` throws on Workers. Use Drizzle's `c.var.db.client.batch([...])` for writes that must happen together.
+</Callout>
+
+## Raw Drizzle
+
+`c.var.db.current()` is the Drizzle client, or the open transaction when there is one. Anything Drizzle can do works on it, such as counting with SQL:
+
+```ts
+import { count, eq } from 'drizzle-orm'
+import { notes } from '../db/tables/note'
+
+.get('count', '/count', async (c) => {
+  const [row] = await c.var.db
+    .current()
+    .select({ total: count() })
+    .from(notes)
+    .where(eq(notes.userId, c.var.user!.id))
+  return c.json({ total: row!.total })
+})
+```
+
+Raw queries skip what models add: hidden columns are returned, soft-deleted rows are included, and hooks don't run. Use a model unless you need SQL it can't write.

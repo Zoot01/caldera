@@ -1,0 +1,220 @@
+---
+title: Models
+description: Reading and writing rows, with hidden and guarded columns, scopes, soft deletes, computed fields and hooks.
+---
+
+A model wraps a table. Rows stay plain objects (there's no `note.save()`); the model is where you read and write them, and where the rules for a table live, so every query follows them.
+
+```ts title="src/models/note.ts"
+import { defineModel } from '@caldera/db'
+import { notes } from '../db/tables/note'
+
+export const Note = defineModel(notes, {
+  name: 'note',
+})
+```
+
+`caldera make:model Note` writes this and the table. Everything below is optional, added to that second argument.
+
+## Reading
+
+The reads are Drizzle's relational queries: the same `where`, `orderBy`, `limit`, `columns` and `with`, fully typed.
+
+```ts
+const notes = await Note.findMany({
+  where: { userId: user.id },
+  orderBy: { createdAt: 'desc' },
+  limit: 20,
+})
+
+const first = await Note.findFirst({ where: { title: 'Groceries' } })
+const note = await Note.find(id) // by primary key, or undefined
+const sure = await Note.findOrFail(id) // or a 404
+```
+
+`findOrFail` throws `ModelNotFoundError`, which a route answers with a 404. [Route model binding](/docs/routing#route-model-binding) does the same lookup for you.
+
+Filters take operators as well as values:
+
+```ts
+await Note.findMany({
+  where: {
+    title: { in: ['Groceries', 'Errands'] },
+    OR: [{ pinned: true }, { body: { like: '%milk%' } }],
+  },
+})
+```
+
+Pick columns to get only those back:
+
+```ts
+await Note.findMany({ columns: { id: true, title: true } }) // { id, title }[]
+```
+
+### Pagination
+
+```ts
+const page = await Note.paginate({
+  where: { userId },
+  orderBy: { createdAt: 'desc' },
+  page: 2,
+  perPage: 20,
+})
+// { data, total, page, perPage, lastPage }
+```
+
+`perPage` defaults to 15, and is capped at 500.
+
+## Writing
+
+```ts
+const note = await Note.create({ userId: user.id, title: 'Groceries' })
+await Note.createMany([{ userId, title: 'One' }, { userId, title: 'Two' }])
+
+await Note.update(note, { body: 'Milk, eggs' })
+await Note.delete(note)
+```
+
+`create` and `update` return the row as it's stored, with defaults and `updatedAt` filled in. `update` and `delete` take the row (from binding, say) or its id. An update with nothing to change does nothing.
+
+## Hidden columns
+
+Columns that must never reach a browser, like a token, are `hidden`:
+
+```ts title="src/models/user.ts"
+export const User = defineModel(users, {
+  name: 'user',
+  hidden: ['apiToken'],
+})
+```
+
+Every read leaves them out, including users loaded through a relation. They're missing from the types too, so `user.apiToken` doesn't compile. When you do need one, ask for it:
+
+```ts
+const user = await User.withHidden().find(id)
+user!.apiToken
+```
+
+## Guarded columns
+
+Columns people mustn't set themselves, like a role, are `guarded`:
+
+```ts
+export const User = defineModel(users, {
+  name: 'user',
+  hidden: ['apiToken'],
+  guarded: ['role'],
+})
+```
+
+`create` and `update` don't accept them (`role` isn't in their types), and drop them if they arrive anyway, say in a request body spread into the call. Trusted code sets them with `forceCreate`:
+
+```ts
+await User.forceCreate({ name: 'Ada', email: 'ada@example.test', role: 'admin' })
+```
+
+## Scopes
+
+A scope is a named filter:
+
+```ts
+export const Note = defineModel(notes, {
+  name: 'note',
+  scopes: {
+    pinned: () => ({ pinned: true }),
+    ownedBy: (userId: string) => ({ userId }),
+  },
+})
+```
+
+Scopes chain, and combine with the query's own `where`:
+
+```ts
+await Note.ownedBy(user.id).pinned().findMany()
+await Note.ownedBy(user.id).findMany({ where: { pinned: false } })
+```
+
+## Soft deletes
+
+With `softDeletes`, deleting a row sets a timestamp instead of removing it:
+
+```ts
+export const Note = defineModel(notes, {
+  name: 'note',
+  softDeletes: 'deletedAt',
+})
+```
+
+The column must be in the table (`deletedAt: integer({ mode: 'timestamp_ms' })`, nullable). Then:
+
+```ts
+await Note.delete(note) // sets deletedAt
+await Note.find(note.id) // undefined: reads leave deleted rows out
+await Note.withTrashed().find(note.id) // found
+await Note.onlyTrashed().findMany() // only deleted ones
+await Note.restore(note) // back
+await Note.forceDelete(note) // really gone
+```
+
+Deleted rows are left out of loaded has-many relations as well (`with: { notes: true }`).
+
+## Computed fields
+
+`appends` are fields worked out from the row, added when you `serialize` it, which is what you do before sending rows to a page or as JSON:
+
+```ts
+export const Note = defineModel(notes, {
+  name: 'note',
+  appends: {
+    excerpt: (note) => (note.body.length > 80 ? `${note.body.slice(0, 80)}…` : note.body),
+  },
+})
+```
+
+```ts
+const notes = Note.serialize(await Note.findMany())
+notes[0]!.excerpt
+```
+
+`serialize` takes one row or a list, and adds the appends of related models' rows too.
+
+## Hooks
+
+Hooks run around writes:
+
+```ts
+export const Note = defineModel(notes, {
+  name: 'note',
+  hooks: {
+    creating: (values) => ({ ...values, title: values.title.trim() }),
+    deleted: (note, { soft }) => console.log(soft ? 'trashed' : 'deleted', note.id),
+  },
+})
+```
+
+| Hook | When | |
+| --- | --- | --- |
+| `creating` | Before the insert. | Returns the values to insert. |
+| `created` | After. | Gets the row. |
+| `updating` | Before the update. | Gets `{ before, patch }`, returns the patch. |
+| `updated` | After. | Gets `{ before, patch, after }`. |
+| `deleting` | Before a delete. | Gets the row. |
+| `deleted` | After. | Gets the row, and `{ soft }`. |
+
+The "-ing" hooks run inside the write, so throwing in one stops it. The "-ed" hooks run once the transaction commits, so a job they queue never sees data that was rolled back. Raw Drizzle writes skip hooks.
+
+## Route keys
+
+Binding finds rows by primary key. To use another column in URLs, like a slug, set `routeKey`:
+
+```ts
+export const Post = defineModel(posts, { name: 'post', routeKey: 'slug' })
+```
+
+## Seeing a model
+
+```bash
+pnpm exec caldera model:show Note
+```
+
+prints its columns, relations, hidden and guarded columns, scopes, appends and hooks.
