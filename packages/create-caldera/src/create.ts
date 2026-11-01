@@ -25,7 +25,7 @@ export interface CreateOptions {
   frontend?: Frontend
   /** Default `starter`. */
   kit?: Kit
-  /** Teams (Better Auth organizations): the Inertia starter kit only, for now. Default false. */
+  /** Teams (Better Auth organizations): the starter kit only. Default false. */
   teams?: boolean
   /** Default `sqlite` (libSQL: a local file, or Turso). */
   database?: Database
@@ -86,6 +86,7 @@ const POSTGRES = new URL('../databases/postgres/', import.meta.url)
 // The Next.js starter: its own pages, layouts and routes; the rest comes from the Inertia kits (KITS).
 const NEXT_STARTER = new URL('../kits/next-starter/', import.meta.url)
 const KITS_DIR = new URL('../kits/', import.meta.url)
+const NEXT_STARTER_TEAMS = new URL('../kits/next-starter-teams/', import.meta.url)
 // The starter's auth tables for Postgres (its own files are SQLite's).
 const STARTER_POSTGRES = new URL('../kits/starter-postgres/', import.meta.url)
 // Teams, over the starter; and its auth tables for Postgres.
@@ -134,7 +135,6 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   const target = options.target ?? 'node'
   const teams = options.teams ?? false
   if (teams && kit !== 'starter') throw new CreateError('unsupported', 'Teams come with the starter kit: leave out --blank, or --teams.', { kit, frontend })
-  if (teams && frontend === 'next') throw new CreateError('unsupported', 'Teams aren’t in the Next.js starter kit yet: leave out --next, or --teams.', { kit, frontend })
   const problem = unsupported(frontend, database, target)
   if (problem) throw new CreateError('unsupported', problem, { frontend, database, target })
 
@@ -165,6 +165,7 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
   } else {
     applyNext(directory)
     if (kit === 'starter') applyNextStarter(directory, database)
+    if (teams) applyNextTeams(directory, database)
   }
   if (database === 'postgres') applyPostgres(directory, name)
   // Both variants resolve like a bundler (Vite, Next, tsx): relative imports have no extension,
@@ -433,9 +434,48 @@ const TEAMS_AGENTS =
   'New teams come from a one-field dialog (`openNewTeamDialog()` from `resources/components/new-team-dialog.tsx`, in the switcher, the command menu and Settings → Teams). Settings → Teams (`src/routes/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, hand the team to another member (they become owner, the owner an admin), leave. ' +
   'Roles and what they may do are in `src/roles.ts` (Better Auth access control: add your own resources there); policies check them with `g.org.id` (the current team) and `await g.org.has({ project: [\'create\'] })`. Scope a team\'s data by a `teamId` column and the current team, and check `g.org.id` in policies.'
 
+const NEXT_TEAMS_AGENTS =
+  'Teams (Better Auth organizations, `src/teams.ts`): everyone gets a personal team at registration (it can\'t be deleted, left or shared); the current team is the session\'s active organization (`c.var.authSession.activeOrganizationId`), switched with the team switcher (`components/team-switcher.tsx`: next to the logo in the header layout, at the top of the sidebar in the other). ' +
+  '`app/(app)/layout.tsx` loads the person\'s teams (GET /api/teams/current) and gives them to the switcher, the command menu and the pages through `TeamsProvider` (`useTeams()`). New teams come from a one-field dialog (`openNewTeamDialog()` from `components/new-team-dialog.tsx`). Settings → Teams (`app/(app)/settings/teams`, data and changes in `src/routes/teams.ts`, server actions in `app/actions/teams.ts`): create, rename and delete teams, invite by email (`src/mail/team-invitation.tsx`, accepted at /invitations/:id), change roles, remove members, hand the team to another member, leave. ' +
+  'Roles and what they may do are in `src/roles.ts` (Better Auth access control: add your own resources there); policies check them with `g.org.id` (the current team) and `await g.org.has({ project: [\'create\'] })`. Scope a team\'s data by a `teamId` column and the current team, and check `g.org.id` in policies.'
+
 /** Teams over the starter: Better Auth's organization plugin, the gate's `g.org`, the switcher and settings. */
 function applyTeams(directory: string, database: Database) {
   copyLayer(STARTER_TEAMS, directory)
+  addTeams(directory, database)
+  edit(directory, 'src/inertia.ts', [
+    ["import { getCookie } from 'hono/cookie'\n", "import { getCookie } from 'hono/cookie'\nimport { teamsFor } from './teams.js'\n"],
+    ['    // The signed-in user (or null), for the layouts and pages.\n', '    // The person\'s teams and the current one, for the team switcher (src/teams.ts).\n    teams: () => teamsFor(c),\n    // The signed-in user (or null), for the layouts and pages.\n'],
+  ])
+  edit(directory, 'resources/components/app-sidebar.tsx', [
+    ["import { AppLogo } from '@/components/app-logo'\n", ''],
+    ["import { UserInfo } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo } from '@/components/user-info'\n"],
+    [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
+  ])
+  teamNavigation(directory, 'resources/components')
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])
+}
+
+/** Teams in the Next.js starter: the same server side, Next pages, and the switcher fed by app/(app)/layout.tsx. */
+function applyNextTeams(directory: string, database: Database) {
+  const kits = fileURLToPath(KITS_DIR)
+  // From the Inertia teams layer, unchanged: Better Auth's organizations, roles, the invitation email, the tables.
+  for (const file of ['src/teams.ts', 'src/roles.ts', 'src/mail/team-invitation.tsx', 'src/db/schema.ts', 'src/db/auth-schema.ts']) {
+    cpSync(join(kits, 'starter-teams', file), join(directory, file))
+  }
+  copyLayer(NEXT_STARTER_TEAMS, directory)
+  addTeams(directory, database)
+  edit(directory, 'components/app-sidebar.tsx', [
+    ["import { AppLogo } from '@/components/app-logo'\n", ''],
+    ["import { UserInfo, type UserSummary } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo, type UserSummary } from '@/components/user-info'\n"],
+    [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
+  ])
+  teamNavigation(directory, 'components')
+  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${NEXT_TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])
+}
+
+/** Both variants: the organization plugin in src/auth.ts, `g.org` for policies, and the teams' tables for Postgres. */
+function addTeams(directory: string, database: Database) {
   if (database === 'postgres') cpSync(STARTER_TEAMS_POSTGRES, directory, { recursive: true, force: true })
   edit(directory, 'src/auth.ts', [
     ["import { User } from './models/user.js'\n", "import { User } from './models/user.js'\nimport { teamHooks, teamsPlugin } from './teams.js'\n"],
@@ -449,26 +489,20 @@ function applyTeams(directory: string, database: Database) {
       '    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`), with\n    // g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ policies, extend: organizationGate({ roles }) }),\n',
     ],
   ])
-  edit(directory, 'src/inertia.ts', [
-    ["import { getCookie } from 'hono/cookie'\n", "import { getCookie } from 'hono/cookie'\nimport { teamsFor } from './teams.js'\n"],
-    ['    // The signed-in user (or null), for the layouts and pages.\n', '    // The person\'s teams and the current one, for the team switcher (src/teams.ts).\n    teams: () => teamsFor(c),\n    // The signed-in user (or null), for the layouts and pages.\n'],
-  ])
-  edit(directory, 'resources/components/app-sidebar.tsx', [
-    ["import { AppLogo } from '@/components/app-logo'\n", ''],
-    ["import { UserInfo } from '@/components/user-info'\n", "import { TeamSwitcher } from '@/components/team-switcher'\nimport { UserInfo } from '@/components/user-info'\n"],
-    [/            <SidebarMenuButton size="lg" render=\{<Link href="\/dashboard" prefetch \/>\}>\n              <AppLogo \/>\n            <\/SidebarMenuButton>\n/, '            <TeamSwitcher />\n'],
-  ])
-  edit(directory, 'resources/components/app-header.tsx', [
+}
+
+/** The switcher in the header, a Teams section in the command menu, and Settings → Teams. */
+function teamNavigation(directory: string, components: string) {
+  edit(directory, `${components}/app-header.tsx`, [
     ["import { Button } from '@/components/ui/button'\n", "import { HeaderTeamSwitcher } from '@/components/team-switcher'\nimport { Button } from '@/components/ui/button'\n"],
     ['          <AppLogo />\n        </Link>\n', '          <AppLogo />\n        </Link>\n        <HeaderTeamSwitcher />\n'],
   ])
-  edit(directory, 'resources/components/command-menu.tsx', [
+  edit(directory, `${components}/command-menu.tsx`, [
     ["import { footerNavItems, mainNavItems, settingsNavItems } from '@/components/navigation'\n", "import { footerNavItems, mainNavItems, settingsNavItems } from '@/components/navigation'\nimport { useTeamCommands } from '@/components/team-switcher'\n"],
     ['  const [mac, setMac] = useState(true)\n', '  const [mac, setMac] = useState(true)\n  const teams = useTeamCommands()\n'],
-    [/(    \{ value: 'Pages', .*\n)/, "$1    // Switch to another team, or make one (resources/components/team-switcher.tsx).\n    teams,\n"],
+    [/(    \{ value: 'Pages', .*\n)/, `$1    // Switch to another team, or make one (${components}/team-switcher.tsx).\n    teams,\n`],
   ])
-  edit(directory, 'resources/components/navigation.ts', [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
-  edit(directory, 'AGENTS.md', [[/^Tests \(`pnpm test`/m, `${TEAMS_AGENTS}\n\nTests (\`pnpm test\``]])
+  edit(directory, `${components}/navigation.ts`, [["  { title: 'Security', href: '/settings/security' },\n", "  { title: 'Security', href: '/settings/security' },\n  { title: 'Teams', href: '/settings/teams' },\n"]])
 }
 
 /** The starter kit's sign-in (src/auth.ts) as a provider of the app, and its tables for Postgres. */

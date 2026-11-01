@@ -17,7 +17,7 @@ const mismatch = { message: 'The passwords don’t match.', path: ['passwordConf
 
 const Register = defineRequest({
   body: z
-    .object({ name: z.string().trim().min(1, 'Enter your name.').max(255), email, password: newPassword, passwordConfirmation: z.string() })
+    .object({ name: z.string().trim().min(1, 'Enter your name.').max(255), email, password: newPassword, passwordConfirmation: z.string(), redirect: z.string().optional() })
     .refine(matches, mismatch),
 })
 const Login = defineRequest({ body: z.object({ email, password: z.string().min(1, 'Enter your password.'), remember: z.boolean().default(false), redirect: z.string().optional() }) })
@@ -48,7 +48,7 @@ const inTwoFactorChallenge = (c: { req: { header(name: string): string | undefin
 export const auth = defineRoutes('auth')
   .get('register', '/register', { middleware: [mw.guest()] }, (c) => c.json({}))
   .post('register.store', '/register', { middleware: [mw.guest()], request: Register }, async (c) => {
-    const { name, email, password } = c.req.valid('json')
+    const { name, email, password, redirect: to } = c.req.valid('json')
     const res = await c.var.auth.api.signUpEmail({ body: { name, email, password }, headers: headers(c), asResponse: true })
     if (!res.ok) throw new ValidationError({ email: ['This email address is already registered.'] })
     // A welcome mail and inbox entry (src/notifications/welcome.ts), queued once this request's work commits.
@@ -57,7 +57,8 @@ export const auth = defineRoutes('auth')
     // With mustVerifyEmail, Better Auth signs people in only once they've clicked the link.
     if (c.var.config.auth.mustVerifyEmail) return redirect(c, '/login').with('status', 'Check your inbox: click the link we sent to confirm your email, then sign in.')
     confirmPassword(c)
-    return withAuthCookies(c, res, redirect(c, c.var.config.auth.home))
+    // On to the page that sent them to sign up (?redirect=, from the login page), such as an invitation.
+    return withAuthCookies(c, res, intendedPage(c, to, c.var.config.auth.home))
   })
   .get('login', '/login', { middleware: [mw.guest()] }, (c) => c.json({ canResetPassword: true, canRegister: true, passkeys: c.var.config.auth.passkeys }))
   .post('login.store', '/login', { middleware: [mw.guest()], throttle: login, request: Login }, async (c) => {

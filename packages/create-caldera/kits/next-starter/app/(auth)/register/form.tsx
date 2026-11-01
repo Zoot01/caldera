@@ -8,8 +8,9 @@ import { TextLink } from '@/components/text-link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-export function RegisterForm() {
-  const form = useForm({ name: '', email: '', password: '', passwordConfirmation: '' })
+export function RegisterForm({ redirectTo }: { redirectTo?: string }) {
+  // `redirect`: where they were going before signing up (?redirect=), such as an invitation.
+  const form = useForm({ name: '', email: '', password: '', passwordConfirmation: '', redirect: redirectTo })
   const submit = (event: FormEvent) => {
     event.preventDefault()
     form.submit(register, { onFinish: () => form.reset('password', 'passwordConfirmation') })
@@ -41,7 +42,7 @@ export function RegisterForm() {
         </Button>
       </form>
       <p className="text-center text-muted-foreground text-sm">
-        Already have an account? <TextLink href="/login">Log in</TextLink>
+        Already have an account? <TextLink href={redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : '/login'}>Log in</TextLink>
       </p>
     </>
   )

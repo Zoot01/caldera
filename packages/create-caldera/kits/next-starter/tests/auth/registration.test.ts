@@ -28,3 +28,11 @@ it('checks the form', async () => {
   await createUser(t)
   await (await client.post('/api/register', { json: { name: 'Ann', email: 'ann@example.test', password: PASSWORD, passwordConfirmation: PASSWORD } })).assertValidationErrors({ email: /already registered/ })
 })
+
+it('sends people on to the page that asked them to sign up, on this site only', async () => {
+  const client = t.client(http)
+  const json = { name: 'Ann', email: 'ann@example.test', password: PASSWORD, passwordConfirmation: PASSWORD }
+  ;(await client.post('/api/register', { json: { ...json, redirect: '/invitations/abc' } })).assertRedirect('/invitations/abc')
+  const other = t.client(http)
+  ;(await other.post('/api/register', { json: { ...json, email: 'bob@example.test', redirect: 'https://evil.example' } })).assertRedirect('/dashboard')
+})

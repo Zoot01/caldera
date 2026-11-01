@@ -39,10 +39,9 @@ export async function askCreateOptions(
       { starter: 'Auth, settings and a dashboard', blank: frontend === 'next' ? 'One page using Caldera from Next.js' : 'Tailwind and the UI kit, one page' },
       { starter: 'Starter', blank: 'Blank' },
     ))
-  // Teams change the data model (every account gets a team), so they're asked for up front (the Inertia
-  // starter only, for now). --teams with another kit is passed on, so creating refuses it as it would
-  // without a terminal.
-  const teams = kit === 'starter' && frontend === 'inertia' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : given.teams
+  // Teams change the data model (every account gets a team), so they're asked for up front.
+  // --teams with another kit is passed on, so creating refuses it as it would without a terminal.
+  const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : given.teams
   const database =
     given.database ??
     (await prompter.select('Database', DATABASES, 'sqlite', { sqlite: 'A local file; Turso or D1 in production', postgres: 'Needs a Postgres server' }, { sqlite: 'SQLite', postgres: 'Postgres' }))

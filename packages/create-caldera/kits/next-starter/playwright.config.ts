@@ -17,7 +17,7 @@ export default defineConfig({
     url,
     timeout: 180_000,
     // Win over .env: this port, a realtime server of the tests' own (server.ts starts it), mail kept in
-    // the outbox at /_caldera/mail/outbox for tests to read.
-    env: { PORT: '3100', APP_URL: url, BROADCAST_CONNECTION: 'server', BROADCAST_PORT: '6101', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' },
+    // the outbox at /_caldera/mail/outbox for tests to read (on, though the build runs as production).
+    env: { PORT: '3100', APP_URL: url, BROADCAST_CONNECTION: 'server', BROADCAST_PORT: '6101', MAIL_MAILER: 'log', MAIL_PREVIEWS: 'true', QUEUE_CONNECTION: 'sync' },
   },
 })

@@ -28,8 +28,9 @@ export const http = new Hono()
   .route('/', storageRoutes())
   // Browsers ask here before joining a private or presence channel: /api/_caldera/broadcast/auth.
   .route('/', broadcastRoutes())
-  // Mail previews and the outbox, outside production only: /_caldera/mail.
-  .route('/', mailPreviewRoutes({ enabled: () => process.env.NODE_ENV !== 'production' }))
+  // Mail previews and the outbox, outside production only: /_caldera/mail. The browser tests serve a
+  // production build and read the outbox, so they turn them on with MAIL_PREVIEWS=true.
+  .route('/', mailPreviewRoutes({ enabled: () => process.env.NODE_ENV !== 'production' || process.env.MAIL_PREVIEWS === 'true' }))
   // Adding a passkey (the Security page calls Better Auth for it) needs the password typed recently,
   // like the page itself.
   .use('/auth/passkey/generate-register-options', async (c, next) => {

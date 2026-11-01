@@ -82,7 +82,7 @@ export function LoginForm({ canResetPassword, canRegister, passkeys, status, red
       )}
       {canRegister && (
         <p className="text-center text-muted-foreground text-sm">
-          Don't have an account? <TextLink href="/register">Sign up</TextLink>
+          Don't have an account? <TextLink href={redirectTo ? `/register?redirect=${encodeURIComponent(redirectTo)}` : '/register'}>Sign up</TextLink>
         </p>
       )}
     </>

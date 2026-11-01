@@ -291,8 +291,22 @@ describe('createProject', () => {
     expect(manifest.dependencies).toMatchObject({ '@caldera/next': expect.any(String), 'better-auth': expect.any(String), '@base-ui/react': expect.any(String) })
     expect(manifest.dependencies['@caldera/inertia']).toBeUndefined()
     expect(manifest.scripts).toMatchObject({ build: 'next build', 'test:browser': 'playwright test' })
-    // Teams aren't in it yet.
-    await expect(createProject({ directory: join(base, 'next-teams'), ...offline, frontend: 'next', teams: true })).rejects.toMatchObject({ code: 'unsupported' })
+  })
+
+  it('adds teams to the Next.js starter: the Inertia kit’s server side, Next pages, the switcher', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'next-teams'), ...offline, frontend: 'next', teams: true })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    for (const file of ['src/teams.ts', 'src/roles.ts', 'src/routes/teams.ts', 'components/team-switcher.tsx', 'app/(app)/settings/teams/[team]/page.tsx', 'app/(app)/invitations/[invitation]/page.tsx', 'tests/teams/teams.test.ts', 'tests/browser/teams.spec.ts']) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    expect(read('src/auth.ts')).toContain('teamsPlugin({ appUrl: env.APP_URL })')
+    expect(read('src/app.ts')).toContain('extend: organizationGate({ roles })')
+    expect(read('components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
+    expect(read('components/app-header.tsx')).toContain('<HeaderTeamSwitcher />')
+    expect(read('components/navigation.ts')).toContain("{ title: 'Teams', href: '/settings/teams' }")
+    expect(read('app/(app)/layout.tsx')).toContain("load<Teams | null>(http, '/teams/current')")
+    // Not the Inertia kit's pages.
+    expect(existsSync(join(dir, 'resources'))).toBe(false)
   })
 
   it('keeps Caldera’s own tables in step with `caldera queue:table` and friends, for both dialects', () => {
@@ -552,6 +566,16 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     ok(run('test'))
     // Sign-up, sign-in and back, two-factor, passkeys, the command menu, settings, appearance.
     expect(runsBrowserTests(dir)).toMatch(/\b12 passed\b/)
+  }, 600_000)
+  it('creates the Next.js starter kit with teams: switching, invitations, roles, in route and browser tests', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-next-teams'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next', teams: true })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('typecheck'))
+    ok(run('test'))
+    expect(runsBrowserTests(dir)).toMatch(/\b16 passed\b/)
   }, 600_000)
   it('runs on Cloudflare Workers (--target cloudflare): D1, the database cache, R2 and assets under wrangler dev', async () => {
     const result = await createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false, target: 'cloudflare' })
