@@ -21,7 +21,7 @@ afterAll(() => {
 })
 
 it('registers schedules and lists them in AGENTS.md', () => {
-  expect(readFileSync(join(root, '.caldera/schedules.gen.ts'), 'utf8')).toContain('export const schedules = [schedules0.everyMinute, schedules1.nightly] as const\n')
+  expect(readFileSync(join(root, '.caldera/schedules.gen.ts'), 'utf8')).toContain('export const schedules: readonly AnySchedule[] = [schedules0.everyMinute, schedules1.nightly]\n')
   const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8')
   expect(agents).toContain('| `stamp.nightly` | `0 2 * * *` (Europe/Paris) | `stamp` | one server | src/schedules/nightly.ts |')
 })

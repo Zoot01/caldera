@@ -46,7 +46,7 @@ describe('emit', () => {
     const queue = createQueue({ default: 'memory', connections: { memory: { driver: 'memory' } } })
     setDefaultQueue(queue)
     const queued = queue.fake()
-    const welcome = listen(UserRegistered, SendWelcome.fromEvent<{ userId: string }>((e) => ({ userId: e.userId })))
+    const welcome = listen(UserRegistered, SendWelcome.fromEvent((e) => ({ userId: e.userId })))
     expect(welcome.name).toBe('send-welcome')
     await createEvents({ listeners: [welcome] }).emit(UserRegistered, { userId: 'u4' })
     queued.assertDispatched(SendWelcome, (p) => p.userId === 'u4')

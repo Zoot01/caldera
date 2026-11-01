@@ -58,10 +58,11 @@ export interface ListenerContext {
  * A listener that queues a job instead of running in the emitting process: `SendWelcome.fromEvent(map)`
  * from `@caldera/queue`. It is the job, so it has the job's retries, backoff and uniqueness.
  */
-export interface QueuedListener {
+export interface QueuedListener<P = any> {
   readonly kind: 'caldera.queued-listener'
   readonly job: { readonly name: string }
-  map(payload: unknown): unknown
+  /** The event's payload, typed by `listen`, so `Job.fromEvent((e) => ...)` knows what `e` is. */
+  map(payload: P): unknown
 }
 
 export interface ListenerDefinition<E extends AnyEvent = AnyEvent> {
@@ -80,7 +81,7 @@ export type AnyListener = ListenerDefinition<any>
  */
 export function listen<E extends AnyEvent>(
   event: E,
-  handler: ((payload: EventPayload<E>, context: ListenerContext) => unknown) | QueuedListener,
+  handler: ((payload: EventPayload<E>, context: ListenerContext) => unknown) | QueuedListener<EventPayload<E>>,
   options: { name?: string } = {},
 ): ListenerDefinition<E> {
   if (typeof handler === 'function') return { kind: 'caldera.listener', event, name: options.name ?? (handler.name || 'anonymous'), handle: handler }

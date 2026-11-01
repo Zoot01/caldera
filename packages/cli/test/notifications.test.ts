@@ -28,7 +28,7 @@ it('make:notification creates one in src/notifications, with its mail; generate 
   expect(notification).toContain(`mail: (_to, { url }) => ({ mail: InvoicePaidEmail, props: { url } }),`)
   expect(readFileSync(join(dir, 'src/mail/invoice-paid.tsx'), 'utf8')).toContain(`  name: 'billing.invoice-paid',`)
   expect(readFileSync(join(dir, '.caldera/notifications.gen.ts'), 'utf8')).toContain(
-    `import * as notifications0 from '../src/notifications/invoice-paid.js'\n\nexport const notifications = [notifications0.InvoicePaid] as const\n`,
+    `import type { AnyNotification } from '@caldera/notifications'\nimport * as notifications0 from '../src/notifications/invoice-paid.js'\n\nexport const notifications: readonly AnyNotification[] = [notifications0.InvoicePaid]\n`,
   )
   // Registered by name, so inbox rows' data is typed by the notification's database schema.
   const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
