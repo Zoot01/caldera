@@ -1,0 +1,102 @@
+---
+title: Security
+description: What Caldera does for you, what you do yourself, and a checklist before going live.
+---
+
+A new Caldera app is safe by default: every protection on this page is on unless you turn it off. This page says what each one does, and what's left to you.
+
+## Requests from other sites
+
+A page on another site can make a visitor's browser post to yours, with their cookies. `originCheck()` (in `src/http.ts`) refuses that, without tokens in your forms:
+
+1. `GET`, `HEAD` and `OPTIONS` always pass: they must never change anything.
+2. Browsers say where a request came from in `Sec-Fetch-Site`. `same-origin` passes; anything else is refused with a 403.
+3. Without it (older browsers), the `Origin` or `Referer` must be the app's own.
+4. With neither, only requests without cookies pass: other servers calling your API.
+
+Session cookies are also `SameSite=Lax`, so browsers don't send them on cross-site posts at all.
+
+To accept posts from another origin of yours, list it; to skip the check for a webhook that proves itself with a signature, exempt its path:
+
+```ts
+.use(originCheck({ trustedOrigins: ['https://admin.example.com'], exempt: (path) => path.startsWith('/webhooks/') }))
+```
+
+## Headers
+
+`securityHeaders()` sends, on every response:
+
+| | |
+| --- | --- |
+| `Content-Security-Policy` | Only scripts carrying this request's nonce run (Caldera's pages and Vite's tags carry it). An injected `<script>` doesn't. |
+| `X-Frame-Options: DENY` | No other site can show yours in a frame (clickjacking). |
+| `X-Content-Type-Options: nosniff` | Browsers trust the type you send. |
+| `Referrer-Policy` | Other sites see your origin, not the full URL. |
+| `Strict-Transport-Security` | On HTTPS requests: browsers only ever come back over HTTPS. |
+
+Loosen the policy one directive at a time, such as images from a CDN:
+
+```ts
+.use(securityHeaders({ csp: { imgSrc: ["'self'", 'https://cdn.example.com'] } }))
+```
+
+`cspReportOnly: true` reports violations without enforcing them, for trying a change. In a [Next.js](/docs/nextjs) app these cover `/api`; Next sets the pages' own headers, in `next.config.ts`.
+
+## Sessions and cookies
+
+The app session (flash messages, the confirmed-password time, small state) lives in one cookie, encrypted with AES-GCM using a key derived from `APP_KEY`: people can't read or change it. It's `HttpOnly` (scripts can't reach it), `SameSite=Lax`, `Secure` over HTTPS, and lasts two hours. Who's signed in is Better Auth's session, in its own cookie and the database.
+
+## Signing in
+
+The starter kit's sign-in is [Better Auth](/docs/authentication): passwords are hashed with scrypt, and never leave the server.
+
+- Five failed sign-ins a minute per address and email are refused (`src/routes/auth.ts`), and five wrong two-factor codes a minute. After ten wrong codes, Better Auth locks the account for 15 minutes.
+- Two-factor (an authenticator app) and passkeys are built in, and Security settings ask for the password again before changing them.
+- Password reset links expire, and answer the same whether or not the address has an account, so the form can't be used to find accounts.
+
+## Authorization
+
+Everything is [denied until a policy allows it](/docs/authorization). A model without a policy, or an ability a policy doesn't define, is refused. For lists, `gate.scope(Model)` filters in the database, so a page never fetches rows it then hides.
+
+A form can't set what you don't let it: Zod schemas drop fields they don't name, and a model's [guarded columns](/docs/models#guarded-columns) (an owner, a team) are never set from input, even if a route passes the whole body.
+
+## Data in and out
+
+- **SQL**: Drizzle sends values as parameters, never in the SQL text, including inside `` sql`…` `` templates.
+- **HTML**: React escapes what it renders. `dangerouslySetInnerHTML` is the exception: only give it HTML you made.
+- **Redirects**: `back(c)` follows only this site's `Referer`, and the sign-in pages only a path on this site, so a link can't send people elsewhere through you.
+- **Uploads**: `zfile` checks a file by its bytes, never its name or claimed type, and refuses HTML, SVG and programs by default. [Direct uploads](/docs/storage#direct-uploads) are signed, and claimed once.
+- **Errors**: a 500 says "Something went wrong" with a request id; the error itself goes to the log, not the browser.
+
+## Links that work without signing in
+
+An unsubscribe link, or a download that expires: [signed links](/docs/middleware#signed-links) carry a signature made with `APP_KEY`, and `mw.signed()` refuses one that's been changed or has expired.
+
+## Rate limits and the client's address
+
+[Limiters](/docs/cache#rate-limiting) count by the client's address. Behind a proxy, every request comes from the proxy, so set [`TRUSTED_PROXIES`](/docs/deployment#behind-a-proxy): Caldera then reads the client's address from proxies you trust, and nobody else.
+
+## APP_KEY and other secrets
+
+`APP_KEY` encrypts sessions and signs links, uploads and realtime subscriptions; Better Auth signs its sessions with it. Keep it secret, at least 32 characters, and the same on every server.
+
+To change it, put the new key first in `src/config/session.ts` and keep the old one after it for a while (add `APP_KEY_PREVIOUS` to `src/env.ts`, as a `secret()`):
+
+```ts title="src/config/session.ts"
+keys: [env.APP_KEY, env.APP_KEY_PREVIOUS],
+```
+
+Sessions and signed links made with the old key keep working; new ones use the new key. Better Auth's sign-ins and uploads in progress use only the current key, so people sign in again.
+
+In `src/env.ts`, `secret()` marks a variable as secret, and names like `*_KEY`, `*_SECRET`, `*_TOKEN` and `DATABASE_URL` are treated as secret anyway: `caldera describe` and the MCP server never show their values.
+
+## Before going live
+
+- [ ] `APP_KEY` is random (`openssl rand -base64 32`), secret, and the same everywhere.
+- [ ] `APP_URL` is the HTTPS address people use.
+- [ ] Behind a proxy, `TRUSTED_PROXIES` names it (`loopback` for one on the same machine).
+- [ ] `NODE_ENV=production`: mail previews and the outbox are off, and errors show no details.
+- [ ] Each policy says who may do what, and list routes use `gate.scope`.
+- [ ] Webhooks check their sender's signature, and only they are exempt from `originCheck`.
+- [ ] Mail goes through a real mailer, and `MAIL_REDIRECT_TO` is unset.
+- [ ] `caldera check` passes.

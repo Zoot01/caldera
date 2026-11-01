@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 import { NONCE, secureHeaders } from 'hono/secure-headers'
 import { ForbiddenError } from './errors.js'
+import { isSecure } from './proxies.js'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -70,8 +71,12 @@ export const STRICT_CSP: CspDirectives = {
 }
 
 export interface SecurityHeadersOptions {
-  /** Send HSTS. Turn on in production behind HTTPS. */
-  hsts?: boolean
+  /**
+   * HSTS: browsers then only ever reach the site over HTTPS. `auto` (the default) sends it on requests
+   * that came over HTTPS (directly, or from a trusted proxy: `trustProxies()`); browsers ignore it over
+   * plain HTTP anyway, so development is unaffected. `true` always, `false` never.
+   */
+  hsts?: boolean | 'auto'
   /**
    * Content-Security-Policy directives (Hono format), merged over `STRICT_CSP` per directive.
    * The nonce is `c.var.secureHeadersNonce`; Caldera's page and asset tags use it. `false` sends none.
@@ -83,6 +88,14 @@ export interface SecurityHeadersOptions {
 
 /** Secure defaults, on by default (unlike AdonisJS Shield): nosniff, no framing, strict referrer, COOP, strict CSP. */
 export function securityHeaders(options: SecurityHeadersOptions = {}): MiddlewareHandler {
+  const hsts = options.hsts ?? 'auto'
+  if (hsts !== 'auto') return headers(options, hsts)
+  const secure = headers(options, true)
+  const plain = headers(options, false)
+  return (c, next) => (isSecure(c) ? secure(c, next) : plain(c, next))
+}
+
+function headers(options: SecurityHeadersOptions, hsts: boolean): MiddlewareHandler {
   const csp = options.csp === false ? undefined : { ...STRICT_CSP, ...options.csp }
   return secureHeaders({
     xContentTypeOptions: 'nosniff',
@@ -90,7 +103,7 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
     referrerPolicy: 'strict-origin-when-cross-origin',
     crossOriginOpenerPolicy: 'same-origin',
     crossOriginResourcePolicy: 'same-origin',
-    strictTransportSecurity: options.hsts ? 'max-age=31536000; includeSubDomains' : false,
+    strictTransportSecurity: hsts ? 'max-age=31536000; includeSubDomains' : false,
     xXssProtection: false,
     ...(csp ? (options.cspReportOnly ? { contentSecurityPolicyReportOnly: csp } : { contentSecurityPolicy: csp }) : {}),
   } as Parameters<typeof secureHeaders>[0])

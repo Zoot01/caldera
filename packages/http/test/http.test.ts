@@ -228,6 +228,15 @@ describe('security', () => {
     )
   })
 
+  it('sends HSTS on HTTPS requests by default, not over plain HTTP; or as told', async () => {
+    const app = (hsts?: boolean) => new Hono().use(securityHeaders(hsts === undefined ? {} : { hsts })).get('/', (c) => c.text('ok'))
+    const hstsOf = async (server: Hono, url: string) => (await server.request(url)).headers.get('strict-transport-security')
+    expect(await hstsOf(app(), 'https://app.example/')).toBe('max-age=31536000; includeSubDomains')
+    expect(await hstsOf(app(), 'http://localhost/')).toBeNull()
+    expect(await hstsOf(app(true), 'http://localhost/')).toBe('max-age=31536000; includeSubDomains')
+    expect(await hstsOf(app(false), 'https://app.example/')).toBeNull()
+  })
+
   it('merges app CSP directives over the strict default, or turns it off', async () => {
     const custom = new Hono().use(securityHeaders({ csp: { imgSrc: ["'self'"], frameAncestors: ["'self'"] } })).get('/', (c) => c.text('ok'))
     const policy = (await custom.request('/')).headers.get('content-security-policy')!
