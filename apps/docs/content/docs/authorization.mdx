@@ -1,0 +1,133 @@
+---
+title: Authorization
+description: Policies that decide who may do what to each model, and checking them in routes and pages.
+---
+
+Authentication says who someone is; authorization says what they may do. Caldera's rules live in policies, one per model, and everything is denied until a policy allows it.
+
+## Policies
+
+```bash
+pnpm exec caldera make:policy Note
+```
+
+```ts title="src/policies/note.ts"
+import { definePolicy, deny } from '@caldera/auth'
+import { Note } from '../models/note'
+
+export const NotePolicy = definePolicy(Note, {
+  viewAny: () => true,
+  view: (user, note) => note.userId === user.id,
+  create: () => true,
+  update: (user, note) => note.userId === user.id,
+  delete: (user, note) => note.userId === user.id || deny('Only its author can delete a note.'),
+})
+```
+
+Each ability gets the signed-in user and, except for `viewAny` and `create`, the row. It returns `true` to allow or `false` to deny (a 403). Abilities can be async, and can be named anything: `publish`, `archive`, whatever the model needs.
+
+To say more than no:
+
+| | |
+| --- | --- |
+| `deny('Message')` | A 403 with that message, shown to the person. |
+| `denyAsNotFound()` | A 404, as if the row didn't exist, so its id gives nothing away. |
+
+`caldera generate` finds every policy in `src/policies/`, and `src/app.ts` hands them to the app. A model without a policy, or an ability a policy doesn't have, is denied.
+
+### Before every ability
+
+`before` runs first. Return `true` or `false` to decide, or `undefined` to carry on to the ability:
+
+```ts
+export const NotePolicy = definePolicy(Note, {
+  // Admins may do anything.
+  before: (user) => (user?.role === 'admin' ? true : undefined),
+  // …
+})
+```
+
+### Guests
+
+Guests are denied, with a 401 that sends a page visit to the login page. An ability that guests may pass says so:
+
+```ts
+view: { guest: true, check: (user, note) => note.pinned || note.userId === user?.id },
+```
+
+`user` is then `null` for guests.
+
+## Checking
+
+### On a route
+
+`allows` checks an ability before the handler runs, after [binding](/docs/routing#route-model-binding) has loaded the row:
+
+```ts
+import { allows } from '@caldera/auth'
+
+.get(
+  'show',
+  '/notes/:note',
+  { bind: { note: Note }, authorize: allows(Note, 'view', 'note') },
+  (c) => c.json({ title: c.var.note.title }),
+)
+```
+
+The last argument names the bound parameter. Abilities without a row leave it out: `allows(Note, 'create')`.
+
+### In a handler
+
+`c.var.gate` checks against the current user:
+
+```ts
+await c.var.gate.authorize(Note, 'delete', c.var.note) // throws: 401, 403 or 404
+const may = await c.var.gate.can(Note, 'update', note) // true or false
+```
+
+`authorize` throws, and the response is the denial's status and message:
+
+```json
+{ "error": { "code": "forbidden", "message": "Only its author can delete a note." } }
+```
+
+Checks are remembered for the rest of the request, so asking twice costs nothing.
+
+### For pages
+
+Pages shouldn't repeat the rules to decide which buttons to show. `annotate` adds what each row allows:
+
+```ts
+const notes = await Note.ownedBy(c.var.user!.id).findMany()
+const rows = await c.var.gate.annotate(Note, notes, ['update', 'delete'])
+// rows[0].can → { update: true, delete: true }
+```
+
+Send `can` with the rows, and show the delete button when `note.can.delete` is true. The server checks again when the button is used.
+
+## Abilities without a model
+
+Some permissions aren't about a row, like seeing the reports page. Define those with `defineAbility`, in `src/policies/` too:
+
+```ts title="src/policies/abilities.ts"
+import { defineAbility } from '@caldera/auth'
+
+export const viewReports = defineAbility('viewReports', (user) => user.role === 'admin')
+```
+
+```ts
+.get(
+  'reports',
+  '/reports',
+  { middleware: [mw.auth()], authorize: (c) => c.var.gate.can(viewReports) },
+  (c) => c.json({ ok: true }),
+)
+```
+
+## Seeing every ability
+
+```bash
+pnpm exec caldera abilities
+```
+
+lists every policy's abilities, whether guests may pass them, and the routes each one guards.
