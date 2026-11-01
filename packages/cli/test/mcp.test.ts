@@ -105,7 +105,7 @@ describe('caldera mcp (official SDK client over stdio)', () => {
     const mail = await call(client, 'mail_render', { name: 'users.welcome', props: { name: 'Bo' } })
     expect(mail.structuredContent).toMatchObject({ subject: 'Welcome, Bo', text: expect.stringContaining('Hi Bo, welcome.') })
     const planned = await call(client, 'make', { kind: 'job', name: 'SendDigest', write: true })
-    expect(planned.structuredContent!.planned).toEqual([{ path: 'src/jobs/send-digest.ts', contents: expect.stringContaining("name: 'send-digest'"), exists: false }])
+    expect(planned.structuredContent!.planned).toEqual([{ path: 'src/jobs/send-digest.ts', contents: expect.stringContaining("name: 'digest.send'"), exists: false }])
     expect(existsSync(join(root, 'src/jobs/send-digest.ts'))).toBe(false)
     await client.close()
     const writer = await connect(['--allow-writes'])
