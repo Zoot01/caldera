@@ -39,6 +39,7 @@ export const PostPolicy = definePolicy(Post, {
   },
   delete: (user, post) => (post.authorId === user.id ? allow() : denyAsNotFound()),
   prefetch: () => void calls.prefetch++,
+  scope: { guest: true, where: (user) => (user ? { OR: [{ published: true }, { authorId: user.id }] } : { published: true }) },
 })
 
 export const viewBilling = defineAbility('viewBilling', (user) => user.plan === 'pro')

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import { createGate } from '../src/index.js'
-import { calls, Post, setup, viewBilling, viewStatus } from './fixtures.js'
+import { createGate, definePolicy, registerPolicy } from '../src/index.js'
+import { calls, Post, PostPolicy, setup, User, viewBilling, viewStatus } from './fixtures.js'
 
 let s: Awaited<ReturnType<typeof setup>>
 beforeEach(async () => {
@@ -69,5 +69,26 @@ describe('gate', () => {
     const inspect = createGate({ user: s.ann }).inspect as (...args: unknown[]) => Promise<unknown>
     const result = await inspect(Post, 'archive', s.draft)
     expect(result).toMatchObject({ allowed: false, source: 'missing' })
+  })
+
+  it('filters lists to the rows the policy scope allows', async () => {
+    const slugs = async (user: typeof s.ann | null, and?: { slug: string }) =>
+      (await Post.findMany({ where: await createGate({ user }).scope(Post, and), orderBy: { slug: 'asc' } })).map((p) => p.slug)
+    expect(await slugs(s.ann)).toEqual(['draft', 'live'])
+    expect(await slugs(s.bob)).toEqual(['live'])
+    expect(await slugs(null)).toEqual(['live'])
+    expect(await slugs(s.admin)).toEqual(['draft', 'live']) // before() allows everything
+    expect(await slugs(s.ann, { slug: 'draft' })).toEqual(['draft'])
+  })
+
+  it('scopes guests to nothing unless the scope allows guests, and needs a scope', async () => {
+    definePolicy(Post, { scope: (user) => ({ authorId: user.id }) })
+    try {
+      expect(await Post.findMany({ where: await createGate({ user: null }).scope(Post) })).toEqual([])
+      expect(await Post.findMany({ where: await createGate({ user: s.ann }).scope(Post) })).toHaveLength(2)
+    } finally {
+      registerPolicy(PostPolicy)
+    }
+    await expect(createGate({ user: s.ann }).scope(User)).rejects.toMatchObject({ code: 'no_scope' })
   })
 })

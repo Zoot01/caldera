@@ -105,6 +105,36 @@ const rows = await c.var.gate.annotate(Note, notes, ['update', 'delete'])
 
 Send `can` with the rows, and show the delete button when `note.can.delete` is true. The server checks again when the button is used.
 
+## Lists
+
+Checking `view` row by row doesn't work for a list: the database would return every note, and the page would need them all to filter. A policy's `scope` says which rows someone may see, as a query. Unlike a model's [scopes](/docs/models#scopes), it depends on who's asking:
+
+```ts title="src/policies/note.ts"
+export const NotePolicy = definePolicy(Note, {
+  // …
+  scope: (user) => ({ OR: [{ pinned: true }, { userId: user.id }] }),
+})
+```
+
+`gate.scope` applies it for the current user:
+
+```ts
+const notes = await Note.findMany({ where: await c.var.gate.scope(Note) })
+```
+
+The filter is a [`where`](/docs/models#reading), so the database does the work, and pagination counts only what the user may see. To narrow it further, pass more conditions: `gate.scope(Note, { pinned: true })`.
+
+`before` applies here too: when it allows, the scope matches every note, and when it denies, none. Guests get no rows, unless the scope allows guests the way abilities do:
+
+```ts
+scope: {
+  guest: true,
+  where: (user) => (user ? { OR: [{ pinned: true }, { userId: user.id }] } : { pinned: true }),
+},
+```
+
+Keep `scope` and `view` saying the same thing: one lists notes, the other opens them. A policy without a `scope` throws when `gate.scope` is called, rather than return every row.
+
 ## Abilities without a model
 
 Some permissions aren't about a row, like seeing the reports page. Define those with `defineAbility`, in `src/policies/` too:

@@ -1,5 +1,6 @@
 import { CalderaError } from '@caldera/core'
-import type { AnyModel, Row } from '@caldera/db'
+import type { AnyModel, Filter, Row } from '@caldera/db'
+import { sql } from 'drizzle-orm'
 import {
   policyFor,
   type Ability,
@@ -45,6 +46,11 @@ export interface Gate {
     rows: readonly R[],
     abilities: readonly A[],
   ): Promise<(R & { can: { [K in A]: boolean } })[]>
+  /**
+   * The policy's `scope` for this user, as a filter: `Post.findMany({ where: await gate.scope(Post) })`.
+   * `and` narrows it further. Matches every row when `before` allows, and none when it denies or for guests.
+   */
+  scope<M extends AnyModel>(model: M, and?: Filter<M['~key']>): Promise<Filter<M['~key']>>
   /** The same checks for another user (a fresh memo). */
   forUser(user: AuthUser | null): Gate
   memo<T>(key: string, compute: () => T): T
@@ -121,6 +127,24 @@ export function createGate(options: CreateGateOptions): Gate {
           return { ...row, can: Object.fromEntries(entries) }
         }),
       ) as never
+    },
+    async scope(model, and) {
+      const g = gateContext()
+      const policy = policyFor(model)?.definition as
+        | { before?: (u: AuthUser | null) => boolean | undefined; scope?: Function | { guest: true; where: Function } }
+        | undefined
+      if (!policy?.scope) {
+        throw new CalderaError('no_scope', `The ${model.name} policy has no scope, so gate.scope(${model.name}) can't say which rows the user may see.`)
+      }
+      const before = policy.before?.(g.user)
+      const guestAllowed = typeof policy.scope === 'object' && policy.scope.guest
+      const where =
+        before === true
+          ? {}
+          : before === false || (!g.user && !guestAllowed)
+            ? { RAW: sql`1 = 0` }
+            : await (typeof policy.scope === 'function' ? policy.scope : policy.scope.where)(g.user, g)
+      return (and ? { AND: [where, and] } : where) as never
     },
     forUser: (user) => createGate({ ...options, user }),
     memo,

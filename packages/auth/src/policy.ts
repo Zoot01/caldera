@@ -36,11 +36,13 @@ type AbilityFn<R> = (user: AuthUser, row: R, g: GateContext) => Result
 type GuestAbility<R> = { guest: true; check: (user: AuthUser | null, row: R, g: GateContext) => Result }
 type AbilityEntry<R> = AbilityFn<R> | GuestAbility<R>
 
+type ScopeFn<M extends AnyModel, U> = (user: U, g: GateContext) => Filter<M['~key']> | Promise<Filter<M['~key']>>
+
 type ReservedShape<M extends AnyModel> = {
   /** Runs before every ability: `true` allows, `false` denies, `undefined` continues. */
   before: (user: AuthUser | null) => boolean | undefined
-  /** `viewAny` as a query filter, so lists are filtered in SQL. */
-  scope: (user: AuthUser) => Filter<M['~key']>
+  /** The rows the user may see, as a query filter, so lists are filtered in SQL. `gate.scope(Model)` applies it. */
+  scope: ScopeFn<M, AuthUser> | { guest: true; where: ScopeFn<M, AuthUser | null> }
   /** Loads what checks over many rows need, once, before `annotate` evaluates them. */
   prefetch: (user: AuthUser, rows: Row<M>[], g: GateContext) => unknown
 }
