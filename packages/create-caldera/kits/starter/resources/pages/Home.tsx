@@ -11,7 +11,7 @@ export const messages = ['home.*']
 
 const code = (chunks: ReactNode[]) => <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.85em]">{chunks}</code>
 const docs = (chunks: ReactNode[]) => (
-  <a href="https://caldera.dev/docs" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-link underline underline-offset-4">
+  <a href="https://calderajs.dev/docs" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-link underline underline-offset-4">
     {chunks}
     <ArrowUpRight className="size-3.5" />
   </a>

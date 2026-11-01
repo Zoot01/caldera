@@ -72,7 +72,7 @@ describe('createProject', () => {
   })
 
   it('makes a Next.js app: Next renders app/, Caldera serves /api, imports follow bundler resolution', async () => {
-    const result = await createProject({ directory: join(base, 'next-app'), ...offline, packageManager: 'pnpm', frontend: 'next' })
+    const result = await createProject({ directory: join(base, 'next-app'), ...offline, packageManager: 'pnpm', frontend: 'next', kit: 'blank' })
     const dir = result.directory
     expect(result.frontend).toBe('next')
     for (const file of ['next.config.ts', 'app/page.tsx', 'app/actions.ts', 'app/api/[[...route]]/route.ts', 'src/app.ts', 'src/http.ts', 'vitest.config.ts']) {
@@ -100,7 +100,7 @@ describe('createProject', () => {
     for (const dir of [starter.directory, blank.directory]) {
       for (const file of ['vite.config.ts', 'resources/app.tsx', 'src/inertia.ts', 'src/http.ts', 'src/server.ts', 'tests/home.test.ts', 'src/app.ts']) expect(existsSync(join(dir, file)), file).toBe(true)
     }
-    expect((await createProject({ directory: join(base, 'next'), ...offline, frontend: 'next' })).kit).toBeNull()
+    expect((await createProject({ directory: join(base, 'next'), ...offline, frontend: 'next' })).kit).toBe('starter')
   })
 
   it('gives Inertia apps Tailwind, coss ui as their own code, the `@/` alias and light/dark mode', async () => {
@@ -122,8 +122,8 @@ describe('createProject', () => {
     expect(manifest.devDependencies).toMatchObject({ tailwindcss: expect.any(String), vite: expect.any(String), vitest: expect.any(String) })
     expect(manifest.scripts).toMatchObject({ build: 'vite build && vite build --ssr', dev: 'caldera dev' })
     expect(manifest).not.toHaveProperty('//')
-    // The Next.js variant gets none of it.
-    const next = await createProject({ directory: join(base, 'ui-next'), ...offline, frontend: 'next' })
+    // The Next.js demo page gets none of it.
+    const next = await createProject({ directory: join(base, 'ui-next'), ...offline, frontend: 'next', kit: 'blank' })
     expect(existsSync(join(next.directory, 'components.json'))).toBe(false)
     const nextManifest = JSON.parse(readFileSync(join(next.directory, 'package.json'), 'utf8'))
     expect(nextManifest.dependencies['@base-ui/react']).toBeUndefined()
@@ -195,7 +195,7 @@ describe('createProject', () => {
     const manifest = JSON.parse(read('package.json'))
     expect(manifest.scripts['test:browser']).toBe('playwright test')
     expect(manifest.devDependencies['@playwright/test']).toBeDefined()
-    expect(read('playwright.config.ts')).toContain("command: 'pnpm build && node --import tsx tests/browser/server.ts'")
+    expect(read('playwright.config.ts')).toContain("build && node --import tsx tests/browser/server.ts'")
     // Vitest leaves Playwright's files alone.
     expect(read('vitest.config.ts')).toContain("'tests/browser/**'")
     expect(read('.gitignore')).toContain('playwright-report/')
@@ -230,10 +230,13 @@ describe('createProject', () => {
     expect(yarnCi).not.toContain('cache: yarn')
     expect(ci).toContain('branches: [main, master]')
 
-    // Next.js apps have no browser tests or workflow yet.
+    // The Next.js starter has them too; the Next.js demo page doesn't.
     const next = await createProject({ directory: join(base, 'browser-next'), ...offline, frontend: 'next' })
-    expect(existsSync(join(next.directory, 'playwright.config.ts'))).toBe(false)
-    expect(existsSync(join(next.directory, '.github'))).toBe(false)
+    expect(readFileSync(join(next.directory, 'playwright.config.ts'), 'utf8')).toContain("build && node --import tsx tests/browser/server.ts'")
+    expect(readFileSync(join(next.directory, '.github/workflows/ci.yml'), 'utf8')).toContain('test:browser')
+    const demo = await createProject({ directory: join(base, 'browser-next-blank'), ...offline, frontend: 'next', kit: 'blank' })
+    expect(existsSync(join(demo.directory, 'playwright.config.ts'))).toBe(false)
+    expect(existsSync(join(demo.directory, '.github'))).toBe(false)
   })
 
   it('gives a starter app on Postgres the Postgres auth tables and adapter', async () => {
@@ -245,8 +248,65 @@ describe('createProject', () => {
     expect(read('src/app.ts')).toContain("from 'drizzle-orm/node-postgres'")
     // Test files share the one test database: run one at a time (also in the Next.js variant's own config).
     expect(read('vitest.config.ts')).toContain('fileParallelism: false')
-    const next = await createProject({ directory: join(base, 'next-pg-tests'), ...offline, frontend: 'next', database: 'postgres' })
+    const next = await createProject({ directory: join(base, 'next-pg-tests'), ...offline, frontend: 'next', kit: 'blank', database: 'postgres' })
     expect(readFileSync(join(next.directory, 'vitest.config.ts'), 'utf8')).toMatch(/test: \{ fileParallelism: false \}, oxc/)
+    const nextStarter = await createProject({ directory: join(base, 'next-starter-pg'), ...offline, frontend: 'next', database: 'postgres' })
+    expect(readFileSync(join(nextStarter.directory, 'vitest.config.ts'), 'utf8')).toContain('test: { fileParallelism: false, exclude:')
+    expect(readFileSync(join(nextStarter.directory, 'src/auth.ts'), 'utf8')).toContain("provider: 'pg'")
+    expect(readFileSync(join(nextStarter.directory, 'src/db/auth-schema.ts'), 'utf8')).toContain("from 'drizzle-orm/pg-core'")
+  })
+
+  it('makes the Next.js starter kit: pages in app/, the Inertia kit’s components, routes answering in JSON', async () => {
+    const result = await createProject({ directory: join(base, 'next-starter'), ...offline, packageManager: 'pnpm', frontend: 'next' })
+    const dir = result.directory
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    expect(result.kit).toBe('starter')
+    for (const file of [
+      'app/(auth)/login/page.tsx',
+      'app/(auth)/login/form.tsx',
+      'app/(app)/settings/security/page.tsx',
+      'app/actions/auth.ts',
+      'components/ui/button.tsx',
+      'components/two-factor.tsx',
+      'layouts/app-layout.tsx',
+      'lib/caldera.ts',
+      'proxy.ts',
+      'src/auth.ts',
+      'src/route-middleware.ts',
+      'src/routes/settings.ts',
+      'tests/auth/authentication.test.ts',
+      'tests/browser/command-menu.spec.ts',
+    ]) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    // Not Inertia's, and not the demo page's; and no src/middleware.ts, which Next would run as its own.
+    for (const file of ['resources', 'vite.config.ts', 'src/inertia.ts', 'app/hello.tsx', 'app/actions.ts', 'app/globals.css', 'src/middleware.ts']) expect(existsSync(join(dir, file)), file).toBe(false)
+    // coss ui and the kit's interactive components are client components.
+    expect(read('components/ui/button.tsx').startsWith("'use client'")).toBe(true)
+    expect(read('components/appearance-tabs.tsx').startsWith("'use client'")).toBe(true)
+    expect(read('src/auth.ts')).toContain("from './route-middleware'")
+    expect(read('src/app.ts')).toContain('authorizationProvider({ policies })')
+    expect(read('AGENTS.md')).toContain('`submit(http, \'/login\', data)`')
+    const manifest = JSON.parse(read('package.json'))
+    expect(manifest.dependencies).toMatchObject({ '@caldera/next': expect.any(String), 'better-auth': expect.any(String), '@base-ui/react': expect.any(String) })
+    expect(manifest.dependencies['@caldera/inertia']).toBeUndefined()
+    expect(manifest.scripts).toMatchObject({ build: 'next build', 'test:browser': 'playwright test' })
+  })
+
+  it('adds teams to the Next.js starter: the Inertia kit’s server side, Next pages, the switcher', async () => {
+    const { directory: dir } = await createProject({ directory: join(base, 'next-teams'), ...offline, frontend: 'next', teams: true })
+    const read = (file: string) => readFileSync(join(dir, file), 'utf8')
+    for (const file of ['src/teams.ts', 'src/roles.ts', 'src/routes/teams.ts', 'components/team-switcher.tsx', 'app/(app)/settings/teams/[team]/page.tsx', 'app/(app)/invitations/[invitation]/page.tsx', 'tests/teams/teams.test.ts', 'tests/browser/teams.spec.ts']) {
+      expect(existsSync(join(dir, file)), file).toBe(true)
+    }
+    expect(read('src/auth.ts')).toContain('teamsPlugin({ appUrl: env.APP_URL })')
+    expect(read('src/app.ts')).toContain('extend: organizationGate({ roles })')
+    expect(read('components/app-sidebar.tsx')).toContain('<TeamSwitcher />')
+    expect(read('components/app-header.tsx')).toContain('<HeaderTeamSwitcher />')
+    expect(read('components/navigation.ts')).toContain("{ title: 'Teams', href: '/settings/teams' }")
+    expect(read('app/(app)/layout.tsx')).toContain("load<Teams | null>(http, '/teams/current')")
+    // Not the Inertia kit's pages.
+    expect(existsSync(join(dir, 'resources'))).toBe(false)
   })
 
   it('keeps Caldera’s own tables in step with `caldera queue:table` and friends, for both dialects', () => {
@@ -451,7 +511,7 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     expect(runsBrowserTests(dir)).toMatch(new RegExp(`\\b${browserTests} passed\\b`))
   }, 300_000)
   it('creates a Next.js app that type-checks, tests, builds and serves pages and the API', async () => {
-    const result = await createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
+    const result = await createProject({ directory: join(base, 'e2e-next'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next', kit: 'blank' })
     const dir = result.directory
     expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
     const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
@@ -495,6 +555,27 @@ describe.runIf(process.env.CALDERA_E2E === '1')('end to end', () => {
     } finally {
       process.kill(-start.pid!, 'SIGTERM')
     }
+  }, 600_000)
+  it('creates the Next.js starter kit: it type-checks, its route tests pass, and so do its browser tests', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-next-starter'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next' })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('typecheck'))
+    ok(run('test'))
+    // Sign-up, sign-in and back, two-factor, passkeys, the command menu, settings, appearance.
+    expect(runsBrowserTests(dir)).toMatch(/\b12 passed\b/)
+  }, 600_000)
+  it('creates the Next.js starter kit with teams: switching, invitations, roles, in route and browser tests', async () => {
+    const result = await createProject({ directory: join(base, 'e2e-next-teams'), packageManager: 'pnpm', link: repo, git: false, frontend: 'next', teams: true })
+    const dir = result.directory
+    expect(result.steps.filter((s) => s.status !== 'done' && s.name !== 'git'), readFileSync(result.log, 'utf8').slice(-3000)).toEqual([])
+    const run = (...args: string[]) => spawnSync('pnpm', args, { cwd: dir, encoding: 'utf8' })
+    const ok = (r: ReturnType<typeof run>) => expect(r.status, r.stdout + r.stderr).toBe(0)
+    ok(run('typecheck'))
+    ok(run('test'))
+    expect(runsBrowserTests(dir)).toMatch(/\b16 passed\b/)
   }, 600_000)
   it('runs on Cloudflare Workers (--target cloudflare): D1, the database cache, R2 and assets under wrangler dev', async () => {
     const result = await createProject({ directory: join(base, 'e2e-workers'), packageManager: 'pnpm', link: repo, git: false, target: 'cloudflare' })

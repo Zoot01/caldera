@@ -1,6 +1,6 @@
 # {{ name }}
 
-A [Caldera](https://caldera.dev) app: TypeScript, Hono, Drizzle, Zod, and React pages over Inertia (Vite).
+A [Caldera](https://calderajs.dev) app: TypeScript, Hono, Drizzle, Zod, and React pages over Inertia (Vite).
 
 Pages get their data from the route that renders them: no API layer. A page's props are its component's props, so changing them makes every `c.render` call that passes the wrong data fail `pnpm typecheck`. Shared props (from `src/inertia.ts`) are on `usePage().props` and typed too. Validation errors come back as `props.errors`; `back(c).with('success', '…')` shows up as `usePage().flash`. Errors (`throw new NotFoundError()`, a refused policy, a crash) show people `resources/pages/Error.tsx` with `{ status, message }` and that status (`errorPage()` in src/http.ts); API clients get the JSON error.
 

@@ -29,13 +29,16 @@ export async function askCreateOptions(
       suggestion = free
     }
   }
-  // The Next.js variant (--next) has no kits yet.
   const frontend = given.frontend ?? 'inertia'
   const kit =
-    frontend === 'next'
-      ? undefined
-      : (given.kit ??
-        (await prompter.select('Starter kit', KITS, 'starter', { starter: 'Auth, settings and a dashboard', blank: 'Tailwind and the UI kit, one page' }, { starter: 'Starter', blank: 'Blank' })))
+    given.kit ??
+    (await prompter.select(
+      'Starter kit',
+      KITS,
+      'starter',
+      { starter: 'Auth, settings and a dashboard', blank: frontend === 'next' ? 'One page using Caldera from Next.js' : 'Tailwind and the UI kit, one page' },
+      { starter: 'Starter', blank: 'Blank' },
+    ))
   // Teams change the data model (every account gets a team), so they're asked for up front.
   // --teams with another kit is passed on, so creating refuses it as it would without a terminal.
   const teams = kit === 'starter' ? (given.teams ?? (await prompter.confirm('Add teams support?', false))) : given.teams
@@ -56,5 +59,5 @@ export async function askCreateOptions(
         ))
   const packageManager = given.packageManager ?? (await prompter.select('Package manager', MANAGERS, detectPackageManager(env)))
   const install = given.install ?? (await prompter.confirm('Install dependencies now?', true))
-  return { directory, frontend, ...(kit ? { kit } : {}), ...(teams !== undefined ? { teams } : {}), database, target, packageManager, install }
+  return { directory, frontend, kit, ...(teams !== undefined ? { teams } : {}), database, target, packageManager, install }
 }
