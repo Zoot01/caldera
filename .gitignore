@@ -3,3 +3,5 @@ dist
 .caldera
 *.tsbuildinfo
 .DS_Store
+CLAUDE.local.md
+*.db

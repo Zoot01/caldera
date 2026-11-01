@@ -1,6 +1,6 @@
 # Caldera (framework monorepo)
 
-A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, Inertia (React + Vite), BullMQ. The design and build order live in `~/Documents/Github/laravel-research/DESIGN.md`, which is the source of truth: read §12 (build order and status) and §13 (open questions) before starting work, and update them when you finish something.
+A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, Inertia (React + Vite), BullMQ. The user-facing docs (`apps/docs`, published at https://calderajs.dev) describe how everything is meant to work.
 
 ## Layout
 
@@ -31,16 +31,16 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 - **Postgres:** PGlite in-process for most tests; the database queue tests start a real Postgres cluster (`initdb` + `pg_ctl`, `test/postgres-server.ts`) to prove concurrent claiming, skipped without `brew install postgresql`. **SQLite:** libsql and `node:sqlite`.
 - **S3:** the storage tests start SeaweedFS's S3 gateway in Docker (`chrislusf/seaweedfs`, `test/s3-server.ts`) with SigV4 enforced; MinIO no longer publishes free images. Its config is copied into the container (`docker cp`), since Docker Desktop doesn't share macOS temp folders. Skipped without Docker. **R2** is tested on Miniflare.
 - **SMTP:** the mail tests send through Mailpit in Docker (`axllent/mailpit`, `test/mailpit.ts`) and read messages back from its API. Resend, Postmark and SES are checked against their documented request formats (no local servers exist), with SES signatures re-computed.
-- **Browsers:** pages are checked in a real browser with the gstack `/browse` skill against an app created in the sandbox below.
+- **Browsers:** pages are checked in a real browser against an app created in the sandbox below.
 
-## Sandbox for created apps: `~/Documents/testing-caldera`
+## Sandbox for created apps
 
-Use this folder (not `/tmp`, not this repo) whenever a test needs a real app outside the monorepo: scaffolding with `create-caldera`, manual `pnpm install`/`pnpm dev`, browser checks, or anything pnpm behaves differently for inside a workspace. It's disposable: one subfolder per app, deleted or overwritten freely.
+Use a folder outside this repo (not `/tmp`) whenever a test needs a real app outside the monorepo: scaffolding with `create-caldera`, manual `pnpm install`/`pnpm dev`, browser checks, or anything pnpm behaves differently for inside a workspace. It's disposable: one subfolder per app, deleted or overwritten freely.
 
 ```sh
 pnpm build
-cd ~/Documents/testing-caldera
-node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <name> --pm pnpm --link ~/Documents/Github/caldera --no-git
+cd <sandbox>
+node <caldera>/packages/create-caldera/bin/create-caldera.js <name> --pm pnpm --link <caldera> --no-git
 ```
 
 `--link` installs packed copies of the packages (`.caldera-local/*.tgz`) as they were at create time: a later `pnpm build` doesn't reach an existing app. Create a fresh app, or for a quick retry copy a package's `dist/` over the app's installed copy (`cp -R packages/cli/dist/. "$(readlink -f <app>/node_modules/@caldera-js/cli)/dist/"`).
@@ -49,7 +49,7 @@ node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <n
 
 ## Known issues
 
-- `packages/cli/test/dev.test.ts` is flaky in full parallel runs only (DESIGN.md §13 has what's ruled out and the planned fix). A lone failure of that test in `pnpm test` isn't a regression; anything else is.
+- `packages/cli/test/dev.test.ts` is flaky in full parallel runs only. A lone failure of that test in `pnpm test` isn't a regression; anything else is.
 - pnpm 11 fails installs on build scripts nobody decided on. Approve or decline new ones in `pnpm-workspace.yaml` (`allowBuilds`) with a comment saying why; the template's own `pnpm-workspace.yaml` needs the same for anything it installs.
 
 ## Conventions
