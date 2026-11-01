@@ -43,6 +43,21 @@ export const PruneUploads = defineJob({
 
 Scheduled work always runs as a job, so it gets retries, and a long one doesn't hit a serverless host's time limit.
 
+A schedule runs one job with a fixed payload. For work per person, such as a daily email to each, the scheduled job queues the rest, one each:
+
+```ts
+export const QueueDigests = defineJob({
+  name: 'digest.queue',
+  payload: z.object({}),
+  async handle() {
+    const people = await User.findMany({ where: { digest: true }, columns: { id: true } })
+    for (const person of people) await dispatch(SendDigest, { userId: person.id })
+  },
+})
+```
+
+Each one is retried on its own, and a slow one doesn't hold up the others.
+
 | | |
 | --- | --- |
 | `cron` | Five fields: minute, hour, day of the month, month, day of the week. `*/15 * * * *` is every quarter hour; `0 9 * * 1` is Mondays at 09:00. |
@@ -69,6 +84,8 @@ pnpm scheduler
 ```
 
 Or, from the system's crontab, run `caldera schedule:run` every minute: it dispatches what's due and exits.
+
+To try a schedule out now, whatever its cron says, name it: `caldera schedule:run --name digest.daily`. In development, mail its jobs send shows up in `caldera dev`'s [outbox](/docs/mail#mailers).
 
 **On Vercel**, platform crons call your app. Write them into `vercel.json`:
 

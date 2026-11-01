@@ -111,6 +111,15 @@ function eventName(n: Names): string {
   return words.length < 2 ? n.kebab : `${words.slice(0, -1).join('-')}.${words.at(-1)}`
 }
 
+/** Job names are dotted too, what it acts on then the action: `SendDigest` → `digest.send`, `PruneUploads` → `uploads.prune`. */
+function jobName(n: Names): string {
+  const words = n.kebab.split('-')
+  return words.length < 2 ? n.kebab : `${words.slice(1).join('-')}.${words[0]}`
+}
+
+/** `DailyDigest` → `Daily digest`: for text people read (a mail's heading). */
+const title = (n: Names) => n.kebab.split('-').map((word, i) => (i === 0 ? word[0]!.toUpperCase() + word.slice(1) : word)).join(' ')
+
 /** Whether `src/models/<name>.ts` exports a model of that name. */
 function hasModel(project: Project, n: Names): boolean {
   const file = project.path(`${CONVENTIONS.modelsDir}/${n.kebab}.ts`)
@@ -184,6 +193,8 @@ export async function make(
   const values = {
     ...n,
     eventName: eventName(n),
+    jobName: jobName(n),
+    title: title(n),
     channelName: channelName(n),
     pluralKebab: channelName(n),
     channelKind: flags.presence ? 'A presence channel: members see who else is on it' : 'A private channel',

@@ -39,7 +39,7 @@ it('lists, adds and deletes your notes', async () => {
 
 - It starts the app in the `test` environment, with a random `APP_KEY`.
 - It makes a database for the file, empty, with your migrations from `drizzle/` applied. Your development database is never touched.
-- Each test runs in a transaction that's rolled back, so every test starts from the same empty database.
+- Each test runs in a transaction that's rolled back, so every test starts from the same empty database. The cache is emptied too, and the scheduler forgets what it ran, so rate limits and locks don't carry over.
 - Fakes are undone after each test, and the app shuts down after the file.
 
 Postgres apps set `DATABASE_TEST_URL` to a database whose name contains `test`.

@@ -51,7 +51,7 @@ export interface TestApp<A extends AppLike> {
 
 /**
  * Sets the app up for the tests in this file, Laravel's RefreshDatabase and fakes in one call:
- * boots it once (test env), migrates a fresh database, rolls each test back, restores fakes after
+ * boots it once (test env), migrates a fresh database, rolls each test back (and empties the cache), restores fakes after
  * each test, and shuts down at the end. Call it at the top of a test file.
  *
  * ```ts
@@ -110,6 +110,11 @@ export function setupApp<A extends AppLike>(app: A, options: SetupAppOptions = {
       await truncateAll(db as never)
       if (settings.seed?.length) await seed(db, settings.seed)
     }
+    // What the cache and the scheduler remember (rate-limit counts, locks, which schedules already ran
+    // this minute) doesn't carry over: each test starts as on a fresh app, like its database.
+    const services = app.services as { cache?: { flush(): Promise<void> }; scheduler?: { reset?(): void } }
+    await services.cache?.flush()
+    services.scheduler?.reset?.()
   })
 
   afterAll(async () => {

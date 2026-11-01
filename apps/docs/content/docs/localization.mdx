@@ -63,7 +63,7 @@ It formats for their language too:
 | `i18n.date(date, { dateStyle: 'long' })` | March 1, 2026 | 1 mars 2026 |
 | `i18n.list(['Ann', 'Bob', 'Cat'])` | Ann, Bob, and Cat | Ann, Bob et Cat |
 
-`relativeTime(-3, 'day')` gives "3 days ago". Outside a request, in jobs and mail, use `translator('fr').t(...)` from `@caldera/i18n`.
+`relativeTime(-3, 'day')` gives "3 days ago". Outside a request, in jobs, use `translator('fr').t(...)` from `@caldera/i18n`. Mail is written in the recipient's language: see [mail](/docs/mail#in-the-recipients-language).
 
 ## Adding a language
 
@@ -124,7 +124,15 @@ Validation errors come out in the visitor's language once `lang/` has messages f
 
 `z.string().min(3)` on `title` then fails with "Le champ titre doit contenir au moins 3 caractères." Keys follow Zod's issue codes, with the kind of value after (`too_small.string`, `too_big.array`); `attributes` names fields. For one field's message only, use `custom`: `validation.custom.title.too_small`.
 
-A message written in the schema, `z.string().min(3, 'Too short')`, is used as it is.
+A message written in the schema, `z.string().min(3, 'Too short')`, is used as it is. For a form's own messages in every language, write a message key instead, and it's translated, with `{minimum}` and `{maximum}` from the rule. So is a key in a `ValidationError` a route throws, `new ValidationError({ key: ['projects.key_taken'] })`:
+
+```ts
+title: z.string().trim().min(1, 'issues.title_required'),
+```
+
+```json title="lang/fr/issues.json"
+{ "title_required": "Donnez un titre au ticket." }
+```
 
 ## Testing
 

@@ -4,6 +4,8 @@ export { parseDuration }
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { serialize } from 'hono/utils/cookie'
+import { isSecure } from './proxies.js'
+import { setUrlSigningKeys } from './signed.js'
 
 /**
  * Caldera's app session: flash messages, validation errors, old input and small app state.
@@ -84,7 +86,11 @@ const DEFAULTS = { name: 'caldera_session', sameSite: 'lax', secure: 'auto', pat
 export function sessionProvider(resolve: (app: RegisterContext<unknown>) => SessionOptions) {
   return defineProvider({
     name: 'session',
-    register: (app) => ({ sessionCodec: app.singleton(() => createSessionCodec(resolve(app))) }),
+    register: (app) => {
+      // Signed URLs (signedUrl, signed()) use the same keys: APP_KEY, then earlier ones.
+      setUrlSigningKeys(resolve(app).keys)
+      return { sessionCodec: app.singleton(() => createSessionCodec(resolve(app))) }
+    },
     request: {
       // Replaced by startSession(); this stand-in explains what's missing instead of failing vaguely.
       session: (): Session => notStarted,
@@ -294,7 +300,7 @@ export function createSessionCodec(options: SessionOptions): SessionCodec {
     path: cookie.path,
     httpOnly: true,
     sameSite: (cookie.sameSite[0]!.toUpperCase() + cookie.sameSite.slice(1)) as 'Lax' | 'Strict' | 'None',
-    secure: cookie.secure === 'auto' ? new URL(c.req.url).protocol === 'https:' : cookie.secure,
+    secure: cookie.secure === 'auto' ? isSecure(c) : cookie.secure,
     maxAge,
     ...(cookie.domain ? { domain: cookie.domain } : {}),
   })

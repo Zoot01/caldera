@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@caldera/auth": "workspace:*",
+    "@caldera/cache": "workspace:*",
     "@caldera/db": "workspace:*",
     "@caldera/http": "workspace:*",
     "@caldera/inertia": "workspace:*",

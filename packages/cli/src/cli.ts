@@ -1,10 +1,10 @@
 import { CalderaError } from '@caldera/core'
 import { defineCommand, runMain } from 'citty'
 import { generate } from './codegen.js'
-import { describeProject } from './describe.js'
+import { describeProject, projectEnv, shareMailOutbox } from './describe.js'
 import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
-import { runMigrations, type MigrationCommand } from './migrations.js'
+import { runMigrations, sqliteWal, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
 import { seedProject } from './seed.js'
 import { describeAbilities } from './policies.js'
@@ -156,8 +156,11 @@ function migrationCommand(command: MigrationCommand, description: string) {
         const name = (args as { name?: string }).name
         const extraArgs = [...(name ? ['--name', name] : []), ...(separator >= 0 ? rawArgs.slice(separator + 1) : [])]
         const json = wantsJson(args.json)
-        const result = runMigrations(openProject(args.cwd), command, { force: args.force, capture: json, extraArgs })
-        return { data: { schemaVersion: 1, ...result }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }
+        const project = openProject(args.cwd)
+        const result = runMigrations(project, command, { force: args.force, capture: json, extraArgs })
+        // A local SQLite file, shared by the app, the worker and the scheduler: WAL mode.
+        const journalMode = result.exitCode === 0 && command !== 'generate' ? await sqliteWal(project, projectEnv(project)) : undefined
+        return { data: { schemaVersion: 1, ...result, ...(journalMode ? { journalMode } : {}) }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }
       }),
   })
 }
@@ -496,12 +499,19 @@ const scheduleListCommand = defineCommand({
 })
 
 const scheduleRunCommand = defineCommand({
-  meta: { name: 'schedule:run', description: 'Dispatch the schedules due this minute, once (for an OS crontab: * * * * *)' },
-  args: shared,
+  meta: { name: 'schedule:run', description: 'Dispatch the schedules due this minute, once (for an OS crontab: * * * * *); --name runs one now' },
+  args: { ...shared, name: { type: 'string', description: 'Run this schedule now, whatever its cron says (try one out, like Laravel’s schedule:test)' } },
   run: ({ args }) =>
     run(wantsJson(args.json), async () => {
-      const { scheduler, shutdown } = await bootScheduler(openProject(args.cwd))
+      const project = openProject(args.cwd)
+      // Mail sent by the jobs lands in `caldera dev`'s outbox, as from the app.
+      shareMailOutbox(project)
+      const { scheduler, shutdown } = await bootScheduler(project)
       try {
+        if (args.name) {
+          const one = await scheduler.run(args.name)
+          return { data: { schemaVersion: 1, results: [one] }, text: `${one.status === 'dispatched' ? '✓' : '-'} ${one.name}${one.reason ? ` (${one.reason})` : ''}` }
+        }
         const result = await scheduler.runDue()
         const text = result.results.map((r) => `${r.status === 'dispatched' ? '✓' : '-'} ${r.name}${r.reason ? ` (${r.reason})` : ''}`).join('\n')
         return { data: { schemaVersion: 1, ...result }, text: text || `Nothing due at ${result.minute}.` }

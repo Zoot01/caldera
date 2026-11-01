@@ -15,6 +15,7 @@ import {
   securityHeaders,
   sortByPriority,
   type ErrorBody,
+  ValidationError,
 } from '../src/index.js'
 
 const trace: string[] = []
@@ -235,5 +236,47 @@ describe('security', () => {
     expect(policy).toContain("'strict-dynamic'")
     const off = new Hono().use(securityHeaders({ csp: false })).get('/', (c) => c.text('ok'))
     expect((await off.request('/')).headers.get('content-security-policy')).toBeNull()
+  })
+})
+
+describe('translated validation messages', () => {
+  const French = defineRequest({
+    body: z.object({
+      // A message key: translated. A sentence: kept as written.
+      name: z.string().min(2, 'projects.name_short'),
+      key: z.string().min(1, 'Use a key.'),
+    }),
+  })
+  const app = new Hono()
+    .use(async (c, next) => {
+      const messages: Record<string, string> = { 'projects.name_short': 'Au moins {minimum} caractères.', 'projects.key_taken': 'Clé déjà prise.' }
+      c.set('i18n' as never, {
+        zodError: () => undefined,
+        has: (key: string) => key in messages,
+        t: (key: string, params?: { minimum?: number }) => messages[key]!.replace('{minimum}', String(params?.minimum)),
+      } as never)
+      await next()
+    })
+    .route(
+      '/',
+      createRouter(
+        defineRoutes('projects')
+          .post('store', '/projects', { request: French }, (c) => c.json(c.req.valid('json')))
+          .post('taken', '/taken', () => {
+            throw new ValidationError({ key: ['projects.key_taken', 'Already used.'] })
+          }),
+      ).app,
+    )
+    .onError(errorHandler())
+
+  it('translates a schema message that is a message key, with the rule’s bounds', async () => {
+    const res = await app.request('/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'a', key: '' }) })
+    expect(res.status).toBe(422)
+    expect(((await res.json()) as ErrorBody).error.fields).toEqual({ name: ['Au moins 2 caractères.'], key: ['Use a key.'] })
+  })
+
+  it('translates message keys in a ValidationError thrown by a handler', async () => {
+    const res = await app.request('/taken', { method: 'POST' })
+    expect(((await res.json()) as ErrorBody).error.fields).toEqual({ key: ['Clé déjà prise.', 'Already used.'] })
   })
 })

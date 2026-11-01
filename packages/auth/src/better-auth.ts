@@ -135,7 +135,7 @@ export function authenticate(options: { required?: boolean } = {}): MiddlewareHa
  */
 export function authRoutes(basePath = '/api/auth'): Hono {
   return new Hono().on(['GET', 'POST'], `${basePath.replace(/\/$/, '')}/*`, async (c: Context) => {
-    const response = await (c.var as unknown as AuthVars).auth.handler(c.req.raw)
+    const response = await (c.var as unknown as AuthVars).auth.handler(withClientIp(c))
     syncAppSession(c, response)
     return response
   })
@@ -191,4 +191,31 @@ function assertSameOrigins(expected: string[], actual: unknown) {
       `Better Auth's trustedOrigins (${given?.join(', ') ?? 'not set'}) differ from Caldera's (${normalize(expected).join(', ')}). Pass \`trustedOrigins: ctx.trustedOrigins\` to betterAuth().`,
     )
   }
+}
+
+/**
+ * The header Better Auth reads the client's address from, for its rate limits: set it as
+ * `advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } }`. `authRoutes()` fills it in;
+ * without it, a server Node runs directly gives Better Auth no address, and every visitor shares one
+ * rate-limit bucket (one person locks everyone out of signing in).
+ */
+export const CLIENT_IP_HEADER = 'x-caldera-client-ip'
+
+/**
+ * The request, with the client's address in `CLIENT_IP_HEADER`: `c.var.ip` (set it behind a proxy you
+ * trust), Cloudflare's `cf-connecting-ip`, else the socket's (Node). A copy sent by the client is
+ * dropped, so it can't be spoofed. The same order as `ipOf()` in @caldera/cache.
+ */
+function withClientIp(c: Context): Request {
+  const raw = c.req.raw
+  const headers = new Headers(raw.headers)
+  headers.delete(CLIENT_IP_HEADER)
+  const fromVar = (c.var as { ip?: unknown }).ip
+  const ip =
+    (typeof fromVar === 'string' && fromVar) ||
+    raw.headers.get('cf-connecting-ip') ||
+    (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket?.remoteAddress
+  if (ip) headers.set(CLIENT_IP_HEADER, ip)
+  const body = raw.method === 'GET' || raw.method === 'HEAD' ? null : raw.body
+  return new Request(raw.url, { method: raw.method, headers, body, signal: raw.signal, ...(body ? { duplex: 'half' } : {}) } as RequestInit)
 }

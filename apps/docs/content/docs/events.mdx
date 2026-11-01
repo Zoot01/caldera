@@ -50,7 +50,7 @@ export const logNoteShared = listen(NoteShared, async ({ noteId, email }) => {
 })
 ```
 
-`caldera generate` registers every listener in `src/listeners`. The payload is typed by the event, and the second argument has `ctx.services`, the app's services.
+`caldera generate` registers every listener in `src/listeners`. The payload is typed by the event, and the second argument has `ctx.services`, the app's services, and `ctx.config`, its settings.
 
 ### Queued listeners
 

@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineConfig, defineEnv } from '@caldera/core'
 import { cacheProvider, createCacheService } from '@caldera/cache'
 import { createDatabase, setDefaultDatabase } from '@caldera/db'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -248,6 +248,29 @@ describe('queueProvider', () => {
     await app.boot({ env: {} })
     await dispatch(UsesCache, { key: 'k' })
     expect(await app.services.cache.get('k')).toBe('from a job')
+    await app.shutdown()
+  })
+
+  it('gives jobs, and their failed() hook, the app’s config', async () => {
+    const seen: unknown[] = []
+    const ReadsConfig = defineJob({
+      name: 'reads-config',
+      payload: z.object({}),
+      tries: 1,
+      handle: (_payload, ctx) => {
+        seen.push((ctx.config as unknown as { app: { url: string } }).app.url)
+        throw new Error('done')
+      },
+      failed: (_payload, _error, { config }) => void seen.push((config as unknown as { app: { url: string } }).app.url),
+    })
+    const app = createApp({
+      env: defineEnv({}),
+      config: [defineConfig('app', () => ({ url: 'https://tracker.example' }))],
+      providers: [queueProvider(() => ({ default: 'sync', connections: { sync: { driver: 'sync' } } }))],
+    })
+    await app.boot({ env: {} })
+    await dispatch(ReadsConfig, {}).catch(() => {})
+    expect(seen).toEqual(['https://tracker.example', 'https://tracker.example'])
     await app.shutdown()
   })
 })

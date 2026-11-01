@@ -1,4 +1,4 @@
-import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredServices } from '@caldera/core'
+import { CalderaError, CapabilityError, createManager, parseDuration, type Duration, type DriverDefinition, type Manager, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
 import { cloudflareDriver } from './cloudflare.js'
 import type { QueueCapabilities, QueueDriver, QueueRuntime, WorkOptions, Worker } from './driver.js'
 import { deferredDriver, memoryDriver, memoryQueue, syncDriver } from './drivers.js'
@@ -108,6 +108,8 @@ export interface Queue<N extends string = string> {
   readonly manager: Manager<QueueDriver, QueueCapabilities, N>
   /** Set by the provider at boot: what jobs see as `context.services`. */
   services: RegisteredServices
+  /** Set by the provider at boot: what jobs see as `context.config`. */
+  config: RegisteredConfig
 }
 
 export interface QueueFake {
@@ -192,6 +194,7 @@ export function createQueue<const N extends string>(
       processEnvelope(envelope, {
         jobs,
         services: queue.services,
+        config: queue.config,
         dispatchEnvelope: (next, delay) => send(next, delay, undefined),
         releaseUnique: async (key) => {
           await locks().forget(key)
@@ -272,6 +275,7 @@ export function createQueue<const N extends string>(
 
   const queue: Queue<N> = {
     services: {} as RegisteredServices,
+    config: {} as RegisteredConfig,
     manager,
     register(...list) {
       for (const job of list) register(job)

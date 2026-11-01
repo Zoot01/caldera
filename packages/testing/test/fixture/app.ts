@@ -1,4 +1,5 @@
 import type {} from '@libsql/client'
+import { cacheProvider } from '@caldera/cache'
 import { createApp, defineEnv } from '@caldera/core'
 import { databaseProvider, defaultDatabase } from '@caldera/db'
 import { back, defineRequest, defineRoutes, createRouter, errorHandler, notFoundHandler, originCheck, sessionProvider, startSession } from '@caldera/http'
@@ -22,6 +23,7 @@ export const app = createApp({
     databaseProvider({ driver: 'sqlite', connect: (app) => drizzle({ connection: { url: (app.env as unknown as Env).DATABASE_URL }, relations }) }),
     sessionProvider((app) => ({ keys: [(app.env as unknown as Env).APP_KEY] })),
     mailProvider(() => ({ default: 'memory', mailers: { memory: { driver: 'memory' } }, from: 'app@example.test' })),
+    cacheProvider(() => ({ default: 'memory', stores: { memory: { driver: 'memory' } } })),
   ],
 })
 export { createMail }

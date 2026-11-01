@@ -41,10 +41,11 @@ export const app = createApp({
   // the platform's waitUntil (Vercel, Workers), so queued work finishes after the response.
   asyncContext: AsyncLocalStorage,
   providers: [
-    // libSQL (DATABASE_URL), or D1 on Cloudflare Workers (the DB binding).
+    // libSQL (DATABASE_URL), or D1 on Cloudflare Workers (the DB binding). A local file waits up to 5s for
+    // another process's write (the worker, the scheduler) rather than failing; it runs in WAL mode.
     databaseProvider({
       driver: (app) => (app.env.DB ? 'd1' : 'sqlite'),
-      connect: (app) => (app.env.DB ? d1(app.env.DB as never, { relations }) : drizzle({ connection: { url: app.config.database.url, authToken: app.config.database.authToken }, relations })),
+      connect: (app) => (app.env.DB ? d1(app.env.DB as never, { relations }) : drizzle({ connection: { url: app.config.database.url, authToken: app.config.database.authToken, timeout: 5000 }, relations })),
     }),
     sessionProvider((app) => app.config.session),
     // Messages from lang/; c.var.i18n is this request's translator (user, cookie, Accept-Language).

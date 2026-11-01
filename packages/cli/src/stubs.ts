@@ -1,5 +1,5 @@
 /**
- * Built-in stubs. Placeholders: {{ Name }} (BlogPost), {{ name }} (blogPost), {{ kebab }} (blog-post),
+ * Built-in stubs. Placeholders: {{ Name }} (BlogPost), {{ name }} (blogPost), {{ kebab }} (blog-post), {{ title }} (Blog post),
  * {{ table }} (blog_posts), {{ plural }} (blogPosts). `caldera stub:eject <stub>` copies one to
  * `stubs/<stub>.stub` in the app, where it takes precedence.
  */
@@ -87,7 +87,7 @@ export const {{ name }}Provider = defineProvider({
 import { z } from 'zod'
 
 export const {{ Name }} = defineJob({
-  name: '{{ kebab }}',
+  name: '{{ jobName }}',
   payload: z.object({ id: z.string() }),
   tries: 3,
   backoff: [10, 60],
@@ -248,10 +248,10 @@ function {{ Name }}({ url }: { url: string }) {
   return (
     <Html>
       <Head />
-      <Preview>{{ Name }}</Preview>
+      <Preview>{{ title }}</Preview>
       <Body style={{ fontFamily: 'system-ui, sans-serif', background: '#f6f6f6' }}>
         <Container style={{ background: '#fff', padding: '24px', borderRadius: '8px' }}>
-          <Heading as="h1">{{ Name }}</Heading>
+          <Heading as="h1">{{ title }}</Heading>
           <Text>Say what happened, and what to do about it.</Text>
           <Button href={url} style={{ background: '#111', color: '#fff', padding: '10px 16px', borderRadius: '6px' }}>
             Open it
@@ -269,7 +269,7 @@ export const {{ Name }}Email = defineMail({
   // A stable id (namespace it: \`billing.invoice-paid\`).
   name: '{{ id }}',
   props: z.object({ url: z.url() }),
-  subject: '{{ Name }}',
+  subject: '{{ title }}',
   component: {{ Name }},
 })
 `,

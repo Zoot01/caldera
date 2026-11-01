@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { cacheProvider } from '@caldera/cache'
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineConfig, defineEnv } from '@caldera/core'
 import { createDatabase, setDefaultDatabase } from '@caldera/db'
 import { createQueue, defineJob, setDefaultQueue } from '@caldera/queue'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -118,6 +118,15 @@ it('eventsProvider makes emit() work and gives listeners the app’s services', 
   await emit(UserRegistered, { userId: 'u7' })
   expect(await app.services.cache.get('user:u7')).toBe('seen')
   expect(await until(UserRegistered, { userId: 'u8' })).toBeUndefined()
+})
+
+it('gives listeners the app’s config', async () => {
+  const urls: string[] = []
+  const link = listen(UserRegistered, (e, ctx) => void urls.push(`${(ctx.config as unknown as { app: { url: string } }).app.url}/users/${e.userId}`))
+  const app = createApp({ env: defineEnv({}), config: [defineConfig('app', () => ({ url: 'https://tracker.example' }))], providers: [eventsProvider({ listeners: [link] })] })
+  await app.boot({ env: {} })
+  await emit(UserRegistered, { userId: 'u9' })
+  expect(urls).toEqual(['https://tracker.example/users/u9'])
 })
 
 it('types payloads', () => {

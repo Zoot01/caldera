@@ -7,7 +7,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { drizzle } from 'drizzle-orm/pglite'
 import { Hono } from 'hono'
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import { allows, authenticate, authorizationProvider, authRoutes, betterAuthProvider, withAuthCookies } from '../src/index.js'
+import { allows, authenticate, authorizationProvider, authRoutes, betterAuthProvider, CLIENT_IP_HEADER, withAuthCookies } from '../src/index.js'
 import { account, Post, relations, SCHEMA_SQL, session, User, users, verification } from './fixtures.js'
 
 const ORIGIN = 'http://localhost:3000'
@@ -308,3 +308,55 @@ describe('betterAuthProvider create()', () => {
     await app.shutdown()
   })
 })
+
+describe('authRoutes() and Better Auth’s rate limits', () => {
+  it('counts each client by its own address, which a client can’t claim for itself', async () => {
+    const client = new PGlite()
+    await client.exec(SCHEMA_SQL)
+    const app = createApp({
+      env: defineEnv({}),
+      providers: [
+        databaseProvider({ driver: 'postgres', connect: () => drizzle({ client, relations }) }),
+        betterAuthProvider({
+          create: ({ db }) =>
+            betterAuth({
+              baseURL: ORIGIN,
+              secret: 'test-secret-0123456789-abcdefghijklmnop',
+              logger: { disabled: true },
+              database: drizzleAdapter(db as never, { provider: 'pg', schema: { users, session, account, verification } }),
+              user: { modelName: 'users' },
+              advanced: { database: { generateId: 'uuid' }, ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
+              emailAndPassword: { enabled: true },
+              // Two tries a minute, so the third is refused.
+              rateLimit: { enabled: true, window: 60, max: 2, customRules: { '/sign-in/email': { window: 60, max: 2 } } },
+            }),
+        }),
+      ],
+    })
+    await app.boot()
+    // The address, as a proxy-aware app sets it (c.var.ip).
+    const as = (ip: string) =>
+      new Hono()
+        .use(async (c, next) => {
+          c.set('ip' as never, ip as never)
+          await next()
+        })
+        .use(app.middleware())
+        .route('/', authRoutes('/api/auth'))
+    const signIn = (ip: string, spoof?: string) =>
+      as(ip).request('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN, ...(spoof ? { [CLIENT_IP_HEADER]: spoof } : {}) },
+        body: JSON.stringify({ email: 'nobody@example.test', password: 'wrong-password' }),
+      })
+    expect((await signIn('203.0.113.1')).status).toBe(401)
+    expect((await signIn('203.0.113.1')).status).toBe(401)
+    expect((await signIn('203.0.113.1')).status).toBe(429)
+    // Someone else isn't locked out by it…
+    expect((await signIn('203.0.113.2')).status).toBe(401)
+    // …and naming another address in the header doesn't get round it.
+    expect((await signIn('203.0.113.1', '198.51.100.9')).status).toBe(429)
+    await app.shutdown()
+  })
+})
+

@@ -46,7 +46,7 @@ export const PublishNote = defineJob({
 
 Pass ids, not rows: the job reads the row when it runs, so it sees the latest version, and a deleted row is a quiet return.
 
-`ctx` has the attempt number, `ctx.services` (the app's services, like `ctx.services.mail`), and `ctx.signal`, which aborts at the timeout. Pass it to `fetch` and anything else that takes one.
+`ctx` has the attempt number, `ctx.services` (the app's services, like `ctx.services.mail`), `ctx.config` (its settings, as `c.var.config` in a route: `ctx.config.app.url` for links in mail), and `ctx.signal`, which aborts at the timeout. Pass it to `fetch` and anything else that takes one.
 
 ## Dispatching
 

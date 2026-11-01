@@ -1,6 +1,6 @@
 import { authenticate, authRoutes } from '@caldera/auth'
 import { broadcastRoutes } from '@caldera/broadcast'
-import { errorHandler, ForbiddenError, notFoundHandler, originCheck, securityHeaders, startSession } from '@caldera/http'
+import { errorHandler, ForbiddenError, notFoundHandler, originCheck, securityHeaders, startSession, trustProxies } from '@caldera/http'
 import { mailPreviewRoutes } from '@caldera/mail'
 import { cronRoutes } from '@caldera/schedule'
 import { storageRoutes } from '@caldera/storage'
@@ -19,6 +19,9 @@ export const http = new Hono()
   .use(securityHeaders({ csp: false }))
   .use(originCheck())
   .use(app.middleware())
+  // Behind a proxy: the client's address (c.var.ip, for rate limits) and HTTPS, from the proxies
+  // you trust (TRUSTED_PROXIES in .env).
+  .use(trustProxies({ proxies: (c) => c.var.config.app.trustedProxies }))
   .use(startSession())
   // Who's signed in, on every request: c.var.user (null for guests). `mw.auth()` requires it.
   .use(authenticate({ required: false }))
