@@ -53,3 +53,36 @@ html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
 }
+
+/* Tables written as `| | |` (a term and what it means) have no headings: drop the empty row. */
+.prose thead:not(:has(th:not(:empty))) {
+  display: none;
+}
+
+/* On a phone, two-column tables stack: each term, then its description below it. */
+@media (max-width: 640px) {
+  .prose table:not(:has(:is(th, td):nth-child(3))) {
+    display: block;
+    & tbody,
+    & tr,
+    & td {
+      display: block;
+    }
+    & thead:has(th:not(:empty)) {
+      display: none;
+    }
+    & tr + tr {
+      border-top: 1px solid var(--color-fd-border);
+    }
+    & td {
+      border: 0;
+      padding: 0.75rem 0.75rem 0;
+    }
+    & td:last-child {
+      padding-bottom: 0.75rem;
+    }
+    & td:first-child:empty {
+      display: none;
+    }
+  }
+}
