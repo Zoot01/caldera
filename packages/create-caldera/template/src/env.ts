@@ -12,6 +12,15 @@ export const env = defineEnv({
   // For a hosted libSQL database (Turso): `turso db tokens create <db>`.
   DATABASE_AUTH_TOKEN: secret(z.string().optional().transform((s) => s || undefined)),
   PORT: z.coerce.number().default(3000),
+  // Proxies in front of the app whose X-Forwarded-For and -Proto to believe (the client's address for
+  // rate limits, HTTPS for secure cookies): `loopback` (Caddy or nginx on this machine), addresses
+  // separated by commas, or `*` for any. On Vercel its edge is trusted without this.
+  TRUSTED_PROXIES: z
+    .string()
+    .default('loopback')
+    .transform((value) => (value.trim() === '*' ? ('*' as const) : value.split(',').map((part) => part.trim()).filter(Boolean))),
+  // Set by Vercel.
+  VERCEL: z.string().optional(),
   QUEUE_CONNECTION: z.enum(['sync', 'deferred', 'database', 'redis', 'cloudflare']).default('sync'),
   // Empty means "no Redis": the cache stays in memory and the redis queue isn't configured.
   REDIS_URL: z.string().optional().transform((url) => url || undefined),

@@ -1,10 +1,10 @@
 import { CalderaError } from '@caldera/core'
 import { defineCommand, runMain } from 'citty'
 import { generate } from './codegen.js'
-import { describeProject, shareMailOutbox } from './describe.js'
+import { describeProject, projectEnv, shareMailOutbox } from './describe.js'
 import { openProject } from './project.js'
 import { listRoutes } from './routes.js'
-import { runMigrations, type MigrationCommand } from './migrations.js'
+import { runMigrations, sqliteWal, type MigrationCommand } from './migrations.js'
 import { describeModel, describeSchema } from './schema.js'
 import { seedProject } from './seed.js'
 import { describeAbilities } from './policies.js'
@@ -156,8 +156,11 @@ function migrationCommand(command: MigrationCommand, description: string) {
         const name = (args as { name?: string }).name
         const extraArgs = [...(name ? ['--name', name] : []), ...(separator >= 0 ? rawArgs.slice(separator + 1) : [])]
         const json = wantsJson(args.json)
-        const result = runMigrations(openProject(args.cwd), command, { force: args.force, capture: json, extraArgs })
-        return { data: { schemaVersion: 1, ...result }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }
+        const project = openProject(args.cwd)
+        const result = runMigrations(project, command, { force: args.force, capture: json, extraArgs })
+        // A local SQLite file, shared by the app, the worker and the scheduler: WAL mode.
+        const journalMode = result.exitCode === 0 && command !== 'generate' ? await sqliteWal(project, projectEnv(project)) : undefined
+        return { data: { schemaVersion: 1, ...result, ...(journalMode ? { journalMode } : {}) }, text: result.exitCode === 0 ? `✓ db:${command} finished` : `✘ db:${command} failed`, exitCode: result.exitCode }
       }),
   })
 }

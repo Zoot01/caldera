@@ -1,5 +1,5 @@
 import { passkey } from '@better-auth/passkey'
-import { betterAuthProvider } from '@caldera/auth'
+import { betterAuthProvider, CLIENT_IP_HEADER } from '@caldera/auth'
 import { mail } from '@caldera/mail'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -31,7 +31,8 @@ export const auth = betterAuthProvider({
         changeEmail: { enabled: true, updateEmailWithoutVerification: true },
         deleteUser: { enabled: true },
       },
-      advanced: { database: { generateId: 'uuid' } },
+      // Better Auth's rate limits key on the client's address, which authRoutes() passes in this header.
+      advanced: { database: { generateId: 'uuid' }, ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
       emailAndPassword: {
         enabled: true,
         minPasswordLength: 8,

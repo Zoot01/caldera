@@ -4,6 +4,7 @@ export { parseDuration }
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { serialize } from 'hono/utils/cookie'
+import { isSecure } from './proxies.js'
 import { setUrlSigningKeys } from './signed.js'
 
 /**
@@ -299,7 +300,7 @@ export function createSessionCodec(options: SessionOptions): SessionCodec {
     path: cookie.path,
     httpOnly: true,
     sameSite: (cookie.sameSite[0]!.toUpperCase() + cookie.sameSite.slice(1)) as 'Lax' | 'Strict' | 'None',
-    secure: cookie.secure === 'auto' ? new URL(c.req.url).protocol === 'https:' : cookie.secure,
+    secure: cookie.secure === 'auto' ? isSecure(c) : cookie.secure,
     maxAge,
     ...(cookie.domain ? { domain: cookie.domain } : {}),
   })

@@ -26,3 +26,4 @@ export { back, intended, INTENDED_KEY, previousUrl, redirect, Redirect } from '.
 export { appendHeader, createSessionCodec, isSessionStarted, parseDuration, sessionOf, sessionProvider, startSession } from './session.js'
 export type { Session, SessionCodec, SessionOptions } from './session.js'
 export { hasValidSignature, setUrlSigningKeys, signed, signedUrl, verifySignedUrl } from './signed.js'
+export { isSecure, trustProxies } from './proxies.js'

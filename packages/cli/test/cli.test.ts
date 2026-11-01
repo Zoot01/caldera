@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { check, describeAbilities, describeModel, generateProjectAuthSchema, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations } from '../src/index.js'
+import { check, describeAbilities, describeModel, generateProjectAuthSchema, describeProject, describeSchema, generate, listRoutes, openProject, runMigrations, sqliteWal } from '../src/index.js'
 
 const here = import.meta.dirname
 const bin = join(here, '../bin/caldera.js')
@@ -232,6 +232,22 @@ describe('caldera db:generate / db:migrate / db:push', () => {
     }
     rmSync(join(root, 'drizzle.config.ts'))
     expect(cli('db:generate').json.error).toMatchObject({ code: 'missing_file', details: { file: 'drizzle.config.ts' } })
+  })
+})
+
+describe('db:migrate on a local SQLite file', () => {
+  it('puts it in WAL mode, so the app, worker and scheduler can share it; other databases are left alone', async () => {
+    const dir = join(tmp, `${PREFIX}wal-${Math.random().toString(36).slice(2)}`)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), '{ "name": "wal-app" }\n')
+    try {
+      expect(await sqliteWal(openProject(dir), { DATABASE_URL: 'file:app.db' })).toBe('wal')
+      expect(existsSync(join(dir, 'app.db'))).toBe(true)
+      expect(await sqliteWal(openProject(dir), { DATABASE_URL: 'postgres://localhost/app' })).toBeUndefined()
+      expect(await sqliteWal(openProject(dir), { DATABASE_URL: 'libsql://app.turso.io' })).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

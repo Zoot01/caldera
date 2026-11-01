@@ -15,6 +15,7 @@ import {
   sessionOf,
   sessionProvider,
   startSession,
+  trustProxies,
 } from '../src/index.js'
 
 const KEY = 'test-key-0123456789-0123456789-0123'
@@ -199,3 +200,22 @@ it('parses durations', () => {
   expect(parseDuration(60)).toBe(60)
   expect(() => parseDuration('soon')).toThrow(/duration/)
 })
+
+describe('session cookies behind a proxy', () => {
+  it('are Secure when a trusted proxy says the visit was over HTTPS, and not otherwise', async () => {
+    const app = createApp({ env: defineEnv({}), providers: [sessionProvider(() => ({ keys: [KEY] }))] })
+    const http = new Hono()
+      .use(trustProxies())
+      .use(app.middleware())
+      .use(startSession())
+      .get('/', (c) => {
+        sessionOf(c).put('seen', true)
+        return c.text('ok')
+      })
+    const cookieOf = async (peer: string) =>
+      (await http.request('/', { headers: { 'x-forwarded-proto': 'https', 'x-forwarded-for': '203.0.113.7' } }, { incoming: { socket: { remoteAddress: peer } } })).headers.get('set-cookie') ?? ''
+    expect(await cookieOf('127.0.0.1')).toMatch(/; Secure/)
+    expect(await cookieOf('198.51.100.1')).not.toMatch(/; Secure/)
+  })
+})
+

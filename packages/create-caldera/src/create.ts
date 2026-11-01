@@ -633,7 +633,7 @@ function applyPostgres(directory: string, name: string) {
   edit(directory, 'src/app.ts', [
     ["import { drizzle as d1 } from 'drizzle-orm/d1'\nimport { drizzle } from 'drizzle-orm/libsql'\n", "import { drizzle } from 'drizzle-orm/node-postgres'\n"],
     [
-      /    \/\/ libSQL \(DATABASE_URL\).*\n    databaseProvider\(\{\n.*\n.*\n    \}\),\n/,
+      /    \/\/ libSQL \(DATABASE_URL\).*\n(?:    \/\/.*\n)*    databaseProvider\(\{\n.*\n.*\n    \}\),\n/,
       "    // Postgres (DATABASE_URL), through node-postgres's connection pool.\n    databaseProvider({\n      driver: 'postgres',\n      connect: (app) => drizzle({ connection: app.config.database.url, relations }),\n    }),\n",
     ],
   ])

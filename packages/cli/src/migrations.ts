@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, isAbsolute, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { CalderaError } from '@caldera/core'
 import type { Project } from './project.js'
 
@@ -63,4 +65,31 @@ export function runMigrations(
   })
   if (result.error) throw result.error
   return { command, exitCode: result.status ?? 1, output: options.capture ? `${result.stdout ?? ''}${result.stderr ?? ''}` : '' }
+}
+
+/**
+ * After migrating a local SQLite file (`DATABASE_URL=file:…`): WAL mode, so the app, the worker and
+ * the scheduler, each its own process, share it without "database is locked" (readers never wait for
+ * a writer; writers wait out the connection's busy timeout). It's stored in the file, so setting it
+ * once, when the deploy migrates, is enough. Turso, Postgres and D1 are left alone. Returns the mode.
+ */
+export async function sqliteWal(project: Project, env: Record<string, unknown>): Promise<string | undefined> {
+  const url = env.DATABASE_URL
+  if (typeof url !== 'string' || !url.startsWith('file:') || url.includes(':memory:')) return undefined
+  const path = url.slice('file:'.length)
+  // Relative to the project, as drizzle-kit (run there) read it.
+  const absolute = isAbsolute(path) ? path : join(project.root, path)
+  let libsql: { createClient(config: { url: string }): { execute(sql: string): Promise<{ rows: unknown[][] }>; close(): void } }
+  try {
+    libsql = await import(pathToFileURL(createRequire(project.path('package.json')).resolve('@libsql/client')).href)
+  } catch {
+    return undefined
+  }
+  const client = libsql.createClient({ url: `file:${absolute}` })
+  try {
+    const result = await client.execute('PRAGMA journal_mode = WAL')
+    return String(Object.values(result.rows[0] ?? {})[0] ?? '')
+  } finally {
+    client.close()
+  }
 }

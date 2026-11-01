@@ -1,5 +1,5 @@
 import { broadcastRoutes } from '@caldera/broadcast'
-import { errorHandler, notFoundHandler, originCheck, securityHeaders, startSession } from '@caldera/http'
+import { errorHandler, notFoundHandler, originCheck, securityHeaders, startSession, trustProxies } from '@caldera/http'
 import { mailPreviewRoutes } from '@caldera/mail'
 import { cronRoutes } from '@caldera/schedule'
 import { storageRoutes } from '@caldera/storage'
@@ -17,6 +17,9 @@ export const http = new Hono()
   .use(securityHeaders({ csp: false }))
   .use(originCheck())
   .use(app.middleware())
+  // Behind a proxy: the client's address (c.var.ip, for rate limits) and HTTPS, from the proxies
+  // you trust (TRUSTED_PROXIES in .env).
+  .use(trustProxies({ proxies: (c) => c.var.config.app.trustedProxies }))
   .use(startSession())
   // Vercel Cron calls /api/_caldera/cron; it's refused until CRON_SECRET is set.
   .route('/', cronRoutes({ secret: () => app.config.app.cronSecret }))

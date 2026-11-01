@@ -65,6 +65,22 @@ scheduler: pnpm scheduler
 
 Put the app behind a proxy that handles HTTPS (Caddy, nginx, or your platform's).
 
+### Behind a proxy
+
+Every request then comes from the proxy, over plain HTTP. The starter's `trustProxies()` reads the client's address and HTTPS from the proxy's `X-Forwarded-For` and `X-Forwarded-Proto`, but only from proxies you trust, since anyone else could write anything in them:
+
+| `TRUSTED_PROXIES` | |
+| --- | --- |
+| `loopback` | A proxy on the same machine (Caddy, nginx). The default. |
+| `10.0.0.5,10.0.0.6` | Your load balancers' addresses. |
+| `*` | Any: a platform whose edge sets the headers itself. On Vercel this is automatic. |
+
+Without it, every visitor shares the proxy's address: rate limits (sign-in among them) count everyone as one person, and cookies lose `Secure`.
+
+### SQLite on a server
+
+A local SQLite file works for a small app on one machine. The app, the worker and the scheduler are separate processes sharing it, so `caldera db:migrate` puts the file in WAL mode (readers never wait for a writer), and each write waits up to five seconds for another's (`timeout` in `src/app.ts`) instead of failing with "database is locked". Back up the `-wal` file with the database, or use `sqlite3 app.db ".backup copy.db"`.
+
 ## Vercel
 
 ```bash
