@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import type { Metadata } from 'next';
 import { Geist_Mono, Instrument_Sans } from 'next/font/google';
@@ -18,6 +19,8 @@ export default function Layout({ children }: LayoutProps<'/'>) {
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="flex min-h-screen flex-col font-sans">
         <RootProvider>{children}</RootProvider>
+        {/* Vercel Web Analytics: page views, no cookies. Sends nothing outside Vercel. */}
+        <Analytics />
       </body>
     </html>
   );
