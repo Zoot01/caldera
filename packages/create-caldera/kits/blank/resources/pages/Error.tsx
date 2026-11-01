@@ -1,4 +1,4 @@
-import { useT } from '@caldera/i18n/react'
+import { useT } from '@caldera-js/i18n/react'
 import { Head, Link } from '@inertiajs/react'
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 

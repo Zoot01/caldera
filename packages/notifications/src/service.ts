@@ -1,4 +1,4 @@
-import { CalderaError, defineProvider, type Duration, type RegisteredServices } from '@caldera/core'
+import { CalderaError, defineProvider, type Duration, type RegisteredServices } from '@caldera-js/core'
 import { z } from 'zod'
 import {
   isNotifiable,
@@ -47,7 +47,7 @@ export interface Inbox {
   delete(ids: string | readonly string[]): Promise<number>
 }
 
-/** What `@caldera/notifications/database` adds: the `database` channel and the inbox it reads. */
+/** What `@caldera-js/notifications/database` adds: the `database` channel and the inbox it reads. */
 export interface DatabaseChannel extends ChannelDefinition<{ type: string; data: unknown }> {
   readonly name: 'database'
   inbox(notifiable: Notifiable): Inbox
@@ -123,7 +123,7 @@ const fromGlobal = <T>(key: string) => (globalThis as { [key: symbol]: unknown }
 export function createNotifications(
   options: {
     notifications?: readonly AnyNotification[]
-    /** Custom channels (`defineChannel`), and `databaseChannel()` from `@caldera/notifications/database`. */
+    /** Custom channels (`defineChannel`), and `databaseChannel()` from `@caldera-js/notifications/database`. */
     channels?: readonly ChannelDefinition<any>[]
     /** How `notify(user, ...)` turns a plain row into a notifiable, usually your users. */
     notifiable?: NotifiableDefinition<any>
@@ -139,18 +139,18 @@ export function createNotifications(
   }
   const queueOf = () => {
     const queue = options.queue?.() ?? fromGlobal<QueueLike>('caldera.queue.default')
-    if (!queue) throw new CalderaError('no_queue', 'A queued notification needs a queue: add queueProvider() from @caldera/queue to the app.')
+    if (!queue) throw new CalderaError('no_queue', 'A queued notification needs a queue: add queueProvider() from @caldera-js/queue to the app.')
     return queue
   }
   const mailOf = () => {
     const mail = options.mail?.() ?? fromGlobal<MailLike>('caldera.mail.default')
-    if (!mail) throw new CalderaError('no_mail', 'The mail channel needs mail: add mailProvider() from @caldera/mail to the app.')
+    if (!mail) throw new CalderaError('no_mail', 'The mail channel needs mail: add mailProvider() from @caldera-js/mail to the app.')
     return mail
   }
   const databaseOf = () => {
     const channel = channels.get('database') as DatabaseChannel | undefined
     if (!channel) {
-      throw new CalderaError('database_channel_missing', "The database channel isn't set up: import { databaseChannel } from '@caldera/notifications/database' and pass `channels: [databaseChannel()]`.")
+      throw new CalderaError('database_channel_missing', "The database channel isn't set up: import { databaseChannel } from '@caldera-js/notifications/database' and pass `channels: [databaseChannel()]`.")
     }
     return channel
   }
@@ -213,7 +213,7 @@ export function createNotifications(
     return 'sent'
   }
 
-  // Defined structurally (like @caldera/queue's defineJob output), so notifications don't depend on the queue.
+  // Defined structurally (like @caldera-js/queue's defineJob output), so notifications don't depend on the queue.
   const job = {
     kind: 'caldera.job',
     name: SEND_NOTIFICATION_JOB,

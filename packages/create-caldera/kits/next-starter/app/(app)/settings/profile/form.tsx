@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import type { FormEvent } from 'react'
 import { resendVerification } from '@/app/actions/auth'
 import { updateProfile } from '@/app/actions/settings'

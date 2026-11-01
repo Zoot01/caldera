@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/storage",
+  "name": "@caldera-js/storage",
   "version": "0.0.0",
-  "description": "Caldera file storage: disks on web types (memory, local, S3/R2/MinIO, R2 binding), signed URLs and safe upload validation.",
+  "description": "Caldera file storage: disks (local, S3, R2), signed links, uploads checked by their bytes, and direct uploads to a bucket.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/storage",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "storage"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -48,12 +57,12 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
+    "@caldera-js/core": "workspace:*",
     "file-type": "21.3.4"
   },
   "devDependencies": {
-    "@caldera/db": "workspace:*",
-    "@caldera/http": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@libsql/client": "0.18.0",
     "@types/react": "19.3.0",
@@ -65,5 +74,11 @@
     "react": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

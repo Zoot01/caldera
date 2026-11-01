@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { serveBroadcast } from '@caldera/broadcast/server'
-import { migrateFresh, testDatabaseUrl } from '@caldera/testing/database'
+import { serveBroadcast } from '@caldera-js/broadcast/server'
+import { migrateFresh, testDatabaseUrl } from '@caldera-js/testing/database'
 import next from 'next'
 
 // The app Playwright drives (playwright.config.ts starts it once `next build` is done): the build, on a

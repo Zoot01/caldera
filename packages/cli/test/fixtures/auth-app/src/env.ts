@@ -1,3 +1,3 @@
-import { defineEnv } from '@caldera/core'
+import { defineEnv } from '@caldera-js/core'
 
 export const env = defineEnv({})

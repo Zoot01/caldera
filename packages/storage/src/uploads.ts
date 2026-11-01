@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration } from '@caldera-js/core'
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { type Disk, FileNotFoundError } from './disk.js'

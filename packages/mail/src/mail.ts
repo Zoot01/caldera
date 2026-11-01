@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { render } from '@react-email/render'
 import { createElement, type ComponentType } from 'react'
 import type { z } from 'zod'
@@ -88,7 +88,7 @@ export function useApp(): MailApp {
 
 /**
  * In a mail component: the recipient's language, when it was sent with `.locale('fr')` (or by a
- * notification to someone who has one), else undefined. With @caldera/i18n:
+ * notification to someone who has one), else undefined. With @caldera-js/i18n:
  * `const { t } = translator(useLocale())`.
  */
 export function useLocale(): string | undefined {

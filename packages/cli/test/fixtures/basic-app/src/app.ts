@@ -1,4 +1,4 @@
-import { createApp } from '@caldera/core'
+import { createApp } from '@caldera-js/core'
 import { config } from '../.caldera/config.gen.js'
 import { env } from './env.js'
 import { dbProvider } from './providers/db.js'

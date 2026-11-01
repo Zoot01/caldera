@@ -1,4 +1,4 @@
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import { type Teams, TeamsProvider } from '@/components/team-switcher'

@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/db",
+  "name": "@caldera-js/db",
   "version": "0.0.0",
   "description": "Caldera database layer over Drizzle ORM 1.0: transactions with after-commit hooks, column helpers and models.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/models",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "db"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -45,10 +54,10 @@
     "zod": "^4.6.0"
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/http": "workspace:*",
+    "@caldera-js/http": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@faker-js/faker": "10.6.0",
     "@libsql/client": "0.18.0",
@@ -65,5 +74,11 @@
     "vitest": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

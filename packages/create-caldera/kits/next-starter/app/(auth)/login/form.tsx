@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import { Fingerprint } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { FormField } from '@/components/form-field'

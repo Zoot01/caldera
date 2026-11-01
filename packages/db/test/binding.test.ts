@@ -1,4 +1,4 @@
-import { createRouter, defineRoutes, errorHandler } from '@caldera/http'
+import { createRouter, defineRoutes, errorHandler } from '@caldera-js/http'
 import { Hono } from 'hono'
 import { beforeEach, expect, expectTypeOf, it } from 'vitest'
 import type { Row } from '../src/index.js'

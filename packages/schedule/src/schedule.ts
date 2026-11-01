@@ -1,5 +1,5 @@
-import { CalderaError, defineProvider, parseDuration, type Duration } from '@caldera/core'
-import type { AnyJob, PayloadOf, Queue, QueueStore } from '@caldera/queue'
+import { CalderaError, defineProvider, parseDuration, type Duration } from '@caldera-js/core'
+import type { AnyJob, PayloadOf, Queue, QueueStore } from '@caldera-js/queue'
 import { Cron } from 'croner'
 
 export interface ScheduleOptions<J extends AnyJob> {

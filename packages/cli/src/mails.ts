@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { CONVENTIONS, exportsOfKind, mailFiles, type Project } from './project.js'
 
 interface MailLike {
@@ -27,17 +27,17 @@ function mailSources(project: Project): string[] {
 }
 
 /**
- * The precompiled styles for mails using `Tailwind` from @caldera/mail/tailwind: React Email's own
+ * The precompiled styles for mails using `Tailwind` from @caldera-js/mail/tailwind: React Email's own
  * Tailwind run once over every className in src/mail, per config the mails use (recorded by rendering
  * them with their preview props). Undefined when no mail uses it. `previous` is the last result (from
  * .caldera/mails.gen.ts): reused when the classes and configs haven't changed.
  */
 export async function compileMailStyles(project: Project, previous?: { hash: string; json: string }): Promise<{ hash: string; json: string } | undefined> {
   const sources = mailSources(project).map((file) => readFileSync(file, 'utf8'))
-  if (!sources.some((text) => text.includes('@caldera/mail/tailwind'))) return undefined
-  const build = await project.importPackage<{ classNamesIn(source: string): string[]; compileTailwind(config: unknown, classNames: string[]): Promise<unknown> }>('@caldera/mail/tailwind-build')
-  const runtime = await project.importPackage<{ recordTailwindConfigs(): { configs: unknown[]; stop(): void }; configKey(config: unknown): string }>('@caldera/mail/tailwind')
-  const { renderMail } = await project.importPackage<{ renderMail(mail: unknown, props: unknown): Promise<unknown> }>('@caldera/mail')
+  if (!sources.some((text) => text.includes('@caldera-js/mail/tailwind'))) return undefined
+  const build = await project.importPackage<{ classNamesIn(source: string): string[]; compileTailwind(config: unknown, classNames: string[]): Promise<unknown> }>('@caldera-js/mail/tailwind-build')
+  const runtime = await project.importPackage<{ recordTailwindConfigs(): { configs: unknown[]; stop(): void }; configKey(config: unknown): string }>('@caldera-js/mail/tailwind')
+  const { renderMail } = await project.importPackage<{ renderMail(mail: unknown, props: unknown): Promise<unknown> }>('@caldera-js/mail')
   const classNames = [...new Set(sources.flatMap((text) => build.classNamesIn(text)))].sort()
   const recording = runtime.recordTailwindConfigs()
   const failures: string[] = []

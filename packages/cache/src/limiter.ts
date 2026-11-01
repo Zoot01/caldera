@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration } from '@caldera-js/core'
 import type { Context, MiddlewareHandler } from 'hono'
 import type { Cache } from './cache.js'
 import type { ThrottleResult } from './store.js'
@@ -64,7 +64,7 @@ export interface Limiter {
 }
 
 /**
- * Thrown on a refused request. `@caldera/http`'s error handler turns it into the 429 envelope with
+ * Thrown on a refused request. `@caldera-js/http`'s error handler turns it into the 429 envelope with
  * `Retry-After` and `X-RateLimit-*` headers (or, for an Inertia form post, a redirect back with the error).
  */
 export class RateLimitedError extends CalderaError {
@@ -218,7 +218,7 @@ function callerSource(): { file: string; line: number } | undefined {
     if (!match) continue
     // Loaders (tsx) give modules URLs with a query and percent-encoding: keep just the path.
     const file = decodeURIComponent(match[1]!.replace(/^file:\/\//, '').replace(/\?.*$/, ''))
-    if (file.includes('/packages/cache/src/') || file.includes('/packages/cache/dist/') || file.includes('/@caldera/cache/') || file.startsWith('node:') || file.includes('/node_modules/')) continue
+    if (file.includes('/packages/cache/src/') || file.includes('/packages/cache/dist/') || file.includes('/@caldera-js/cache/') || file.startsWith('node:') || file.includes('/node_modules/')) continue
     return { file, line: Number(match[2]) }
   }
   return undefined

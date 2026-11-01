@@ -1,9 +1,17 @@
 {
   "name": "create-caldera",
   "version": "0.0.0",
-  "description": "Create a Caldera app: npm create caldera my-app",
+  "description": "Create a Caldera app: npm create caldera@latest my-app",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/installation",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel"
+  ],
   "bin": {
     "create-caldera": "./bin/create-caldera.js"
   },
@@ -35,5 +43,8 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

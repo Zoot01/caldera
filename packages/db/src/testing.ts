@@ -1,4 +1,4 @@
-import { CapabilityError } from '@caldera/core'
+import { CapabilityError } from '@caldera-js/core'
 import { sql, type TablesRelationalConfig } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { defaultDatabase, setDefaultDatabase, type Database } from './database.js'

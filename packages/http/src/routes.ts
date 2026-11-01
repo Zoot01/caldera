@@ -1,4 +1,4 @@
-import type { RegisteredHonoEnv } from '@caldera/core'
+import type { RegisteredHonoEnv } from '@caldera-js/core'
 import { Hono, type Context, type Env, type MiddlewareHandler } from 'hono'
 import type { HandlerResponse, MergePath, ParamKeys, Schema, ToSchema, TypedResponse } from 'hono/types'
 import { bindingMiddleware, describeBindings, type BindEnv, type Bindings } from './bind.js'
@@ -17,12 +17,12 @@ export interface RouteOptions<R extends AnyRequest | undefined, B extends Bindin
   /** Route model binding: `{ post: Post }` loads `:post` into a typed `c.var.post`, or 404s. */
   bind?: B
   /**
-   * Runs after binding: return `false` (or throw) to deny. With `@caldera/auth`,
+   * Runs after binding: return `false` (or throw) to deny. With `@caldera-js/auth`,
    * `authorize: allows(Post, 'update', 'post')` checks the bound row against its policy.
    */
   authorize?: (c: Context) => unknown
   middleware?: NamedMiddleware[]
-  /** Rate limits: limiters from `defineLimiter()` in `@caldera/cache`. They run after `auth`. */
+  /** Rate limits: limiters from `defineLimiter()` in `@caldera-js/cache`. They run after `auth`. */
   throttle?: Throttle | readonly Throttle[]
   description?: string
 }
@@ -203,7 +203,7 @@ function callerSource(): { source?: { file: string; line: number } } {
     if (!match) continue
     // Loaders (tsx) give modules URLs with a query and percent-encoding: keep just the path.
     const file = decodeURIComponent(match[1]!.replace(/^file:\/\//, '').replace(/\?.*$/, ''))
-    if (file.includes('/@caldera/http/') || file.includes('/packages/http/src/') || file.includes('/packages/http/dist/')) continue
+    if (file.includes('/@caldera-js/http/') || file.includes('/packages/http/src/') || file.includes('/packages/http/dist/')) continue
     if (file.startsWith('node:') || file.includes('/node_modules/')) continue
     return { source: { file, line: Number(match[2]) } }
   }

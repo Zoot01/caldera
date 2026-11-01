@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/mail",
+  "name": "@caldera-js/mail",
   "version": "0.0.0",
   "description": "Caldera mail: React Email templates with typed props, sent now or queued, over Resend, Postmark, SES, SMTP and more.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/mail",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "mail"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -58,12 +67,12 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
+    "@caldera-js/core": "workspace:*",
     "@react-email/render": "2.1.1"
   },
   "devDependencies": {
-    "@caldera/queue": "workspace:*",
-    "@caldera/storage": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
+    "@caldera-js/storage": "workspace:*",
     "@hono/node-server": "^2.1.5",
     "@react-email/components": "1.0.12",
     "@react-email/tailwind": "2.0.7",
@@ -79,5 +88,11 @@
     "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

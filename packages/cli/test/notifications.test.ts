@@ -28,12 +28,12 @@ it('make:notification creates one in src/notifications, with its mail; generate 
   expect(notification).toContain(`mail: (_to, { url }) => ({ mail: InvoicePaidEmail, props: { url } }),`)
   expect(readFileSync(join(dir, 'src/mail/invoice-paid.tsx'), 'utf8')).toContain(`  name: 'billing.invoice-paid',`)
   expect(readFileSync(join(dir, '.caldera/notifications.gen.ts'), 'utf8')).toContain(
-    `import type { AnyNotification } from '@caldera/notifications'\nimport * as notifications0 from '../src/notifications/invoice-paid.js'\n\nexport const notifications: readonly AnyNotification[] = [notifications0.InvoicePaid]\n`,
+    `import type { AnyNotification } from '@caldera-js/notifications'\nimport * as notifications0 from '../src/notifications/invoice-paid.js'\n\nexport const notifications: readonly AnyNotification[] = [notifications0.InvoicePaid]\n`,
   )
   // Registered by name, so inbox rows' data is typed by the notification's database schema.
   const register = readFileSync(join(dir, '.caldera/register.d.ts'), 'utf8')
   expect(register).toContain("import type * as notifications0 from '../src/notifications/invoice-paid.js'")
-  expect(register).toContain(`declare module '@caldera/notifications' {\n  interface NotificationRegistry {\n    "billing.invoice-paid": typeof notifications0.InvoicePaid\n  }\n}`)
+  expect(register).toContain(`declare module '@caldera-js/notifications' {\n  interface NotificationRegistry {\n    "billing.invoice-paid": typeof notifications0.InvoicePaid\n  }\n}`)
   expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toMatch(/\| `billing.invoice-paid` \| `InvoicePaid` \| mail, database \| yes \| src\/notifications\/invoice-paid.ts \|/)
 
   // A mail that's already there is used as it is, even with --force.

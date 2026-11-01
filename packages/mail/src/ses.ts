@@ -1,4 +1,4 @@
-import { defineDriver } from '@caldera/core'
+import { defineDriver } from '@caldera-js/core'
 import { AwsClient } from 'aws4fetch'
 import { z } from 'zod'
 import { formatAddress } from './message.js'

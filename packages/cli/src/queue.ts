@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { dialectOf, resolveStub } from './make.js'
 import { loadApp, projectEnv, shareMailOutbox } from './describe.js'
 import { CONVENTIONS, exportsOfKind, jobFiles, type Project } from './project.js'
 
-/** The parts of `@caldera/queue`'s Queue the worker uses, so the CLI doesn't depend on that package. */
+/** The parts of `@caldera-js/queue`'s Queue the worker uses, so the CLI doesn't depend on that package. */
 interface QueueLike {
   register(...jobs: unknown[]): void
   work(options: { queues?: string[]; concurrency?: number; connection?: string; onOutcome?(envelope: WorkerEnvelope, outcome: WorkerOutcome): void }): { stop(): Promise<void> }

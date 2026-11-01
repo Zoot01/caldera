@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process'
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createQueue } from '@caldera/queue'
-import { bullmqDriver } from '@caldera/queue/bullmq'
+import { createQueue } from '@caldera-js/queue'
+import { bullmqDriver } from '@caldera-js/queue/bullmq'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { failedJobs, generate, make, openProject, queueTable } from '../src/index.js'
 import { Greet } from './fixtures/queue-app/src/jobs/greet.js'
@@ -126,7 +126,7 @@ it('generate survives a deleted file that the generated lists still import', asy
   writeFileSync(join(dir, 'src/jobs/extra.ts'), readFileSync(join(dir, 'src/jobs/greet.ts'), 'utf8').replaceAll('Greet', 'Extra').replaceAll('fixture.greet', 'fixture.extra'))
   await generate(openProject(dir))
   // Loaded by generate itself (configs are), so a stale list would break the load.
-  writeFileSync(join(dir, 'src/config/jobs.ts'), "import { defineConfig } from '@caldera/core'\nimport { jobs } from '../../.caldera/jobs.gen.js'\n\nexport const jobList = defineConfig('jobList', () => ({ names: jobs.map((j) => j.name) }))\n")
+  writeFileSync(join(dir, 'src/config/jobs.ts'), "import { defineConfig } from '@caldera-js/core'\nimport { jobs } from '../../.caldera/jobs.gen.js'\n\nexport const jobList = defineConfig('jobList', () => ({ names: jobs.map((j) => j.name) }))\n")
   await generate(openProject(dir))
   expect(readFileSync(join(dir, '.caldera/jobs.gen.ts'), 'utf8')).toContain('jobs0.Extra')
   rmSync(join(dir, 'src/jobs/extra.ts'))

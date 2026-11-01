@@ -33,7 +33,7 @@ export interface CreateOptions {
   target?: Target
   install?: boolean
   git?: boolean
-  /** Development only: point @caldera/* dependencies at a local checkout's packages/ folder. */
+  /** Development only: point @caldera-js/* dependencies at a local checkout's packages/ folder. */
   link?: string
   /** Defaults to the real process environment; injectable for tests. */
   env?: NodeJS.ProcessEnv
@@ -77,6 +77,8 @@ export class CreateError extends Error {
 // The app is copied in layers, each over the last: the shared base, then the frontend (a kit, or
 // the Next.js variant), then the database's files.
 const TEMPLATE = new URL('../template/', import.meta.url)
+// Every Caldera package is released together at this package's version.
+const CALDERA_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
 const TEMPLATE_NEXT = new URL('../template-next/', import.meta.url)
 const KIT_LAYERS: Record<Kit, URL[]> = {
   blank: [new URL('../kits/blank/', import.meta.url)],
@@ -195,6 +197,9 @@ export async function createProject(options: CreateOptions): Promise<CreateResul
     writeFileSync(join(directory, '.github/workflows/ci.yml'), ciWorkflow(pm, run, database, name, version))
   }
   if (version) manifest.packageManager = `${pm}@${version}` // never a bare name: corepack rejects it
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    for (const dep of Object.keys(manifest[field] ?? {})) if (dep.startsWith('@caldera-js/')) manifest[field][dep] = `^${CALDERA_VERSION}`
+  }
   const overrides = options.link ? linkLocalPackages(manifest, resolve(options.link), directory, pm) : []
   if (options.link) appendFileSync(join(directory, '.gitignore'), '.caldera-local\n')
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -320,7 +325,7 @@ export function packageManagerVersion(pm: PackageManager, env: NodeJS.ProcessEnv
 }
 
 /**
- * Development: install @caldera/* from a local checkout the way users get them from npm. Each
+ * Development: install @caldera-js/* from a local checkout the way users get them from npm. Each
  * package is packed into a tarball (workspace:* ranges become versions, devDependencies drop out)
  * and installed from it, so peers such as drizzle-orm resolve to the app's single copy. A plain
  * `link:` would make each package use the checkout's own node_modules: two drizzle-orm copies,
@@ -333,9 +338,9 @@ function linkLocalPackages(manifest: Record<string, any>, checkout: string, dire
   for (const short of CALDERA_PACKAGES) {
     const source = join(checkout, 'packages', short)
     const packed = spawnSync('pnpm', ['pack', '--pack-destination', dest], { cwd: source, encoding: 'utf8', shell: process.platform === 'win32' })
-    const file = readdirSync(dest).find((f) => f.startsWith(`caldera-${short}-`) && f.endsWith('.tgz'))
-    if (packed.status !== 0 || !file) throw new Error(`Couldn't pack @caldera/${short}: ${packed.stderr || packed.stdout}`)
-    tarballs[`@caldera/${short}`] = `file:./.caldera-local/${file}`
+    const file = readdirSync(dest).find((f) => f.startsWith(`caldera-js-${short}-`) && f.endsWith('.tgz'))
+    if (packed.status !== 0 || !file) throw new Error(`Couldn't pack @caldera-js/${short}: ${packed.stderr || packed.stdout}`)
+    tarballs[`@caldera-js/${short}`] = `file:./.caldera-local/${file}`
   }
   for (const field of ['dependencies', 'devDependencies'] as const) {
     for (const dep of Object.keys(manifest[field] ?? {})) if (tarballs[dep]) manifest[field][dep] = tarballs[dep]
@@ -386,7 +391,7 @@ function applyNext(directory: string) {
   cpSync(TEMPLATE_NEXT, directory, { recursive: true, force: true })
   const manifestPath = join(directory, 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> }
-  manifest.dependencies['@caldera/next'] = '^0.0.0'
+  manifest.dependencies['@caldera-js/next'] = '^0.0.0'
   manifest.dependencies.next = '^16.4.2'
   manifest.dependencies = sorted(manifest.dependencies)
   Object.assign(manifest.scripts, { build: 'next build', start: 'next start' })
@@ -398,7 +403,7 @@ function applyNext(directory: string) {
     .replace(/^A \[Caldera\].*$/m, 'A [Caldera](https://calderajs.dev) app with a Next.js frontend: TypeScript, Hono, Drizzle, Zod. Next renders the pages (`app/`); the Caldera app serves `/api` and does the backend work.')
     .replace(
       /^Pages get their data.*$/m,
-      "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera/auth` for `user`), both from `@caldera/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
+      "Server Components and server actions use Caldera directly: `await services(app)` (db, mail, queue, cache, storage…) and `await requestContext(app)` (this request's `i18n`; add `authenticate({ required: false })` from `@caldera-js/auth` for `user`), both from `@caldera-js/next`. Models work as anywhere else. Client components call the API with the typed client: `createClient<AppType>()` from `@caldera-js/next/client`, with `AppType` from `src/http.ts`. `/api/*` is the Caldera app (`app/api/[[...route]]/route.ts`), with your routes from `src/routes`; `/_caldera/*` (signed file links, mail previews) is rewritten there by `next.config.ts`.",
     )
     .split('\n')
     .filter((line) => !/resources\/pages|resources\/components|src\/inertia\.ts|resources\/app\.tsx|src\/uploads\.ts|x-inertia|rootView/.test(line))
@@ -418,8 +423,8 @@ const BROWSER_AGENTS =
 
 const STARTER_AGENTS =
   'Auth (the starter kit): Better Auth in `src/auth.ts`, on the app-owned users table (`src/db/schema.ts`; its own tables are in `src/db/auth-schema.ts`, regenerated by `caldera auth:schema` after changing plugins). ' +
-  'Pages post to the app\'s routes (`src/routes/auth.ts`, `settings.ts`), which call `c.var.auth.api.*` with `asResponse: true` and answer with `withAuthCookies(c, res, redirect(...))` from `@caldera/auth`, so failures become `ValidationError`s on the form. ' +
-  '`c.var.user` is set on every request (null for guests); named middleware in `src/middleware.ts`: `mw.auth()` (signed in, else a 401 that page visits turn into /login and back), `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()`, `mw.signed()` (links made with `signedUrl()` from @caldera/http, for emails: no sign-in needed). ' +
+  'Pages post to the app\'s routes (`src/routes/auth.ts`, `settings.ts`), which call `c.var.auth.api.*` with `asResponse: true` and answer with `withAuthCookies(c, res, redirect(...))` from `@caldera-js/auth`, so failures become `ValidationError`s on the form. ' +
+  '`c.var.user` is set on every request (null for guests); named middleware in `src/middleware.ts`: `mw.auth()` (signed in, else a 401 that page visits turn into /login and back), `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()`, `mw.signed()` (links made with `signedUrl()` from @caldera-js/http, for emails: no sign-in needed). ' +
   'Two-factor (Better Auth `twoFactor`: authenticator apps, recovery codes; sign-in continues at /two-factor-challenge) and passkeys (`@better-auth/passkey`: added and used in the browser through `authClient()` from `resources/lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. ' +
   'Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`), read as `c.var.config.auth`. Reset and verification emails are `src/mail/reset-password.tsx` and `verify-email.tsx`; in development they land in the outbox (/_caldera/mail/outbox). ' +
   'Layouts: `resources/layout.ts` picks one per page; `resources/layouts/app-layout.tsx` and `auth-layout.tsx` each re-export one variant (header with tabs, the default, or sidebar; split, the default, simple or card), so switching is one line. Pages sit in a gray panel (`bg-surface`) as white cards; settings use `Section` (`resources/components/section.tsx`). Colors are CSS variables in `resources/app.css` (the kit\'s look is the last `:root`/`.dark` block: blue `--ring`/`--link`, `--surface`). Pages pass layout props with `Page.layout = { breadcrumbs: [...] }` (auth pages: `{ title, description }`). Navigation items are in `resources/components/navigation.ts` (`mainNavItems`, the tabs; `settingsNavItems`, the settings pages); the command menu (`resources/components/command-menu.tsx`, ⌘K or Ctrl+K, and the search button in the header) lists them, with appearance and log out: add entries to its `sections`. ' +
@@ -483,7 +488,7 @@ function addTeams(directory: string, database: Database) {
     ['      plugins: [\n', '      plugins: [\n        // Teams: Better Auth organizations, with the roles in src/roles.ts.\n        teamsPlugin({ appUrl: env.APP_URL }),\n'],
   ])
   edit(directory, 'src/app.ts', [
-    ["import { auth } from './auth.js'\n", "import { organizationGate } from '@caldera/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
+    ["import { auth } from './auth.js'\n", "import { organizationGate } from '@caldera-js/auth/organization'\nimport { auth } from './auth.js'\nimport { roles } from './roles.js'\n"],
     [
       '    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`).\n    authorizationProvider({ policies }),\n',
       '    // c.var.gate: checks against the policies in src/policies (listed by `caldera generate`), with\n    // g.org: the current team and the person\'s role in it (src/roles.ts).\n    authorizationProvider({ policies, extend: organizationGate({ roles }) }),\n',
@@ -514,7 +519,7 @@ function applyStarter(directory: string, database: Database) {
 /** Better Auth and the gate as providers of the app (src/app.ts), and Better Auth's tables for Postgres. */
 function addAuth(directory: string, database: Database) {
   edit(directory, 'src/app.ts', [
-    ["import { env } from './env.js'\n", "import { authorizationProvider } from '@caldera/auth'\nimport { auth } from './auth.js'\nimport { env } from './env.js'\n"],
+    ["import { env } from './env.js'\n", "import { authorizationProvider } from '@caldera-js/auth'\nimport { auth } from './auth.js'\nimport { env } from './env.js'\n"],
     ["import { notifications } from '../.caldera/notifications.gen.js'\n", "import { notifications } from '../.caldera/notifications.gen.js'\nimport { policies } from '../.caldera/policies.gen.js'\n"],
     [
       '  providers: [\n',
@@ -589,7 +594,7 @@ function asClient(text: string): string {
 
 const NEXT_STARTER_AGENTS =
   'Auth (the starter kit): Better Auth in `src/auth.ts`, on the app-owned users table (`src/db/schema.ts`; its own tables are in `src/db/auth-schema.ts`, regenerated by `caldera auth:schema` after changing plugins). ' +
-  'The routes do the work, as JSON (`src/routes/auth.ts`, `settings.ts`, `dashboard.ts`), and the pages call them: a page loads its data with `await load(http, \'/settings/security\')` from `@caldera/next` (the route runs as the browser\'s request, with its middleware: its redirect is Next\'s, a 401 goes to /login?redirect=… and back, a 404 is `notFound()`); a form calls a server action in `app/actions/*.ts`, which posts to the route with `submit(http, \'/login\', data)` (the route\'s cookies are set, its redirect is Next\'s, its validation errors come back for the form). Forms use `useForm` from `@caldera/next/client` (`data`, `setData`, `errors`, `processing`, `submit(action)`). ' +
+  'The routes do the work, as JSON (`src/routes/auth.ts`, `settings.ts`, `dashboard.ts`), and the pages call them: a page loads its data with `await load(http, \'/settings/security\')` from `@caldera-js/next` (the route runs as the browser\'s request, with its middleware: its redirect is Next\'s, a 401 goes to /login?redirect=… and back, a 404 is `notFound()`); a form calls a server action in `app/actions/*.ts`, which posts to the route with `submit(http, \'/login\', data)` (the route\'s cookies are set, its redirect is Next\'s, its validation errors come back for the form). Forms use `useForm` from `@caldera-js/next/client` (`data`, `setData`, `errors`, `processing`, `submit(action)`). ' +
   '`c.var.user` is set on every request (null for guests); named middleware in `src/route-middleware.ts` (not src/middleware.ts: Next.js reads that as its own): `mw.auth()`, `mw.guest()`, `mw.verified()` (with `mustVerifyEmail`), `mw.passwordConfirmed()` (to /confirm-password?redirect=… and back), `mw.signed()` (links made with `signedUrl()`). Sign-in pages pass `?redirect=` on as a `redirect` field; `intendedPage(c, to, fallback)` follows it, only to this site. ' +
   'In Server Components, `lib/caldera.ts` gives `context()` (user, session, gate, i18n), `currentUser()`, `requireUser()`, `requireGuest()` and `flash()`. Rendering can\'t set cookies: a page shows what a route flashed (`back(c).with(\'success\', …)` as a toast in the app layouts, `status` on the page), then `components/flash-toasts.tsx` clears it. `proxy.ts` tells pages their own path (`x-pathname`). ' +
   'Two-factor (Better Auth `twoFactor`) and passkeys (`@better-auth/passkey`, through `authClient()` from `lib/auth-client.ts`, which talks to /api/auth) are both on; Security settings manages them. Settings are in `src/config/auth.ts` (`home`, `mustVerifyEmail`, `twoFactor`, `passkeys`, `passwordTimeoutSeconds`). ' +

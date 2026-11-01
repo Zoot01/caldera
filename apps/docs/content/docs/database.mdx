@@ -24,7 +24,7 @@ A table lives in `src/db/tables/`, one per file. `caldera make:model Note` write
 
 ```ts title="src/db/tables/note.ts"
 import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from '@caldera/db/sqlite'
+import { timestamps } from '@caldera-js/db/sqlite'
 import { users } from '../schema'
 
 export const notes = snakeCase.table('notes', {
@@ -47,7 +47,7 @@ export const notes = snakeCase.table('notes', {
 
 ```ts title="src/db/tables/note.ts"
 import { boolean, snakeCase, text, timestamp, uuid } from 'drizzle-orm/pg-core'
-import { timestamps } from '@caldera/db/pg'
+import { timestamps } from '@caldera-js/db/pg'
 import { users } from '../schema'
 
 export const notes = snakeCase.table('notes', {
@@ -75,7 +75,7 @@ The users table is different: it's in `src/db/schema.ts`, because Better Auth si
 `zjson` (SQLite) and `zjsonb` (Postgres) store JSON checked by a Zod schema, both when it's written and when it's read. The column's type is the schema's.
 
 ```ts
-import { timestamps, zjson } from '@caldera/db/sqlite'
+import { timestamps, zjson } from '@caldera-js/db/sqlite'
 import { z } from 'zod'
 
 export const comments = snakeCase.table('comments', {

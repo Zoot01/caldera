@@ -1,9 +1,17 @@
 {
-  "name": "@caldera/cli",
+  "name": "@caldera-js/cli",
   "version": "0.0.0",
-  "description": "The caldera command: code generation, introspection and generators.",
+  "description": "The caldera command: the dev server, code generation, generators, migrations, workers, deploy setup and checks, and an MCP server for AI agents.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/cli",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel"
+  ],
   "bin": {
     "caldera": "./bin/caldera.js"
   },
@@ -22,25 +30,25 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@caldera/auth": "workspace:*",
-    "@caldera/core": "workspace:*",
-    "@caldera/db": "workspace:*",
-    "@caldera/i18n": "workspace:*",
+    "@caldera-js/auth": "workspace:*",
+    "@caldera-js/core": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/i18n": "workspace:*",
     "citty": "0.2.2",
     "esbuild": "0.28.2",
     "tsx": "4.23.15",
     "zod": "^4.6.0"
   },
   "devDependencies": {
-    "@caldera/broadcast": "workspace:*",
-    "@caldera/cache": "workspace:*",
-    "@caldera/events": "workspace:*",
-    "@caldera/http": "workspace:*",
-    "@caldera/inertia": "workspace:*",
-    "@caldera/mail": "workspace:*",
-    "@caldera/notifications": "workspace:*",
-    "@caldera/queue": "workspace:*",
-    "@caldera/schedule": "workspace:*",
+    "@caldera-js/broadcast": "workspace:*",
+    "@caldera-js/cache": "workspace:*",
+    "@caldera-js/events": "workspace:*",
+    "@caldera-js/http": "workspace:*",
+    "@caldera-js/inertia": "workspace:*",
+    "@caldera-js/mail": "workspace:*",
+    "@caldera-js/notifications": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
+    "@caldera-js/schedule": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@inertiajs/core": "3.9.1",
     "@inertiajs/react": "3.9.1",
@@ -61,5 +69,11 @@
     "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

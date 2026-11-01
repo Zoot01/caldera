@@ -1,4 +1,4 @@
-import { CalderaError, CapabilityError, createManager, defineProvider, type Duration, type DriverDefinition, type Manager, type RegisterContext } from '@caldera/core'
+import { CalderaError, CapabilityError, createManager, defineProvider, type Duration, type DriverDefinition, type Manager, type RegisterContext } from '@caldera-js/core'
 import { z } from 'zod'
 import { renderMail, type AnyMail, type AttachmentSource, type MailApp, type MailProps, type Rendered } from './mail.js'
 import { formatAddress, messageSize, parseAddress, type Address, type AddressInput, type Attachment, type Message } from './message.js'
@@ -82,8 +82,8 @@ export interface MailService<N extends string = string> extends PendingMail<N> {
 export const MAIL_DRIVERS: readonly DriverDefinition<MailTransport, MailCapabilities>[] = [logDriver, memoryDriver, resendDriver, postmarkDriver, cloudflareMailDriver, failoverDriver, roundrobinDriver]
 
 const HINTS = {
-  ses: "It's in '@caldera/mail/ses': import { sesDriver } from it and pass `drivers: [sesDriver]`.",
-  smtp: "It's in '@caldera/mail/smtp': import { smtpDriver } from it and pass `drivers: [smtpDriver]`.",
+  ses: "It's in '@caldera-js/mail/ses': import { sesDriver } from it and pass `drivers: [sesDriver]`.",
+  smtp: "It's in '@caldera-js/mail/smtp': import { smtpDriver } from it and pass `drivers: [smtpDriver]`.",
 }
 
 const envelopeSchema = z.object({
@@ -199,7 +199,7 @@ export function createMail<const N extends string>(
 
   const queueOf = () => {
     const queue = options.queue?.() ?? defaultQueue()
-    if (!queue) throw new CalderaError('no_queue', 'mail.queue() needs a queue: add queueProvider() from @caldera/queue to the app.')
+    if (!queue) throw new CalderaError('no_queue', 'mail.queue() needs a queue: add queueProvider() from @caldera-js/queue to the app.')
     return queue
   }
 
@@ -232,7 +232,7 @@ export function createMail<const N extends string>(
 
   const empty = pending({ to: [], cc: [], bcc: [], replyTo: [] })
 
-  // The job is defined structurally (like @caldera/queue's defineJob output), so mail doesn't depend on the queue.
+  // The job is defined structurally (like @caldera-js/queue's defineJob output), so mail doesn't depend on the queue.
   const sendMailJob = {
     kind: 'caldera.job',
     name: SEND_MAIL_JOB,

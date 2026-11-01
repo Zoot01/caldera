@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import { hmacHex, resolveSecret, signSubscription, type BroadcastCapabilities, type BroadcastDriver, type BroadcastMessage } from './driver.js'
 import { md5 } from './md5.js'

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { createApp, defineEnv } from '@caldera/core'
+import { createApp, defineEnv } from '@caldera-js/core'
 import { Hono } from 'hono'
 import { expect, it } from 'vitest'
 import { z } from 'zod'

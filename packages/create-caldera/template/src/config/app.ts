@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const app = defineConfig('app', (env) => ({
   name: '{{ name }}',

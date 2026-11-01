@@ -1,5 +1,5 @@
-import { defineSeeder } from '@caldera/db/seeders'
-import { factory } from '@caldera/db/factories'
+import { defineSeeder } from '@caldera-js/db/seeders'
+import { factory } from '@caldera-js/db/factories'
 import { User } from '../../models/user.js'
 import { UserFactory } from '../factories/user.js'
 import { schemaSeeder } from './schema.js'

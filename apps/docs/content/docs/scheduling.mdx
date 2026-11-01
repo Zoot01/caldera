@@ -12,7 +12,7 @@ pnpm exec caldera make:schedule PruneUploadsNightly --job PruneUploads
 ```
 
 ```ts title="src/schedules/prune-uploads-nightly.ts"
-import { defineSchedule } from '@caldera/schedule'
+import { defineSchedule } from '@caldera-js/schedule'
 import { PruneUploads } from '../jobs/prune-uploads'
 
 export const pruneUploadsNightly = defineSchedule('uploads.prune-nightly', {
@@ -27,8 +27,8 @@ export const pruneUploadsNightly = defineSchedule('uploads.prune-nightly', {
 The job is an ordinary one:
 
 ```ts title="src/jobs/prune-uploads.ts"
-import { defineJob } from '@caldera/queue'
-import { pruneUploads } from '@caldera/storage'
+import { defineJob } from '@caldera-js/queue'
+import { pruneUploads } from '@caldera-js/storage'
 import { z } from 'zod'
 
 export const PruneUploads = defineJob({

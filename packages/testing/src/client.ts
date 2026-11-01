@@ -73,12 +73,12 @@ export class TestClient {
 
   /**
    * Signs in as `user` (a row with an `id`) with a real Better Auth session, as if they'd signed in:
-   * `await client.actingAs(user)`. Needs betterAuthProvider() in the app and @caldera/auth.
+   * `await client.actingAs(user)`. Needs betterAuthProvider() in the app and @caldera-js/auth.
    */
   async actingAs(user: { id: string | number }): Promise<this> {
     const auth = (this.#options.services as { auth?: { $context: Promise<unknown> } } | undefined)?.auth
     if (!auth) throw new Error('actingAs() needs the app’s Better Auth instance: use t.client(http) from setupApp, with betterAuthProvider() in the app.')
-    const { sessionCookieFor } = await import('@caldera/auth/testing')
+    const { sessionCookieFor } = await import('@caldera-js/auth/testing')
     const cookie = await sessionCookieFor(auth, user)
     return this.withCookie(cookie.name, cookie.value)
   }

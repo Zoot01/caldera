@@ -1,6 +1,6 @@
 // A Cloudflare Worker using Caldera queues, bundled by the test with esbuild (as wrangler would).
-import { createApp, defineConfig, defineEnv } from '@caldera/core'
-import { defineJob, dispatch, handleQueueBatch, queueProvider, type MessageBatchLike, type QueueBinding } from '@caldera/queue'
+import { createApp, defineConfig, defineEnv } from '@caldera-js/core'
+import { defineJob, dispatch, handleQueueBatch, queueProvider, type MessageBatchLike, type QueueBinding } from '@caldera-js/queue'
 import { Hono } from 'hono'
 import { z } from 'zod'
 

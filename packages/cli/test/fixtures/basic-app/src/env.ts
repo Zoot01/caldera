@@ -1,4 +1,4 @@
-import { secret, defineEnv } from '@caldera/core'
+import { secret, defineEnv } from '@caldera-js/core'
 import { z } from 'zod'
 
 export const env = defineEnv({

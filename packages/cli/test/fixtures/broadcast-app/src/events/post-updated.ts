@@ -1,4 +1,4 @@
-import { defineEvent } from '@caldera/events'
+import { defineEvent } from '@caldera-js/events'
 import { z } from 'zod'
 import { PostChannel } from '../channels/posts.js'
 

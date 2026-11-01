@@ -1,4 +1,4 @@
-import { defineRoutes } from '@caldera/http'
+import { defineRoutes } from '@caldera-js/http'
 import { User } from '../models/user.js'
 
 // Mounted under /api (src/http.ts). Client components call these with the typed client (app/hello.tsx).

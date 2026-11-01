@@ -1,5 +1,5 @@
-import { CapabilityError, defineDriver } from '@caldera/core'
-import { defaultDatabase, type Database } from '@caldera/db'
+import { CapabilityError, defineDriver } from '@caldera-js/core'
+import { defaultDatabase, type Database } from '@caldera-js/db'
 import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { gcra } from './gcra.js'

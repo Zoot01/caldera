@@ -1,4 +1,4 @@
-import { createApp, defineEnv, defineProvider, type HonoEnvOf } from '@caldera/core'
+import { createApp, defineEnv, defineProvider, type HonoEnvOf } from '@caldera-js/core'
 import { Hono } from 'hono'
 import { expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
@@ -12,7 +12,7 @@ const greeter = defineProvider({
 const app = createApp({ env: defineEnv({ APP_NAME: z.string().default('demo') }), providers: [greeter] })
 
 // What `caldera generate` writes for a real app.
-declare module '@caldera/core' {
+declare module '@caldera-js/core' {
   interface Register {
     app: typeof app
   }

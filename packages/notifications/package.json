@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/notifications",
+  "name": "@caldera-js/notifications",
   "version": "0.0.0",
   "description": "Caldera notifications: one notification over mail, the database and your own channels, sent now or one job per channel.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/notifications",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "notifications"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -23,12 +32,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@caldera/db": "workspace:*",
+    "@caldera-js/db": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5",
     "zod": "^4.6.0"
   },
   "peerDependenciesMeta": {
-    "@caldera/db": {
+    "@caldera-js/db": {
       "optional": true
     },
     "drizzle-orm": {
@@ -36,12 +45,12 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/db": "workspace:*",
-    "@caldera/mail": "workspace:*",
-    "@caldera/queue": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/mail": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@libsql/client": "0.18.0",
     "@react-email/components": "1.0.12",
@@ -54,5 +63,11 @@
     "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

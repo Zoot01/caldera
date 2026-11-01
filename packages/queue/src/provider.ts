@@ -1,4 +1,4 @@
-import { defineProvider, type DriverDefinition, type RegisterContext } from '@caldera/core'
+import { defineProvider, type DriverDefinition, type RegisterContext } from '@caldera-js/core'
 import type { QueueCapabilities, QueueDriver } from './driver.js'
 import { createQueue, setDefaultQueue, type Queue, type QueueConfig, type QueueStore } from './queue.js'
 

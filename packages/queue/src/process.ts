@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type RegisteredConfig, type RegisteredServices } from '@caldera/core'
+import { CalderaError, parseDuration, type RegisteredConfig, type RegisteredServices } from '@caldera-js/core'
 import type { Envelope, Outcome } from './envelope.js'
 import { backoffFor, JobFailedError, JobReleasedError, JobTimeoutError, type AnyJob, type JobContext } from './job.js'
 

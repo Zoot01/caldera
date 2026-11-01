@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const i18n = defineConfig('i18n', (env) => ({
   // The canonical locale: lang/en/*.json are the source of truth, and of the types for t().

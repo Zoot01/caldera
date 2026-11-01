@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { BroadcastCapabilities, BroadcastDriver } from './driver.js'
 import { newSocketId, type HubCluster } from './hub.js'

@@ -1,5 +1,5 @@
-import { defineModel } from '@caldera/db'
-import { defineNotifiable } from '@caldera/notifications'
+import { defineModel } from '@caldera-js/db'
+import { defineNotifiable } from '@caldera-js/notifications'
 import { users } from '../db/schema.js'
 
 export const User = defineModel(users, {

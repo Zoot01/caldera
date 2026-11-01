@@ -1,6 +1,6 @@
 'use server'
 
-import { submit } from '@caldera/next'
+import { submit } from '@caldera-js/next'
 import { http } from '@/src/http'
 
 // The settings pages' server actions, posting to src/routes/settings.ts.

@@ -1,4 +1,4 @@
-import { timestamps } from '@caldera/db/sqlite'
+import { timestamps } from '@caldera-js/db/sqlite'
 import { snakeCase, text } from 'drizzle-orm/sqlite-core'
 
 export const users = snakeCase.table('users', {

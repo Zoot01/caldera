@@ -1,5 +1,5 @@
 // Loaded into the app server by `caldera dev` (NODE_OPTIONS=--import), never in production. Records
-// unexpected errors for the MCP server's `last_errors` tool; @caldera/http calls the hook by shape.
+// unexpected errors for the MCP server's `last_errors` tool; @caldera-js/http calls the hook by shape.
 import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { SourceMap } from 'node:module'
 import { dirname, join } from 'node:path'

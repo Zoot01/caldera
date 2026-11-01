@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { generate } from './codegen.js'
 import { names, render, singularize, type Names } from './names.js'
 import { CONVENTIONS, type Project } from './project.js'
@@ -71,31 +71,31 @@ function dependsOn(project: Project, name: string): boolean {
 
 /** Next steps generators print instead of editing files you own. */
 function hints(kind: MakeKind, n: Names & { page: string; id: string }, options: { table: boolean; channel: boolean; presence: boolean; faker: boolean }): string[] {
-  // Factories use faker, an optional peer of @caldera/db that apps don't have until they need it.
+  // Factories use faker, an optional peer of @caldera-js/db that apps don't have until they need it.
   if (kind === 'factory' && !options.faker) return ['Factories use faker: `pnpm add -D @faker-js/faker`.']
   if (kind === 'model' && options.table) {
     return [`Add \`${n.plural}\` (from src/db/tables/${n.kebab}.ts) to defineRelations in ${CONVENTIONS.relations}, then run \`caldera db:generate\`.`]
   }
   if (kind === 'model' && !options.table) return [`Point the import in ${CONVENTIONS.modelsDir}/${n.kebab}.ts at your existing \`${n.plural}\` table.`]
   if (kind === 'provider') return [`Add \`${n.name}Provider\` to the providers in ${CONVENTIONS.app}.`]
-  if (kind === 'mail') return [`Send it: \`await mail.to(user).send(${n.Name}Email, { url })\` from '@caldera/mail'. Preview: /_caldera/mail/${n.id}.`]
+  if (kind === 'mail') return [`Send it: \`await mail.to(user).send(${n.Name}Email, { url })\` from '@caldera-js/mail'. Preview: /_caldera/mail/${n.id}.`]
   if (kind === 'notification') {
     return [
-      `Send it: \`await notify(user, ${n.Name}, { id })\` from '@caldera/notifications'. It emails ${CONVENTIONS.mailDir}/${n.kebab}.tsx (preview: /_caldera/mail/${n.id}) and stores a row for the inbox, which needs \`caldera notifications:table\`.`,
+      `Send it: \`await notify(user, ${n.Name}, { id })\` from '@caldera-js/notifications'. It emails ${CONVENTIONS.mailDir}/${n.kebab}.tsx (preview: /_caldera/mail/${n.id}) and stores a row for the inbox, which needs \`caldera notifications:table\`.`,
     ]
   }
   if (kind === 'schedule') return [`\`caldera schedule:list\` shows its next run; \`caldera schedule:work\` (or a platform cron, see \`caldera schedule:sync\`) runs it.`]
   if (kind === 'event') {
     return [
-      `Emit it with \`await emit(${n.Name}, { ... })\` from '@caldera/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.${options.channel ? ' Its payload names the channel\'s parameter: if the channel calls it something else, change both.' : ' To send it to browsers too, make it with --channel <Channel>.'}`,
+      `Emit it with \`await emit(${n.Name}, { ... })\` from '@caldera-js/events'; add listeners with \`caldera make:listener <Name> --event ${n.Name}\`.${options.channel ? ' Its payload names the channel\'s parameter: if the channel calls it something else, change both.' : ' To send it to browsers too, make it with --channel <Channel>.'}`,
     ]
   }
   if (kind === 'listener') return [`It runs on every emit of its event. For slow work, listen with a job instead: \`listen(Event, Job.fromEvent((e) => ({ ... })))\`.`]
-  if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera/queue'; \`caldera queue:work\` runs it.`]
+  if (kind === 'job') return [`Dispatch it with \`await dispatch(${n.Name}, { id })\` from '@caldera-js/queue'; \`caldera queue:work\` runs it.`]
   if (kind === 'channel') {
     const pattern = `${channelName(n)}.{${n.name}}`
     return [
-      `Send events on it: \`caldera make:event ${n.Name}Updated --channel ${n.Name}\`. In a page: \`${options.presence ? `const { members } = usePresence` : 'useChannel'}('${pattern}', { ${n.name}: ${n.name}.id }, { on: { ... } })\` from '@caldera/broadcast/react'.`,
+      `Send events on it: \`caldera make:event ${n.Name}Updated --channel ${n.Name}\`. In a page: \`${options.presence ? `const { members } = usePresence` : 'useChannel'}('${pattern}', { ${n.name}: ${n.name}.id }, { on: { ... } })\` from '@caldera-js/broadcast/react'.`,
     ]
   }
   if (kind === 'page') return [`Render it from a route: \`c.render('${n.page}', { title: '${n.Name}' })\`.`]

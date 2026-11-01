@@ -1,5 +1,5 @@
-import { i18nOf } from '@caldera/i18n'
-import { appearance, appearanceOf, defineInertia, viteAssets, viteSsr } from '@caldera/inertia'
+import { i18nOf } from '@caldera-js/i18n'
+import { appearance, appearanceOf, defineInertia, viteAssets, viteSsr } from '@caldera-js/inertia'
 import { getCookie } from 'hono/cookie'
 
 /** Pages: shared props, asset tags and the HTML shell. `caldera generate` types `share` for every page. */

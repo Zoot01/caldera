@@ -1,4 +1,4 @@
-import { defineEnv, secret } from '@caldera/core'
+import { defineEnv, secret } from '@caldera-js/core'
 import { z } from 'zod'
 
 /** A Workers binding (an object the runtime passes in, not a string), when there is one. */

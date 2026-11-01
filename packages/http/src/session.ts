@@ -1,4 +1,4 @@
-import { CalderaError, defineProvider, parseDuration, type RegisterContext } from '@caldera/core'
+import { CalderaError, defineProvider, parseDuration, type RegisterContext } from '@caldera-js/core'
 
 export { parseDuration }
 import type { Context, MiddlewareHandler } from 'hono'

@@ -1,8 +1,8 @@
-import type { AnyModel, Filter, Row } from '@caldera/db'
+import type { AnyModel, Filter, Row } from '@caldera-js/db'
 
 /**
  * Apps register their user type and policies here; `caldera generate` writes it:
- * `declare module '@caldera/auth' { interface AuthRegister { user: Row<typeof User> } interface PolicyRegistry { post: typeof PostPolicy } }`
+ * `declare module '@caldera-js/auth' { interface AuthRegister { user: Row<typeof User> } interface PolicyRegistry { post: typeof PostPolicy } }`
  */
 export interface AuthRegister {}
 /** Model name → policy. Codegen fills it from `src/policies/*.ts`. */

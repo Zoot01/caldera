@@ -2,7 +2,7 @@ import type { InferSchemaEntrySelectModel, TablesRelationalConfig } from 'drizzl
 
 /**
  * Apps register their Drizzle relations here; `caldera generate` writes it:
- * `declare module '@caldera/db' { interface DatabaseRegister { relations: typeof relations } }`
+ * `declare module '@caldera-js/db' { interface DatabaseRegister { relations: typeof relations } }`
  */
 export interface DatabaseRegister {}
 

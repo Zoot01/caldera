@@ -1,4 +1,4 @@
-import { setupApp, type TestClient } from '@caldera/testing'
+import { setupApp, type TestClient } from '@caldera-js/testing'
 import { expect, it } from 'vitest'
 import { app } from '../../src/app'
 import { http } from '../../src/http'

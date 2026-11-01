@@ -15,7 +15,7 @@ pnpm exec caldera make:factory User
 ```
 
 ```ts title="src/db/factories/user.ts"
-import { defineFactory } from '@caldera/db/factories'
+import { defineFactory } from '@caldera-js/db/factories'
 import { User } from '../../models/user'
 
 export const UserFactory = defineFactory(User, {
@@ -37,7 +37,7 @@ Keep factories in `src/db/factories/`. They import Faker, so production code mus
 ### Making rows
 
 ```ts
-import { factory } from '@caldera/db/factories'
+import { factory } from '@caldera-js/db/factories'
 
 const user = await factory(UserFactory).create()
 const admins = await factory(UserFactory).admin().count(3).create()
@@ -78,8 +78,8 @@ Faker is seeded once per process, so the same seed makes the same data. `CALDERA
 A seeder fills the database. `caldera make:seeder Users` writes one to `src/db/seeders/`:
 
 ```ts title="src/db/seeders/users.ts"
-import { factory } from '@caldera/db/factories'
-import { defineSeeder } from '@caldera/db/seeders'
+import { factory } from '@caldera-js/db/factories'
+import { defineSeeder } from '@caldera-js/db/seeders'
 import { UserFactory } from '../factories/user'
 
 export const usersSeeder = defineSeeder({

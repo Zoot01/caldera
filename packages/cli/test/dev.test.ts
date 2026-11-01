@@ -39,12 +39,12 @@ it('regenerates on every change, survives errors and recovers', async () => {
   expect(events[0]).toMatchObject({ type: 'generated', changed: expect.arrayContaining(['.caldera/config.gen.ts', 'AGENTS.md']) })
 
   events.length = 0
-  writeFileSync(join(root, 'src/config/mail.ts'), `import { defineConfig } from '@caldera/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`)
+  writeFileSync(join(root, 'src/config/mail.ts'), `import { defineConfig } from '@caldera-js/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`)
   await waitFor(events, (e) => e.type === 'generated' && e.changed.includes('.caldera/config.gen.ts'), 'add mail.ts')
   expect(readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')).toContain('mail')
 
   events.length = 0
-  writeFileSync(join(root, 'src/config/clash.ts'), `import { defineConfig } from '@caldera/core'\nexport const again = defineConfig('mail', () => ({}))\n`)
+  writeFileSync(join(root, 'src/config/clash.ts'), `import { defineConfig } from '@caldera-js/core'\nexport const again = defineConfig('mail', () => ({}))\n`)
   expect((await waitFor(events, (e) => e.type === 'error', 'add clash.ts')).error).toMatch(/Config "mail" is defined in both/)
 
   events.length = 0
@@ -59,7 +59,7 @@ it('polls instead of watching with poll, catching new, edited and deleted files'
 
   events.length = 0
   const mail = join(root, 'src/config/mail.ts')
-  writeFileSync(mail, `import { defineConfig } from '@caldera/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`)
+  writeFileSync(mail, `import { defineConfig } from '@caldera-js/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`)
   await waitFor(events, (e) => e.type === 'generated' && e.changed.includes('.caldera/config.gen.ts'), 'add mail.ts')
   expect(readFileSync(join(root, '.caldera/config.gen.ts'), 'utf8')).toContain('mail')
 

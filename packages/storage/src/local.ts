@@ -2,7 +2,7 @@ import { mkdir, open, readdir, rename, rm, stat, copyFile } from 'node:fs/promis
 import { createReadStream } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { FileInfo, StorageCapabilities, StorageDriver } from './driver.js'
 import { createUrlSigner, signedRouteUrl } from './signing.js'

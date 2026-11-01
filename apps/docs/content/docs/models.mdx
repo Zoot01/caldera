@@ -6,7 +6,7 @@ description: Reading and writing rows, with hidden and guarded columns, scopes, 
 A model wraps a table. Rows stay plain objects (there's no `note.save()`); the model is where you read and write them, and where the rules for a table live, so every query follows them.
 
 ```ts title="src/models/note.ts"
-import { defineModel } from '@caldera/db'
+import { defineModel } from '@caldera-js/db'
 import { notes } from '../db/tables/note'
 
 export const Note = defineModel(notes, {

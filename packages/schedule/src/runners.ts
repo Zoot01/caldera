@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { Hono, type Context } from 'hono'
 import type { Scheduler } from './schedule.js'
 

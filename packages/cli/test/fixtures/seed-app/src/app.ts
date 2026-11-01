@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
-import { createApp } from '@caldera/core'
-import { databaseProvider } from '@caldera/db'
+import { createApp } from '@caldera-js/core'
+import { databaseProvider } from '@caldera-js/db'
 import { drizzle } from 'drizzle-orm/pglite'
 import { relations } from './db/relations.js'
 import { env } from './env.js'

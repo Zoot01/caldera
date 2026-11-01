@@ -1,5 +1,5 @@
 // Compile-time only: these lines type-check only once `caldera generate` registers pages and shared props.
-import { defineRoutes } from '@caldera/http'
+import { defineRoutes } from '@caldera-js/http'
 
 export const wrong = defineRoutes('wrong')
   // @ts-expect-error not a page in resources/pages

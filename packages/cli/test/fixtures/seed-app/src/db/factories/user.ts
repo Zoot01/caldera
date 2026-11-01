@@ -1,4 +1,4 @@
-import { defineFactory } from '@caldera/db/factories'
+import { defineFactory } from '@caldera-js/db/factories'
 import { User } from '../../models/user.js'
 
 export const UserFactory = defineFactory(User, {

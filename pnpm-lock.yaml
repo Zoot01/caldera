@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@changesets/cli':
+        specifier: 3.0.3
+        version: 3.0.3
       '@electric-sql/pglite':
         specifier: 0.5.13
         version: 0.5.13
@@ -26,6 +29,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@vercel/analytics':
+        specifier: 2.0.1
+        version: 2.0.1(next@16.4.3(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       fumadocs-core:
         specifier: 16.17.9
         version: 16.17.9(@mdx-js/mdx@3.1.1(supports-color@10.2.2))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.65.0(@types/react@19.3.0)(react@19.3.1))(next@16.4.3(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
@@ -75,14 +81,14 @@ importers:
 
   packages/auth:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
       '@electric-sql/pglite':
@@ -112,26 +118,26 @@ importers:
 
   packages/broadcast:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
       ws:
         specifier: ^8.21.3
         version: 8.22.0
     devDependencies:
-      '@caldera/auth':
+      '@caldera-js/auth':
         specifier: workspace:*
         version: link:../auth
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/events':
+      '@caldera-js/events':
         specifier: workspace:*
         version: link:../events
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
       '@electric-sql/pglite':
@@ -179,14 +185,14 @@ importers:
 
   packages/cache:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
       '@libsql/client':
@@ -219,16 +225,16 @@ importers:
 
   packages/cli:
     dependencies:
-      '@caldera/auth':
+      '@caldera-js/auth':
         specifier: workspace:*
         version: link:../auth
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/i18n':
+      '@caldera-js/i18n':
         specifier: workspace:*
         version: link:../i18n
       citty:
@@ -244,31 +250,31 @@ importers:
         specifier: ^4.6.0
         version: 4.6.7
     devDependencies:
-      '@caldera/broadcast':
+      '@caldera-js/broadcast':
         specifier: workspace:*
         version: link:../broadcast
-      '@caldera/cache':
+      '@caldera-js/cache':
         specifier: workspace:*
         version: link:../cache
-      '@caldera/events':
+      '@caldera-js/events':
         specifier: workspace:*
         version: link:../events
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
-      '@caldera/inertia':
+      '@caldera-js/inertia':
         specifier: workspace:*
         version: link:../inertia
-      '@caldera/mail':
+      '@caldera-js/mail':
         specifier: workspace:*
         version: link:../mail
-      '@caldera/notifications':
+      '@caldera-js/notifications':
         specifier: workspace:*
         version: link:../notifications
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
-      '@caldera/schedule':
+      '@caldera-js/schedule':
         specifier: workspace:*
         version: link:../schedule
       '@electric-sql/pglite':
@@ -356,11 +362,11 @@ importers:
 
   packages/db:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
       '@electric-sql/pglite':
@@ -390,17 +396,17 @@ importers:
 
   packages/events:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/cache':
+      '@caldera-js/cache':
         specifier: workspace:*
         version: link:../cache
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
       '@electric-sql/pglite':
@@ -418,7 +424,7 @@ importers:
 
   packages/http:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -434,7 +440,7 @@ importers:
 
   packages/i18n:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
       '@formatjs/icu-messageformat-parser':
@@ -444,10 +450,10 @@ importers:
         specifier: 12.1.3
         version: 12.1.3
     devDependencies:
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
-      '@caldera/inertia':
+      '@caldera-js/inertia':
         specifier: workspace:*
         version: link:../inertia
       '@inertiajs/react':
@@ -483,10 +489,10 @@ importers:
 
   packages/inertia:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
     devDependencies:
@@ -505,17 +511,17 @@ importers:
 
   packages/mail:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
       '@react-email/render':
         specifier: 2.1.1
         version: 2.1.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
     devDependencies:
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
-      '@caldera/storage':
+      '@caldera-js/storage':
         specifier: workspace:*
         version: link:../storage
       '@hono/node-server':
@@ -566,14 +572,14 @@ importers:
 
   packages/next:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
-      '@caldera/i18n':
+      '@caldera-js/i18n':
         specifier: workspace:*
         version: link:../i18n
       '@types/react':
@@ -600,17 +606,17 @@ importers:
 
   packages/notifications:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/mail':
+      '@caldera-js/mail':
         specifier: workspace:*
         version: link:../mail
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
       '@electric-sql/pglite':
@@ -652,14 +658,14 @@ importers:
 
   packages/queue:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/cache':
+      '@caldera-js/cache':
         specifier: workspace:*
         version: link:../cache
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
       '@electric-sql/pglite':
@@ -710,17 +716,17 @@ importers:
 
   packages/schedule:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
       croner:
         specifier: 10.0.1
         version: 10.0.1
     devDependencies:
-      '@caldera/cache':
+      '@caldera-js/cache':
         specifier: workspace:*
         version: link:../cache
       hono:
@@ -735,17 +741,17 @@ importers:
 
   packages/storage:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
       file-type:
         specifier: 21.3.4
         version: 21.3.4(supports-color@10.2.2)
     devDependencies:
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
       '@electric-sql/pglite':
@@ -784,29 +790,29 @@ importers:
 
   packages/testing:
     dependencies:
-      '@caldera/core':
+      '@caldera-js/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@caldera/auth':
+      '@caldera-js/auth':
         specifier: workspace:*
         version: link:../auth
-      '@caldera/cache':
+      '@caldera-js/cache':
         specifier: workspace:*
         version: link:../cache
-      '@caldera/db':
+      '@caldera-js/db':
         specifier: workspace:*
         version: link:../db
-      '@caldera/http':
+      '@caldera-js/http':
         specifier: workspace:*
         version: link:../http
-      '@caldera/inertia':
+      '@caldera-js/inertia':
         specifier: workspace:*
         version: link:../inertia
-      '@caldera/mail':
+      '@caldera-js/mail':
         specifier: workspace:*
         version: link:../mail
-      '@caldera/queue':
+      '@caldera-js/queue':
         specifier: workspace:*
         version: link:../queue
       '@libsql/client':
@@ -951,6 +957,67 @@ packages:
 
   '@borewit/text-codec@0.2.3':
     resolution: {integrity: sha512-49CycTz1aAZmvFcwkeFyhud1HUmRIB5Tabf7ALV+VA4Iu85MTfz2cUwzPagMFAdVBvrWdkCxG67I30tUwwpKsw==}
+
+  '@changesets/apply-release-plan@8.1.1':
+    resolution: {integrity: sha512-nk2Hbq3M9NeHMdaIRBDvawKrQJzXB9sGyBUE5yWnIKtvdcNCPj75zBekJYr0gTT2ecJH3eFeTrc8eisPImcv0Q==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/assemble-release-plan@7.0.0':
+    resolution: {integrity: sha512-oEW8BxdA604kGGtDSCiHr5w9Tv4UWe9I2k61IBNZzCOE1kbYaJj4v+lFQNgcEZFkUc2pV/+hASErGDvpJOZCTg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/changelog-git@1.0.0':
+    resolution: {integrity: sha512-3Dst2Ime2Op5nd4XmWJLPIgp11ZFqJqSkVug9izK6TDcIV4YlhPS4ECbEVR+eGI0bk0r1ItogD4j2Oli87bJrA==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/cli@3.0.3':
+    resolution: {integrity: sha512-L1i67bMfkK6iC/kDejuNO4pFgTRcWIObsD6Qof2woP1I4M8tj17DGlcpRaTzTv1DYSP5EMwWdEtR8X0Pj5Jg3Q==}
+    engines: {node: ^22.11 || ^24 || >=26, npm: '>=10.9.0', pnpm: '>=10.0.0', yarn: '>=4.5.2'}
+    hasBin: true
+
+  '@changesets/config@4.0.1':
+    resolution: {integrity: sha512-PxpxSQLQSLDjceAgRq+4FWlU+HflDIw03mmPVipxoQx9xrXFUjmqTy3SE+n/2t+DqPdpPiLWVr5NRiLZvjyLwg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/errors@1.0.0':
+    resolution: {integrity: sha512-ElN/mEzn6zmETgjwf5MclCMa9ef59sAR0lfO8VSYIsiRvbC2FbLB/92EoYw10Sl0kGixxHFiJZUSv7dA+YpR8g==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/format@0.1.3':
+    resolution: {integrity: sha512-zTZrJbfY81+/MsXsey6i3jQjpApz4PqRQ+nouHGDJhCa5sKCExwR9mZFQ/67lMsqZDNy2G2v3wTbzOmZ56EtaQ==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/get-dependents-graph@3.0.0':
+    resolution: {integrity: sha512-ji/t5wFA1zREKXRUePE6Qi+Qu2UgxCeSSGQrphezwvQZrp49B7sJ+8+wvM0tA7zPeSxYKCojDy3WWgrl+s+awg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/git@4.0.1':
+    resolution: {integrity: sha512-6vWpIAC4LkpmlqaIu37ViT5enyd9+uBwAiGqCGhASvkSHBgx4PrtTGXWTMFYpDmZbjgyonyVgMciPrW4MqtJsA==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/parse@1.0.0':
+    resolution: {integrity: sha512-P0iaMb9p9CRYZiTgAllEIF9AUMQHIy1G72tKlcIqJp61icZSsKQNiOPdxAMZG8m/DvZwt/oz5xEbTpike//dWg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/pre@3.0.0':
+    resolution: {integrity: sha512-Zm/6YliV/a2oeWTqHJf6KxLrQwgcK1i/BRDl2m0EKZvbnxV5fG9QRhwJJGshjsZTUTS6dkfURQ2K6aAvgNw/3Q==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/read@1.0.1':
+    resolution: {integrity: sha512-nzvSC6RcTiWf/dsuwZFXpLzGGsRHYCL68U3uHV7srsulU93aVWY7u2GEJiDZ+4GIIElfaW5EqtKC0UHroY+LTQ==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/should-skip-package@1.0.0':
+    resolution: {integrity: sha512-pwqoJmbONn1XgXmZXPEExgAaT+HdZLjALFTDgIm+PnS5KeO2nLtzA2/Q+4aMFY14kFMuXKG30MObhvDzWgzDgg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/types@7.0.0':
+    resolution: {integrity: sha512-c5GoiQyt3pxiXjrWSNoP8/GRf4kG+VnKzovx1OQM8dYYALlSwgedmkPmJ+ZqGxqwg9D3Bkj85Uo4KLd5BN3A0w==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/write@1.0.1':
+    resolution: {integrity: sha512-q/ThtP9gcnEP6xlv7LrY26C2mHqdGBti/MmOVngt/M/oIGYkssmQGxPK9WzBNt2juVcH/vml2WQ+ra8LXYOTaA==}
+    engines: {node: ^22.11 || ^24 || >=26}
 
   '@clack/core@1.5.1':
     resolution: {integrity: sha512-iHTrHA8MtVuLl2TfZySmcKv1qO2PoyC9Z7pfSDozEuV5vtY3/wcOPKJXlqJ5Oq2Cx5DDGQGAMVx6HZfRRoVEbQ==}
@@ -1648,6 +1715,18 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@manypkg/find-root@3.1.0':
+    resolution: {integrity: sha512-BcSqCyKhBVZ5YkSzOiheMCV41kqAFptW6xGqYSTjkVTl9XQpr+pqHhwgGCOHQtjDCv7Is6EFyA14Sm5GVbVABA==}
+    engines: {node: '>=20.0.0'}
+
+  '@manypkg/get-packages@3.1.0':
+    resolution: {integrity: sha512-0TbBVyvPrP7xGYBI/cP8UP+yl/z+HtbTttAD7FMAJgn/kXOTwh5/60TsqP9ZYY710forNfyV0N8P/IE/ujGZJg==}
+    engines: {node: '>=20.0.0'}
+
+  '@manypkg/tools@2.1.2':
+    resolution: {integrity: sha512-6QEf6yqFbETdwGITKq57aYoPfX/3K8XFNwsAlx0C1M7o8cb79sv1M3w+tWuWvIcSbNqrLF7OD7YpZMVVz335hQ==}
+    engines: {node: '>=20.0.0'}
+
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
 
@@ -1814,6 +1893,10 @@ packages:
 
   '@oxc-project/types@0.155.0':
     resolution: {integrity: sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q==}
+
+  '@pnpm/deps.graph-sequencer@1100.0.1':
+    resolution: {integrity: sha512-pOr5+q1fLYKwFN3LAJuGZEnfXDcQ73zqgDHMtGy+K+uIoUqyY+6MeDCWFwfu+4EFuq76I5EPFofoNAI+Bmmq4A==}
+    engines: {node: '>=22.13'}
 
   '@poppinss/colors@4.1.6':
     resolution: {integrity: sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg==}
@@ -2318,6 +2401,35 @@ packages:
   '@upstash/qstash@2.12.1':
     resolution: {integrity: sha512-1Sq4k+PN0CsU0loQ/CbIlJfqCnbcyna8OJ0daVVVPzplSHEWS5VK1uTIl2HKZd7ViH3i/nCkhOg95wK2lJ8wdQ==}
 
+  '@vercel/analytics@2.0.1':
+    resolution: {integrity: sha512-MTQG6V9qQrt1tsDeF+2Uoo5aPjqbVPys1xvnIftXSJYG2SrwXRHnqEvVoYID7BTruDz4lCd2Z7rM1BdkUehk2g==}
+    peerDependencies:
+      '@remix-run/react': ^2
+      '@sveltejs/kit': ^1 || ^2
+      next: '>= 13'
+      nuxt: '>= 3'
+      react: ^18 || ^19 || ^19.0.0-rc
+      svelte: '>= 4'
+      vue: ^3
+      vue-router: ^4
+    peerDependenciesMeta:
+      '@remix-run/react':
+        optional: true
+      '@sveltejs/kit':
+        optional: true
+      next:
+        optional: true
+      nuxt:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+      vue-router:
+        optional: true
+
   '@vitest/mocker@5.0.5':
     resolution: {integrity: sha512-xLL3lkDegJZw+MGoGaCCsFayDZthGgpAtr3Vziyfc4p7xH89K7KRPcRBBh/kEYm0Aqkt5DtTmkYpBtRV/FrHZg==}
     peerDependencies:
@@ -2540,6 +2652,10 @@ packages:
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
+
+  cac@7.1.0:
+    resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
+    engines: {node: '>=20.19.0'}
 
   call-bind-apply-helpers@1.0.2:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
@@ -3235,12 +3351,19 @@ packages:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
 
+  human-id@4.2.2:
+    resolution: {integrity: sha512-Z+8unD6em/MJwyrkWQ2M3wygRGI1+MztbutiNwk1DCuEPXOZRWGjtcMPZYP1exY9iNZMhd7ZOSMQSo9WYtiQRw==}
+    hasBin: true
+
   iconv-lite@0.7.3:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
+
+  import-meta-resolve@4.2.0:
+    resolution: {integrity: sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg==}
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -3295,6 +3418,9 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
+  jju@1.4.0:
+    resolution: {integrity: sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA==}
+
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
@@ -3309,6 +3435,9 @@ packages:
 
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
+
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
@@ -3328,6 +3457,9 @@ packages:
     peerDependenciesMeta:
       axios:
         optional: true
+
+  launch-editor@2.14.2:
+    resolution: {integrity: sha512-NHJEb30MGBCkmZXLZwz25t37QR4aY03ZzPYUJXOJaOa92uWwExI9SBQUuIznBYc1xkD7cJNGX7oc3Nl3sq2kQQ==}
 
   leac@0.6.0:
     resolution: {integrity: sha512-y+SqErxb8h7nE/fiEX07jsbuhrpO9lL8eca7/Y1nuWV2moNlXhyd59iDGcRf6moVyDMbmTNzL40SUyrFU/yDpg==}
@@ -3846,6 +3978,9 @@ packages:
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
 
+  package-manager-detector@1.9.0:
+    resolution: {integrity: sha512-zAMfbta9nPA8AKkA4WdmNAT8R8s6Dk0/xwPsqNnRidMFcLo1YkLuPDTgs2f64XdzS8vbLNnoJ+uUIkgbz7oRHA==}
+
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
 
@@ -4139,6 +4274,10 @@ packages:
   shebang-regex@3.0.0:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
+
+  shell-quote@1.12.0:
+    resolution: {integrity: sha512-PcByqNyT/38F2kDNi006HAMRJaULuBzq/FOsw3qdZvX/GA9W/jamDaRskgHjubHiftXK5sIFxLNkvrXUwcof6Q==}
+    engines: {node: '>= 0.4'}
 
   shiki@4.5.0:
     resolution: {integrity: sha512-OcRW72ngQvc+MSVWBRIovC/BTW589iUE/Vxav7VeM4RcY9MUjqB+IR6ILG1k9nuW6LiG/nct9uma4/MBtnZbmQ==}
@@ -4625,6 +4764,110 @@ snapshots:
   '@better-fetch/fetch@1.3.3': {}
 
   '@borewit/text-codec@0.2.3': {}
+
+  '@changesets/apply-release-plan@8.1.1':
+    dependencies:
+      '@changesets/config': 4.0.1
+      '@changesets/format': 0.1.3
+      '@changesets/git': 4.0.1
+      '@changesets/should-skip-package': 1.0.0
+      '@changesets/types': 7.0.0
+      import-meta-resolve: 4.2.0
+      jsonc-parser: 3.3.1
+      semver: 7.8.5
+
+  '@changesets/assemble-release-plan@7.0.0':
+    dependencies:
+      '@changesets/errors': 1.0.0
+      '@changesets/get-dependents-graph': 3.0.0
+      '@changesets/should-skip-package': 1.0.0
+      '@changesets/types': 7.0.0
+      semver: 7.8.5
+
+  '@changesets/changelog-git@1.0.0':
+    dependencies:
+      '@changesets/types': 7.0.0
+
+  '@changesets/cli@3.0.3':
+    dependencies:
+      '@changesets/apply-release-plan': 8.1.1
+      '@changesets/assemble-release-plan': 7.0.0
+      '@changesets/changelog-git': 1.0.0
+      '@changesets/config': 4.0.1
+      '@changesets/errors': 1.0.0
+      '@changesets/get-dependents-graph': 3.0.0
+      '@changesets/git': 4.0.1
+      '@changesets/pre': 3.0.0
+      '@changesets/read': 1.0.1
+      '@changesets/should-skip-package': 1.0.0
+      '@changesets/types': 7.0.0
+      '@changesets/write': 1.0.1
+      '@clack/prompts': 1.8.1
+      '@manypkg/get-packages': 3.1.0
+      '@pnpm/deps.graph-sequencer': 1100.0.1
+      cac: 7.1.0
+      import-meta-resolve: 4.2.0
+      launch-editor: 2.14.2
+      package-manager-detector: 1.9.0
+      semver: 7.8.5
+      tinyexec: 1.3.1
+
+  '@changesets/config@4.0.1':
+    dependencies:
+      '@changesets/get-dependents-graph': 3.0.0
+      '@changesets/should-skip-package': 1.0.0
+      '@changesets/types': 7.0.0
+      '@manypkg/get-packages': 3.1.0
+      picomatch: 4.0.7
+
+  '@changesets/errors@1.0.0': {}
+
+  '@changesets/format@0.1.3':
+    dependencies:
+      package-manager-detector: 1.9.0
+      tinyexec: 1.3.1
+
+  '@changesets/get-dependents-graph@3.0.0':
+    dependencies:
+      '@changesets/types': 7.0.0
+      semver: 7.8.5
+
+  '@changesets/git@4.0.1':
+    dependencies:
+      '@changesets/errors': 1.0.0
+      '@changesets/types': 7.0.0
+      '@manypkg/get-packages': 3.1.0
+      picomatch: 4.0.7
+      tinyexec: 1.3.1
+
+  '@changesets/parse@1.0.0':
+    dependencies:
+      '@changesets/types': 7.0.0
+      yaml: 2.9.1
+
+  '@changesets/pre@3.0.0':
+    dependencies:
+      '@changesets/errors': 1.0.0
+      '@changesets/types': 7.0.0
+      '@manypkg/get-packages': 3.1.0
+
+  '@changesets/read@1.0.1':
+    dependencies:
+      '@changesets/git': 4.0.1
+      '@changesets/parse': 1.0.0
+      '@changesets/types': 7.0.0
+
+  '@changesets/should-skip-package@1.0.0':
+    dependencies:
+      '@changesets/types': 7.0.0
+
+  '@changesets/types@7.0.0': {}
+
+  '@changesets/write@1.0.1':
+    dependencies:
+      '@changesets/format': 0.1.3
+      '@changesets/types': 7.0.0
+      human-id: 4.2.2
 
   '@clack/core@1.5.1':
     dependencies:
@@ -5126,6 +5369,21 @@ snapshots:
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
 
+  '@manypkg/find-root@3.1.0':
+    dependencies:
+      '@manypkg/tools': 2.1.2
+
+  '@manypkg/get-packages@3.1.0':
+    dependencies:
+      '@manypkg/find-root': 3.1.0
+      '@manypkg/tools': 2.1.2
+
+  '@manypkg/tools@2.1.2':
+    dependencies:
+      jju: 1.4.0
+      tinyglobby: 0.2.17
+      yaml: 2.9.1
+
   '@mdx-js/mdx@3.1.1(supports-color@10.2.2)':
     dependencies:
       '@types/estree': 1.0.10
@@ -5255,6 +5513,8 @@ snapshots:
   '@noble/hashes@2.4.0': {}
 
   '@oxc-project/types@0.155.0': {}
+
+  '@pnpm/deps.graph-sequencer@1100.0.1': {}
 
   '@poppinss/colors@4.1.6':
     dependencies:
@@ -5653,6 +5913,11 @@ snapshots:
       neverthrow: 7.2.0
       uncrypto: 0.1.3
 
+  '@vercel/analytics@2.0.1(next@16.4.3(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+    optionalDependencies:
+      next: 16.4.3(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react: 19.3.1
+
   '@vitest/mocker@5.0.5(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
@@ -5801,6 +6066,8 @@ snapshots:
       pg: 8.23.1
 
   bytes@3.1.2: {}
+
+  cac@7.1.0: {}
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
@@ -6384,11 +6651,15 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
+  human-id@4.2.2: {}
+
   iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
 
   ieee754@1.2.1: {}
+
+  import-meta-resolve@4.2.0: {}
 
   inherits@2.0.4: {}
 
@@ -6437,6 +6708,8 @@ snapshots:
 
   jiti@2.7.0: {}
 
+  jju@1.4.0: {}
+
   jose@5.10.0: {}
 
   jose@6.2.13: {}
@@ -6446,6 +6719,8 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json-schema-typed@8.0.2: {}
+
+  jsonc-parser@3.3.1: {}
 
   jsonfile@6.2.1:
     dependencies:
@@ -6460,6 +6735,11 @@ snapshots:
   laravel-precognition@2.1.1:
     dependencies:
       es-toolkit: 1.53.0
+
+  launch-editor@2.14.2:
+    dependencies:
+      picocolors: 1.1.1
+      shell-quote: 1.12.0
 
   leac@0.6.0: {}
 
@@ -7197,6 +7477,8 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
+  package-manager-detector@1.9.0: {}
+
   parse-entities@4.0.2:
     dependencies:
       '@types/unist': 2.0.11
@@ -7614,6 +7896,8 @@ snapshots:
       shebang-regex: 3.0.0
 
   shebang-regex@3.0.0: {}
+
+  shell-quote@1.12.0: {}
 
   shiki@4.5.0:
     dependencies:

@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { generate, type GenerateResult } from './codegen.js'
 import { CONVENTIONS, openProject } from './project.js'
 import { startDevBroadcastServer } from './broadcast.js'
@@ -242,7 +242,7 @@ function usesBroadcast(root: string): boolean {
   const manifest = join(root, 'package.json')
   if (!existsSync(manifest)) return false
   const pkg = JSON.parse(readFileSync(manifest, 'utf8')) as { dependencies?: Record<string, string> }
-  return Boolean(pkg.dependencies?.['@caldera/broadcast'])
+  return Boolean(pkg.dependencies?.['@caldera-js/broadcast'])
 }
 
 /** Resolves a package's executable from its own package.json `bin`, walking up node_modules. */

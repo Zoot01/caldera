@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration } from '@caldera/core'
+import { CalderaError, parseDuration } from '@caldera-js/core'
 import type { Context, MiddlewareHandler } from 'hono'
 import { ForbiddenError } from './errors.js'
 

@@ -1,5 +1,5 @@
-import { withAuthCookies } from '@caldera/auth'
-import { back, defineRequest, defineRoutes, ForbiddenError, NotFoundError, redirect, ValidationError } from '@caldera/http'
+import { withAuthCookies } from '@caldera-js/auth'
+import { back, defineRequest, defineRoutes, ForbiddenError, NotFoundError, redirect, ValidationError } from '@caldera-js/http'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { mw } from '../route-middleware'

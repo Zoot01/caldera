@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { CalderaError, type AnyConfigDefinition, type AnyEnvDefinition } from '@caldera/core'
+import { CalderaError, type AnyConfigDefinition, type AnyEnvDefinition } from '@caldera-js/core'
 import { CONVENTIONS, configFiles, exportsOfKind, type Project } from './project.js'
 import { AGENTS_FILE, agentsFile } from './agents.js'
 import { loadModels } from './models.js'
@@ -89,8 +89,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     files.map((file) => `import * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
     `\nexport const config = [${configs.map((c) => `${alias(c.file)}.${c.exportName}`).join(', ')}] as const\n`
 
-  // lang/<locale>/*.json, once the app uses @caldera/i18n: messages for i18n.gen.ts, keys for register.d.ts.
-  const lang = usesPackage(project, '@caldera/i18n') ? loadLang(project) : undefined
+  // lang/<locale>/*.json, once the app uses @caldera-js/i18n: messages for i18n.gen.ts, keys for register.d.ts.
+  const lang = usesPackage(project, '@caldera-js/i18n') ? loadLang(project) : undefined
 
   // Detected from source, not by importing: src/app.ts imports config.gen.ts, which may not exist yet.
   const hasApp = existsSync(project.path(CONVENTIONS.app)) && /export\s+const\s+app\b/.test(readFileSync(project.path(CONVENTIONS.app), 'utf8'))
@@ -99,7 +99,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
     `import type { ${envExport === 'env' ? 'env' : `${envExport} as env`} } from '${project.importFromGenerated(CONVENTIONS.env)}'\n` +
     (hasApp ? `import type { app } from '${project.importFromGenerated(CONVENTIONS.app)}'\n` : '') +
     `import type { config } from './config.gen${project.importExtension}'\n\n` +
-    `declare module '@caldera/core' {\n` +
+    `declare module '@caldera-js/core' {\n` +
     `  interface Register {\n` +
     `    env: typeof env\n` +
     `    config: typeof config\n` +
@@ -123,7 +123,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
       path: `${dir}/routes.gen.ts`,
       contents:
         HEADER +
-        `import { createRouter } from '@caldera/http'\n` +
+        `import { createRouter } from '@caldera-js/http'\n` +
         routeFilesUsed.map((file) => `import * as ${routesAlias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
         `\nexport const router = createRouter(${groups.map((g) => `${routesAlias(g.file)}.${g.exportName}`).join(', ')})\n`,
     })
@@ -131,7 +131,7 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
 
   // Edge queue consumers (Cloudflare's queue() handler) can't scan src/jobs, so they import this list.
   const jobs = await loadJobs(project)
-  if (jobs.length > 0 || usesPackage(project, '@caldera/queue')) {
+  if (jobs.length > 0 || usesPackage(project, '@caldera-js/queue')) {
     const jobFilesUsed = [...new Set(jobs.map((j) => j.file))]
     const jobsAlias = (file: string) => `jobs${jobFilesUsed.indexOf(file)}`
     generated.push({
@@ -146,20 +146,20 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
   // Listeners are passed to eventsProvider({ listeners }) in app.ts, so the file always exists once
   // the app uses events (an empty list until there are any).
   const listeners = await loadListeners(project)
-  if (listeners.length > 0 || usesPackage(project, '@caldera/events')) {
-    generated.push({ path: `${dir}/listeners.gen.ts`, contents: HEADER + providerList(project, 'listeners', { name: 'AnyListener', from: '@caldera/events' }, listeners) })
+  if (listeners.length > 0 || usesPackage(project, '@caldera-js/events')) {
+    generated.push({ path: `${dir}/listeners.gen.ts`, contents: HEADER + providerList(project, 'listeners', { name: 'AnyListener', from: '@caldera-js/events' }, listeners) })
   }
 
   // Passed to scheduleProvider({ schedules }) in app.ts: always written once the app uses schedules.
   const schedules = await loadSchedules(project)
-  if (schedules.length > 0 || usesPackage(project, '@caldera/schedule')) {
-    generated.push({ path: `${dir}/schedules.gen.ts`, contents: HEADER + providerList(project, 'schedules', { name: 'AnySchedule', from: '@caldera/schedule' }, schedules) })
+  if (schedules.length > 0 || usesPackage(project, '@caldera-js/schedule')) {
+    generated.push({ path: `${dir}/schedules.gen.ts`, contents: HEADER + providerList(project, 'schedules', { name: 'AnySchedule', from: '@caldera-js/schedule' }, schedules) })
   }
 
   // Passed to authorizationProvider({ policies }) in app.ts. Policies register when they're loaded,
   // and this list is what loads them: without it, a policy nothing else imports never applies.
   const { policies } = await loadPolicies(project)
-  if (policies.length > 0 || usesPackage(project, '@caldera/auth')) {
+  if (policies.length > 0 || usesPackage(project, '@caldera-js/auth')) {
     const used = [...new Set(policies.map((p) => p.file))]
     const alias = (file: string) => `policies${used.indexOf(file)}`
     generated.push({
@@ -173,8 +173,8 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
 
   // Passed to mailProvider({ mails }) in app.ts (previews, and workers sending queued mail).
   const mails = await loadMails(project)
-  if (mails.length > 0 || usesPackage(project, '@caldera/mail')) {
-    // Tailwind for mails, compiled here so sending never compiles it (@caldera/mail/tailwind).
+  if (mails.length > 0 || usesPackage(project, '@caldera-js/mail')) {
+    // Tailwind for mails, compiled here so sending never compiles it (@caldera-js/mail/tailwind).
     const existing = existsSync(project.path(`${dir}/mails.gen.ts`)) ? readFileSync(project.path(`${dir}/mails.gen.ts`), 'utf8') : ''
     const previousHash = /^\/\/ tailwind:([0-9a-f]+)$/m.exec(existing)?.[1]
     const previousJson = /^setMailStyles\((.*)\)$/m.exec(existing)?.[1]
@@ -183,17 +183,17 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
       path: `${dir}/mails.gen.ts`,
       contents:
         HEADER +
-        providerList(project, 'mails', { name: 'AnyMail', from: '@caldera/mail' }, mails, styles ? `import { setMailStyles } from '@caldera/mail/tailwind'\n` : '') +
+        providerList(project, 'mails', { name: 'AnyMail', from: '@caldera-js/mail' }, mails, styles ? `import { setMailStyles } from '@caldera-js/mail/tailwind'\n` : '') +
         (styles ? `\n// The Tailwind your mail templates use, compiled by React Email's <Tailwind>.\n// tailwind:${styles.hash}\nsetMailStyles(${styles.json})\n` : ''),
     })
   }
 
   // Passed to notificationsProvider({ notifications }) in app.ts (workers delivering queued notifications).
   const notifications = await loadNotifications(project)
-  if (notifications.length > 0 || usesPackage(project, '@caldera/notifications')) {
+  if (notifications.length > 0 || usesPackage(project, '@caldera-js/notifications')) {
     generated.push({
       path: `${dir}/notifications.gen.ts`,
-      contents: HEADER + providerList(project, 'notifications', { name: 'AnyNotification', from: '@caldera/notifications' }, notifications),
+      contents: HEADER + providerList(project, 'notifications', { name: 'AnyNotification', from: '@caldera-js/notifications' }, notifications),
     })
   }
 
@@ -202,15 +202,15 @@ export async function buildGeneratedFiles(project: Project): Promise<GeneratedFi
   // Channels: the list for broadcastProvider({ channels }), and their types for the browser, which
   // can't import src/channels (models, policies: server code).
   const channels = await loadChannels(project)
-  if (channels.length > 0 || usesPackage(project, '@caldera/broadcast')) {
+  if (channels.length > 0 || usesPackage(project, '@caldera-js/broadcast')) {
     generated.push(
-      { path: `${dir}/channels.gen.ts`, contents: HEADER + providerList(project, 'channels', { name: 'AnyChannel', from: '@caldera/broadcast' }, channels) },
+      { path: `${dir}/channels.gen.ts`, contents: HEADER + providerList(project, 'channels', { name: 'AnyChannel', from: '@caldera-js/broadcast' }, channels) },
       {
         path: `${dir}/broadcast.client.gen.ts`,
         contents:
           HEADER +
-          `// Imported by resources/app.tsx: channel types for @caldera/broadcast/client (no server code).\n` +
-          `import { registerChannels } from '@caldera/broadcast/client'\n\n` +
+          `// Imported by resources/app.tsx: channel types for @caldera-js/broadcast/client (no server code).\n` +
+          `import { registerChannels } from '@caldera-js/broadcast/client'\n\n` +
           `registerChannels(${JSON.stringify(Object.fromEntries(channels.map((c) => [c.channel.pattern, c.channel.type])), null, 2)})\n`,
       },
     )
@@ -248,9 +248,9 @@ export async function generate(project: Project, options: { check?: boolean } = 
   return result
 }
 
-/** The `@caldera/broadcast` block: channels by pattern and broadcast events by wire name, for the typed hooks. */
+/** The `@caldera-js/broadcast` block: channels by pattern and broadcast events by wire name, for the typed hooks. */
 async function broadcastRegister(project: Project): Promise<string> {
-  if (!usesPackage(project, '@caldera/broadcast')) return ''
+  if (!usesPackage(project, '@caldera-js/broadcast')) return ''
   const channels = await loadChannels(project)
   const events = await loadBroadcastEvents(project)
   const models = await loadBroadcastModels(project)
@@ -259,30 +259,30 @@ async function broadcastRegister(project: Project): Promise<string> {
   return (
     '\n' +
     files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
-    `\ndeclare module '@caldera/broadcast' {\n` +
+    `\ndeclare module '@caldera-js/broadcast' {\n` +
     `  interface BroadcastRegister {\n` +
     `    channels: {\n` +
     channels.map((c) => `      ${JSON.stringify(c.channel.pattern)}: typeof ${alias(c.file)}.${c.exportName}\n`).join('') +
     `    }\n` +
     `    events: {\n` +
     events.map((e) => `      ${JSON.stringify(e.event.broadcast!.as ?? e.event.name)}: typeof ${alias(e.file)}.${e.exportName}\n`).join('') +
-    models.flatMap((m) => m.events.map((name) => `      ${JSON.stringify(name)}: import('@caldera/broadcast').ModelBroadcastEvent<typeof ${alias(m.file)}.${m.exportName}>\n`)).join('') +
+    models.flatMap((m) => m.events.map((name) => `      ${JSON.stringify(name)}: import('@caldera-js/broadcast').ModelBroadcastEvent<typeof ${alias(m.file)}.${m.exportName}>\n`)).join('') +
     `    }\n` +
     `  }\n` +
     `}\n`
   )
 }
 
-/** The `@caldera/notifications` block: notifications by name, so inbox rows' `data` is typed. */
+/** The `@caldera-js/notifications` block: notifications by name, so inbox rows' `data` is typed. */
 async function notificationsRegister(project: Project): Promise<string> {
   const notifications = await loadNotifications(project)
-  if (notifications.length === 0 && !usesPackage(project, '@caldera/notifications')) return ''
+  if (notifications.length === 0 && !usesPackage(project, '@caldera-js/notifications')) return ''
   const files = [...new Set(notifications.map((n) => n.file))]
   const alias = (file: string) => `notifications${files.indexOf(file)}`
   return (
     '\n' +
     files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
-    `\ndeclare module '@caldera/notifications' {\n` +
+    `\ndeclare module '@caldera-js/notifications' {\n` +
     `  interface NotificationRegistry {\n` +
     [...notifications]
       .sort((a, b) => a.notification.name.localeCompare(b.notification.name))
@@ -293,7 +293,7 @@ async function notificationsRegister(project: Project): Promise<string> {
   )
 }
 
-/** The `@caldera/db` half of register.d.ts: relations, plus relations key → model for nested typing. */
+/** The `@caldera-js/db` half of register.d.ts: relations, plus relations key → model for nested typing. */
 async function databaseRegister(project: Project): Promise<string> {
   const { relations, models } = await loadModels(project)
   if (!relations) return ''
@@ -303,7 +303,7 @@ async function databaseRegister(project: Project): Promise<string> {
   return (
     `\nimport type { relations } from '${project.importFromGenerated(CONVENTIONS.relations)}'\n` +
     files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
-    `\ndeclare module '@caldera/db' {\n` +
+    `\ndeclare module '@caldera-js/db' {\n` +
     `  interface DatabaseRegister {\n` +
     `    relations: typeof relations\n` +
     `  }\n` +
@@ -316,19 +316,19 @@ async function databaseRegister(project: Project): Promise<string> {
 }
 
 /**
- * The `@caldera/auth` block: the model named `user` becomes AuthRegister.user, and every policy in
+ * The `@caldera-js/auth` block: the model named `user` becomes AuthRegister.user, and every policy in
  * `src/policies` is registered by model name, so `gate.can(Post, 'update', post)` is typed.
  */
 async function authRegister(project: Project, models: Awaited<ReturnType<typeof loadModels>>['models'], modelAlias: (file: string) => string): Promise<string> {
   const { policies } = await loadPolicies(project)
   const user = models.find((m) => m.model.name === 'user')
-  if (policies.length === 0 && !usesPackage(project, '@caldera/auth')) return ''
+  if (policies.length === 0 && !usesPackage(project, '@caldera-js/auth')) return ''
   const files = [...new Set(policies.map((p) => p.file))]
   const alias = (file: string) => `policies${files.indexOf(file)}`
   return (
-    `\nimport type { Row } from '@caldera/db'\n` +
+    `\nimport type { Row } from '@caldera-js/db'\n` +
     files.map((file) => `import type * as ${alias(file)} from '${project.importFromGenerated(file)}'\n`).join('') +
-    `\ndeclare module '@caldera/auth' {\n` +
+    `\ndeclare module '@caldera-js/auth' {\n` +
     (user ? `  interface AuthRegister {\n    user: Row<typeof ${modelAlias(user.file)}.${user.exportName}>\n  }\n` : '') +
     `  interface PolicyRegistry {\n` +
     [...policies]

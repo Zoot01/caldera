@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { resolveSecret } from './driver.js'
 import { createHub, newSocketId, type HubConnection } from './hub.js'
 import { redisCluster } from './redis.js'

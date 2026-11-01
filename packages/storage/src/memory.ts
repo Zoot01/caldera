@@ -1,4 +1,4 @@
-import { defineDriver } from '@caldera/core'
+import { defineDriver } from '@caldera-js/core'
 import type { FileInfo, StorageCapabilities, StorageDriver } from './driver.js'
 
 interface Stored {

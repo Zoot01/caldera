@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration } from '@caldera-js/core'
 import type { FileInfo, PutOptions, SignedUpload, StorageCapabilities, StorageDriver } from './driver.js'
 import { normalizeKey, normalizePrefix } from './key.js'
 import { sniff } from './sniff.js'

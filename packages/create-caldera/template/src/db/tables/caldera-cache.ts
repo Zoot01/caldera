@@ -1,7 +1,7 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 /**
- * The `database` cache store (@caldera/cache/database): one row per key, plus rate-limit counters.
+ * The `database` cache store (@caldera-js/cache/database): one row per key, plus rate-limit counters.
  * Caldera reads and writes it; no model needed. Works on SQLite, libSQL and D1.
  */
 export const calderaCache = sqliteTable('caldera_cache', {

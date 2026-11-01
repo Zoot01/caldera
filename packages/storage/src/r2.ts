@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { FileInfo, StorageCapabilities, StorageDriver } from './driver.js'
 
@@ -22,7 +22,7 @@ const info = (o: R2ObjectLike): FileInfo => ({ key: o.key, size: o.size, content
 
 /**
  * Cloudflare R2 through the Workers binding: fast, no credentials. The binding can't sign URLs; for
- * temporary or upload URLs use the `s3` driver with R2's S3 endpoint (from @caldera/storage/s3).
+ * temporary or upload URLs use the `s3` driver with R2's S3 endpoint (from @caldera-js/storage/s3).
  * Public URLs come from the bucket's public domain, if it has one.
  */
 export function r2Storage(bucket: R2BucketLike, options: { publicUrl?: string } = {}): StorageDriver {

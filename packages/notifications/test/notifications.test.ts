@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createClient } from '@libsql/client'
-import { createApp, defineEnv } from '@caldera/core'
-import { createDatabase, setDefaultDatabase, type Database } from '@caldera/db'
-import { createMail, mailProvider, setDefaultMail, type MailService } from '@caldera/mail'
-import { createQueue, queueProvider, setDefaultQueue } from '@caldera/queue'
+import { createApp, defineEnv } from '@caldera-js/core'
+import { createDatabase, setDefaultDatabase, type Database } from '@caldera-js/db'
+import { createMail, mailProvider, setDefaultMail, type MailService } from '@caldera-js/mail'
+import { createQueue, queueProvider, setDefaultQueue } from '@caldera-js/queue'
 import { sql } from 'drizzle-orm'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
@@ -272,7 +272,7 @@ describe('without a database', () => {
 
   it('explains what is missing: the database channel, a custom channel, a default notifiable', async () => {
     const notifications = createNotifications({ mail: () => memoryMail() })
-    expect(() => notifications.inbox(Users.of(ann))).toThrow(/import \{ databaseChannel \} from '@caldera\/notifications\/database'/)
+    expect(() => notifications.inbox(Users.of(ann))).toThrow(/import \{ databaseChannel \} from '@caldera-js\/notifications\/database'/)
     const MailAndSms = defineNotification({ name: 'mail-sms', payload: InvoicePaid.payload, channels: { mail: InvoicePaid.channels.mail, sms: InvoicePaid.channels.sms } })
     await expect(notifications.send(Users.of(ann), MailAndSms, invoice)).rejects.toThrow(/"sms" channel, which isn't set up/)
     await expect(notifications.send(Users.of(ann), InvoicePaid, invoice)).rejects.toThrow(/database channel isn't set up/)

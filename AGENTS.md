@@ -20,9 +20,9 @@ A Laravel-inspired TypeScript framework: Hono, Drizzle 1.0, Zod, Better Auth, In
 ## Commands
 
 - `pnpm test`: build every package, then run all tests.
-- `pnpm docs`: the docs site, live, on http://localhost:3200 (`pnpm --filter @caldera/docs build` checks every page compiles).
+- `pnpm docs`: the docs site, live, on http://localhost:3200 (`pnpm --filter @caldera-js/docs build` checks every page compiles).
 - `pnpm typecheck`: build, then type-check every package (tests included).
-- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs the app's own browser tests (Playwright, `pnpm test:browser`), `pnpm dev` with Vite and a production build, across Starter/Blank, teams and SQLite/Postgres. Slow; run it before committing template changes.
+- `pnpm test:e2e`: creates a real app from the template (`--link`, installs `@caldera-js/*` from `pnpm pack` tarballs, like npm would), then type-checks, tests, runs the app's own browser tests (Playwright, `pnpm test:browser`), `pnpm dev` with Vite and a production build, across Starter/Blank, teams and SQLite/Postgres. Slow; run it before committing template changes.
 - One package: `pnpm vitest run packages/<name>`. Packages import each other through `dist/`, so rebuild a dependency (`pnpm -s build` in it) after changing it.
 
 ## Tests against real backends
@@ -43,7 +43,7 @@ cd ~/Documents/testing-caldera
 node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <name> --pm pnpm --link ~/Documents/Github/caldera --no-git
 ```
 
-`--link` installs packed copies of the packages (`.caldera-local/*.tgz`) as they were at create time: a later `pnpm build` doesn't reach an existing app. Create a fresh app, or for a quick retry copy a package's `dist/` over the app's installed copy (`cp -R packages/cli/dist/. "$(readlink -f <app>/node_modules/@caldera/cli)/dist/"`).
+`--link` installs packed copies of the packages (`.caldera-local/*.tgz`) as they were at create time: a later `pnpm build` doesn't reach an existing app. Create a fresh app, or for a quick retry copy a package's `dist/` over the app's installed copy (`cp -R packages/cli/dist/. "$(readlink -f <app>/node_modules/@caldera-js/cli)/dist/"`).
 
 `--link` packs the local packages, so rebuild (`pnpm build`) and re-create the app after changing a package. Stop any dev servers you start there (ports 3000+ and Vite's 5173).
 
@@ -55,7 +55,7 @@ node ~/Documents/Github/caldera/packages/create-caldera/bin/create-caldera.js <n
 ## Conventions
 
 - Every `define*` returns plain data with a `kind`, so the CLI, codegen and AGENTS.md generation can find it.
-- Optional backends (ioredis, bullmq, aws4fetch, nodemailer…) live in their own entry points (`@caldera/queue/bullmq`, `@caldera/storage/s3`, `@caldera/mail/smtp`) and are passed as `drivers: [...]`, so edge bundles never see them.
+- Optional backends (ioredis, bullmq, aws4fetch, nodemailer…) live in their own entry points (`@caldera-js/queue/bullmq`, `@caldera-js/storage/s3`, `@caldera-js/mail/smtp`) and are passed as `drivers: [...]`, so edge bundles never see them.
 - The CLI loads a project with tsx (`openProject()`), in its own module graph: the project's packages are separate copies from the CLI's. Process-wide state goes on `globalThis` (`Symbol.for(...)`), errors are recognised by shape, and anything that must share the app's instances is loaded through `project.importPackage()`.
 - Packages don't depend on each other just to recognise errors or objects: match a `code`, a `kind`, or a `Symbol.for(...)` on `globalThis`.
 - Template and kit code (routes, middleware, models) never imports `src/app.ts`: `caldera generate` loads those files before the generated files `app.ts` imports exist, so a fresh app or clone couldn't generate. Services and the resolved config are on `c.var` (`c.var.config.auth`).

@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
-import { createDatabase, defineModel, setDefaultDatabase, type Row } from '@caldera/db'
+import { createDatabase, defineModel, setDefaultDatabase, type Row } from '@caldera-js/db'
 import { defineRelations } from 'drizzle-orm'
 import { boolean, snakeCase, text, uuid } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -45,7 +45,7 @@ export const PostPolicy = definePolicy(Post, {
 export const viewBilling = defineAbility('viewBilling', (user) => user.plan === 'pro')
 export const viewStatus = defineAbility('viewStatus', { guest: true, check: () => true })
 
-declare module '@caldera/db' {
+declare module '@caldera-js/db' {
   interface DatabaseRegister {
     relations: typeof relations
   }

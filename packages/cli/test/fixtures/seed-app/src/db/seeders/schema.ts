@@ -1,4 +1,4 @@
-import { defineSeeder } from '@caldera/db/seeders'
+import { defineSeeder } from '@caldera-js/db/seeders'
 import { sql } from 'drizzle-orm'
 
 // Stands in for migrations: the fixture database is in memory.

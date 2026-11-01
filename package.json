@@ -11,10 +11,14 @@
     "test": "pnpm build && vitest run",
     "typecheck": "pnpm build && pnpm -r --filter './packages/**' typecheck",
     "test:e2e": "pnpm build && CALDERA_E2E=1 vitest run packages/create-caldera",
-    "docs": "pnpm --filter @caldera/docs dev",
-    "sync:coss": "node scripts/sync-coss.mjs"
+    "docs": "pnpm --filter @caldera-js/docs dev",
+    "sync:coss": "node scripts/sync-coss.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@electric-sql/pglite": "0.5.13",
     "@libsql/client": "0.18.0",
     "@types/node": "^24.19.2",

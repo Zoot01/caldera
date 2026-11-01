@@ -1,4 +1,4 @@
-import { defineProvider } from '@caldera/core'
+import { defineProvider } from '@caldera-js/core'
 
 export const dbProvider = defineProvider({
   name: 'db',

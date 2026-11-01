@@ -1,4 +1,4 @@
-import { CalderaError, defineProvider, type RegisterContext } from '@caldera/core'
+import { CalderaError, defineProvider, type RegisterContext } from '@caldera-js/core'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { createI18n, keysMatching, type Catalog, type I18n, type I18nConfig, type Translator } from './i18n.js'
@@ -12,7 +12,7 @@ export interface RequestI18n extends Translator {
   readonly source: LocaleSource
   /** Switches this request to `locale` and remembers it in the cookie. Unsupported locales are refused. */
   setLocale(locale: string): void
-  /** The Zod error map for this locale (`@caldera/http` validation uses it). */
+  /** The Zod error map for this locale (`@caldera-js/http` validation uses it). */
   zodError(issue: unknown): string | undefined
   /** What a page gets as its `i18n` prop: the locale and the messages it declared, plus the shared ones. */
   page(component?: string): { locale: string; messages: Record<string, string> }

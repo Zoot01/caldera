@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import type { FormEvent } from 'react'
 import { forgotPassword } from '@/app/actions/auth'
 import { FormField } from '@/components/form-field'

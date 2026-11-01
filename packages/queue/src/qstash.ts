@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { Client, Receiver } from '@upstash/qstash'
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'

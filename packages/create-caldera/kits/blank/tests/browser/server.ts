@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync, rmSync } from 'node:fs'
-import { serveBroadcast } from '@caldera/broadcast/server'
-import { migrateFresh, testDatabaseUrl } from '@caldera/testing/database'
+import { serveBroadcast } from '@caldera-js/broadcast/server'
+import { migrateFresh, testDatabaseUrl } from '@caldera-js/testing/database'
 
 // The app Playwright drives (playwright.config.ts starts it once the build is done): src/server.ts on a
 // database and a storage folder of its own, emptied on every run. The database is a SQLite file, or

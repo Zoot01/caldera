@@ -1,5 +1,5 @@
-import { BootError, CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext, type RegisteredServices } from '@caldera/core'
-import type { AnyEvent, BroadcastPayload, EventDefinition, EventPayload } from '@caldera/events'
+import { BootError, CalderaError, createManager, defineProvider, type DriverDefinition, type Manager, type RegisterContext, type RegisteredServices } from '@caldera-js/core'
+import type { AnyEvent, BroadcastPayload, EventDefinition, EventPayload } from '@caldera-js/events'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { isChannel, type AnyChannel, type ChannelParams, type ChannelRef } from './channel.js'
@@ -10,7 +10,7 @@ import { sseDriver } from './sse.js'
 /**
  * Filled by `caldera generate` (register.d.ts), for typed hooks in the browser: channels by pattern
  * and broadcast events by the name browsers receive.
- * `declare module '@caldera/broadcast' { interface BroadcastRegister { channels: { 'posts.{post}': typeof PostChannel }; events: { 'post.updated': typeof PostUpdated } } }`
+ * `declare module '@caldera-js/broadcast' { interface BroadcastRegister { channels: { 'posts.{post}': typeof PostChannel }; events: { 'post.updated': typeof PostUpdated } } }`
  */
 export interface BroadcastRegister {}
 
@@ -111,7 +111,7 @@ export function createBroadcaster<const N extends string>(
     kind: 'broadcast',
     drivers: [pusherDriver, sseDriver, logDriver, nullDriver, ...(options.drivers ?? [])] as DriverDefinition<BroadcastDriver, BroadcastCapabilities>[],
     config: { default: config.default, instances: config.connections as never },
-    hints: { 'durable-object': "It's in @caldera/broadcast/cloudflare: pass `drivers: [durableObjectDriver]` to broadcastProvider." },
+    hints: { 'durable-object': "It's in @caldera-js/broadcast/cloudflare: pass `drivers: [durableObjectDriver]` to broadcastProvider." },
   })
   const channels: AnyChannel[] = []
   const pending = new Set<Promise<unknown>>()
@@ -221,7 +221,7 @@ export function createBroadcaster<const N extends string>(
       // Built now, so a bad channel or an oversized payload fails where the event is emitted.
       const sent = message(spec.on(payload), spec.as ?? event.name, spec.with ? spec.with(payload) : payload, broadcastOptions.toOthers ? currentSocket() : undefined)
       const queue = spec.queue && !fake ? (options.queue?.() ?? fromGlobal<QueueLike>('caldera.queue.default')) : undefined
-      if (spec.queue && !fake && !queue) throw new CalderaError('no_queue', `Broadcast "${event.name}" has \`queue: true\`, which needs queueProvider() from @caldera/queue.`)
+      if (spec.queue && !fake && !queue) throw new CalderaError('no_queue', `Broadcast "${event.name}" has \`queue: true\`, which needs queueProvider() from @caldera-js/queue.`)
       // After the transaction commits, so browsers that refetch see the change (and nothing on rollback).
       await afterCommit(() => (fake ? deliver(sent) : queue ? queue.dispatch(job, sent) : background(deliver(sent), sent.event)))
     },
@@ -250,7 +250,7 @@ export function createBroadcaster<const N extends string>(
         request.gate ??
         new Proxy({}, {
           get() {
-            throw new CalderaError('no_gate', `Channel "${channel.pattern}" uses \`gate\`, which needs authorizationProvider() from @caldera/auth.`)
+            throw new CalderaError('no_gate', `Channel "${channel.pattern}" uses \`gate\`, which needs authorizationProvider() from @caldera-js/auth.`)
           },
         })
       const ctx = { ...bound, user: request.user, params, gate, c: request.c }
@@ -303,7 +303,7 @@ export function createBroadcaster<const N extends string>(
   return broadcaster
 }
 
-// The app's database, as @caldera/db registers it, read without depending on it.
+// The app's database, as @caldera-js/db registers it, read without depending on it.
 async function afterCommit(callback: () => unknown) {
   const resolver = fromGlobal<() => { afterCommit(cb: () => unknown): Promise<void> }>('caldera.db.defaultDatabase')
   let db: { afterCommit(cb: () => unknown): Promise<void> } | undefined
@@ -325,7 +325,7 @@ export function setDefaultBroadcaster(broadcaster: Broadcaster | undefined) {
 
 export function defaultBroadcaster(): Broadcaster {
   const found = registry[DEFAULT]
-  if (!found) throw new CalderaError('no_broadcast', 'Broadcasting isn’t set up: add broadcastProvider() from @caldera/broadcast to the app.')
+  if (!found) throw new CalderaError('no_broadcast', 'Broadcasting isn’t set up: add broadcastProvider() from @caldera-js/broadcast to the app.')
   return found
 }
 

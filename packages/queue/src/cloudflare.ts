@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import type { QueueCapabilities, QueueDriver } from './driver.js'
 import type { Envelope } from './envelope.js'

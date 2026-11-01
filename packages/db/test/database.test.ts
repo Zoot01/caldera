@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
-import { CapabilityError, createApp, defineEnv } from '@caldera/core'
+import { CapabilityError, createApp, defineEnv } from '@caldera-js/core'
 import { defineRelations, eq, sql } from 'drizzle-orm'
 import { snakeCase, text, uuid } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/pglite'

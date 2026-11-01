@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import caldera from '@caldera/inertia/vite'
+import caldera from '@caldera-js/inertia/vite'
 import inertia from '@inertiajs/vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'

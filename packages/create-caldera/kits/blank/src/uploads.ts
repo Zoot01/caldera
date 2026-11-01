@@ -1,8 +1,8 @@
-import { defineUpload } from '@caldera/storage'
+import { defineUpload } from '@caldera-js/storage'
 
 /**
  * Kinds of direct upload (browser → bucket), served by uploadRoutes in src/http.ts. In a page:
- * `const { upload, progress } = useUpload('avatar')` from '@caldera/storage/react'; send the file it
+ * `const { upload, progress } = useUpload('avatar')` from '@caldera-js/storage/react'; send the file it
  * resolves with, check it with `zupload(avatar)` in the route's defineRequest, and store
  * `await claimUpload(file)`, which moves it into `directory` (once: a second claim is refused).
  */

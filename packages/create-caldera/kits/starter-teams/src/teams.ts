@@ -1,5 +1,5 @@
-import { defaultDatabase } from '@caldera/db'
-import { mail } from '@caldera/mail'
+import { defaultDatabase } from '@caldera-js/db'
+import { mail } from '@caldera-js/mail'
 import { organization } from 'better-auth/plugins'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 import type { Context } from 'hono'

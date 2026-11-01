@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from '@caldera/next/client'
+import { useForm } from '@caldera-js/next/client'
 import type { FormEvent } from 'react'
 import { updatePassword } from '@/app/actions/settings'
 import { useStatusToast } from '@/components/flash-toasts'

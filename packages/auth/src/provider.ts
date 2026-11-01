@@ -1,5 +1,5 @@
-import { defineProvider } from '@caldera/core'
-import type { AnyModel } from '@caldera/db'
+import { defineProvider } from '@caldera-js/core'
+import type { AnyModel } from '@caldera-js/db'
 import type { Context } from 'hono'
 import { createGate, type Gate } from './gate.js'
 import { registerPolicy, type AbilityOf, type AuthUser, type GateExtensions, type Policy, type PolicyArgs } from './policy.js'
@@ -13,7 +13,7 @@ export interface AuthorizationOptions {
   policies?: readonly Policy<AnyModel, unknown>[]
   /** How to find the current user. Defaults to `c.var.user`, which the auth middleware sets. */
   user?: (c: Context) => AuthUser | null
-  /** Adds fields to `g` in policies, e.g. `organizationGate({ roles })` from `@caldera/auth/organization`. */
+  /** Adds fields to `g` in policies, e.g. `organizationGate({ roles })` from `@caldera-js/auth/organization`. */
   extend?: (c: Context, base: { user: AuthUser | null }) => GateExtensions
 }
 
@@ -33,7 +33,7 @@ export function authorizationProvider(options: AuthorizationOptions = {}) {
 }
 
 /**
- * Route-level authorization for `@caldera/http`: `authorize: allows(Post, 'update', 'post')` checks
+ * Route-level authorization for `@caldera-js/http`: `authorize: allows(Post, 'update', 'post')` checks
  * the bound `c.var.post` after route model binding. Denials become 401, 403 or 404 responses.
  */
 export function allows<M extends AnyModel, const A extends AbilityOf<M>>(

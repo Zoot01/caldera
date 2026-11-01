@@ -1,5 +1,5 @@
-import { notify } from '@caldera/notifications'
-import { setupApp } from '@caldera/testing'
+import { notify } from '@caldera-js/notifications'
+import { setupApp } from '@caldera-js/testing'
 import { it } from 'vitest'
 import { app } from '../src/app.js'
 import { User } from '../src/models/user.js'

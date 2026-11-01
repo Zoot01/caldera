@@ -6,7 +6,7 @@ description: Validate a route's input with Zod, and what happens when it's wrong
 A request says what a route accepts: a [Zod](https://zod.dev) schema for its JSON body, form, query string or parameters. Validation runs before the handler, so the handler only ever sees valid, typed input.
 
 ```ts title="src/routes/notes.ts"
-import { defineRequest, defineRoutes } from '@caldera/http'
+import { defineRequest, defineRoutes } from '@caldera-js/http'
 import { z } from 'zod'
 
 const NoteForm = defineRequest({
@@ -74,7 +74,7 @@ Zod's own messages come out in plain language ("The title field must be at least
 Some rules need the database, or more than one field. Throw a `ValidationError` from the handler and it's answered the same way:
 
 ```ts
-import { ValidationError } from '@caldera/http'
+import { ValidationError } from '@caldera-js/http'
 
 if (await Note.findFirst({ where: { userId, title } })) {
   throw new ValidationError({ title: ['You already have a note with that title.'] })

@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 import { z } from 'zod'
 import { deriveSecret, resolveSecret, signSubscription, type BroadcastCapabilities, type BroadcastDriver } from './driver.js'
 import { createHub, newSocketId, type ConnectionState, type Hub, type HubConnection } from './hub.js'
@@ -43,7 +43,7 @@ const workers = globalThis as unknown as {
  * pings are answered without waking it, and each socket's subscriptions live in its attachment, so
  * they survive the object being evicted. One object (named "hub") holds every connection.
  *
- * In src/worker.ts: `export { BroadcastHub } from '@caldera/broadcast/cloudflare'`, and route
+ * In src/worker.ts: `export { BroadcastHub } from '@caldera-js/broadcast/cloudflare'`, and route
  * requests with `broadcastHubRoute(request, env)` before the app.
  */
 export class BroadcastHub {

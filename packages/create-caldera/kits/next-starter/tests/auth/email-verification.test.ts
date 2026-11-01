@@ -1,4 +1,4 @@
-import { setupApp } from '@caldera/testing'
+import { setupApp } from '@caldera-js/testing'
 import { expect, it } from 'vitest'
 import { app } from '../../src/app'
 import { http } from '../../src/http'

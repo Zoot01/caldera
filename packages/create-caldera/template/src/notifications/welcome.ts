@@ -1,4 +1,4 @@
-import { defineNotification } from '@caldera/notifications'
+import { defineNotification } from '@caldera-js/notifications'
 import { z } from 'zod'
 import { WelcomeEmail } from '../mail/welcome.js'
 

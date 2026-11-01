@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { broadcastNowhere } from './broadcast.js'
 import { CONVENTIONS, type Project } from './project.js'
 
@@ -11,15 +11,15 @@ export const D1_MIGRATIONS_DIR = 'migrations'
 /** The newest compatibility date the Wrangler Caldera suggests (4.151) runs locally. */
 export const COMPATIBILITY_DATE = '2026-07-30'
 
-const workerSource = (ext: string, ssr: boolean, broadcast: boolean) => `${broadcast ? `import { broadcastHubRoute } from '@caldera/broadcast/cloudflare'\n` : ''}import { setSsrRender, setViteManifest } from '@caldera/inertia'
-import { handleQueueBatch, type MessageBatchLike } from '@caldera/queue'
-import { handleScheduled } from '@caldera/schedule'
+const workerSource = (ext: string, ssr: boolean, broadcast: boolean) => `${broadcast ? `import { broadcastHubRoute } from '@caldera-js/broadcast/cloudflare'\n` : ''}import { setSsrRender, setViteManifest } from '@caldera-js/inertia'
+import { handleQueueBatch, type MessageBatchLike } from '@caldera-js/queue'
+import { handleScheduled } from '@caldera-js/schedule'
 import { jobs } from '../.caldera/jobs.gen${ext}'
 import { app } from './app${ext}'
 import { http } from './http${ext}'
 ${broadcast ? `
 // The realtime server: a Durable Object (wrangler.json durable_objects), reached at /app/{key}.
-export { BroadcastHub } from '@caldera/broadcast/cloudflare'
+export { BroadcastHub } from '@caldera-js/broadcast/cloudflare'
 ` : ''}${ssr ? `// @ts-ignore: written by \`vite build --ssr\` (pnpm build), before wrangler bundles the Worker.
 import render from '../build/ssr/ssr.js'
 
@@ -80,7 +80,7 @@ export async function cloudflareSetup(project: Project, options: { force?: boole
   if (existsSync(project.path('wrangler.toml')) || existsSync(project.path('wrangler.jsonc'))) existing.push(existsSync(project.path('wrangler.toml')) ? 'wrangler.toml' : 'wrangler.jsonc')
   if (existing.length && !options.force) throw new CalderaError('file_exists', `Refusing to overwrite ${existing.join(', ')}. Pass --force to replace.`, { files: existing })
   const name = slug(project)
-  const broadcast = usesDependency(project, '@caldera/broadcast')
+  const broadcast = usesDependency(project, '@caldera-js/broadcast')
   const schedules = existsSync(project.path(CONVENTIONS.schedulesDir)) && readdirSync(project.path(CONVENTIONS.schedulesDir)).some((f) => f.endsWith('.ts'))
   const config = {
     $schema: 'node_modules/wrangler/config-schema.json',
@@ -221,9 +221,9 @@ export async function workersIssues(project: Project, boot: (env: Record<string,
   const mailDir = project.path(CONVENTIONS.mailDir)
   for (const name of existsSync(mailDir) ? readdirSync(mailDir).filter((f) => f.endsWith('.tsx')) : []) {
     const source = readFileSync(join(mailDir, name), 'utf8')
-    // React Email's own <Tailwind> compiles on every send; @caldera/mail/tailwind's is precompiled.
-    if (/<Tailwind[\s>]/.test(source) && !source.includes('@caldera/mail/tailwind')) {
-      issues.push({ code: 'workers_tailwind', severity: 'warning', message: `${CONVENTIONS.mailDir}/${name} uses React Email's <Tailwind>, which compiles Tailwind on every send: slow, and heavy for a Worker's CPU and size limits. Import Tailwind from '@caldera/mail/tailwind' instead (precompiled by caldera generate).`, file: `${CONVENTIONS.mailDir}/${name}`, fix: "import { Tailwind } from '@caldera/mail/tailwind'" })
+    // React Email's own <Tailwind> compiles on every send; @caldera-js/mail/tailwind's is precompiled.
+    if (/<Tailwind[\s>]/.test(source) && !source.includes('@caldera-js/mail/tailwind')) {
+      issues.push({ code: 'workers_tailwind', severity: 'warning', message: `${CONVENTIONS.mailDir}/${name} uses React Email's <Tailwind>, which compiles Tailwind on every send: slow, and heavy for a Worker's CPU and size limits. Import Tailwind from '@caldera-js/mail/tailwind' instead (precompiled by caldera generate).`, file: `${CONVENTIONS.mailDir}/${name}`, fix: "import { Tailwind } from '@caldera-js/mail/tailwind'" })
     }
   }
   return issues

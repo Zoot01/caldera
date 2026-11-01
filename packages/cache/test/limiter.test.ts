@@ -1,5 +1,5 @@
-import { createApp, defineEnv } from '@caldera/core'
-import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera/http'
+import { createApp, defineEnv } from '@caldera-js/core'
+import { createRouter, defineRoutes, errorHandler, sessionProvider, startSession, ValidationError, type ErrorBody } from '@caldera-js/http'
 import { Hono } from 'hono'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cacheProvider, createCacheService, defineLimiter, every, gcra, perMinute } from '../src/index.js'

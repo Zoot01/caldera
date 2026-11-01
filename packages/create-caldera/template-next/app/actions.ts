@@ -1,8 +1,8 @@
 'use server'
 
-import { zodErrorMap, type RequestI18n } from '@caldera/i18n'
-import { requestContext, services } from '@caldera/next'
-import { notify } from '@caldera/notifications'
+import { zodErrorMap, type RequestI18n } from '@caldera-js/i18n'
+import { requestContext, services } from '@caldera-js/next'
+import { notify } from '@caldera-js/notifications'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { app } from '../src/app'

@@ -1,6 +1,6 @@
-import { createApp } from '@caldera/core'
-import { queueProvider } from '@caldera/queue'
-import { bullmqDriver } from '@caldera/queue/bullmq'
+import { createApp } from '@caldera-js/core'
+import { queueProvider } from '@caldera-js/queue'
+import { bullmqDriver } from '@caldera-js/queue/bullmq'
 import { config } from '../.caldera/config.gen.js'
 import { env } from './env.js'
 

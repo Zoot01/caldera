@@ -12,7 +12,7 @@ pnpm exec caldera make:policy Note
 ```
 
 ```ts title="src/policies/note.ts"
-import { definePolicy, deny } from '@caldera/auth'
+import { definePolicy, deny } from '@caldera-js/auth'
 import { Note } from '../models/note'
 
 export const NotePolicy = definePolicy(Note, {
@@ -64,7 +64,7 @@ view: { guest: true, check: (user, note) => note.pinned || note.userId === user?
 `allows` checks an ability before the handler runs, after [binding](/docs/routing#route-model-binding) has loaded the row:
 
 ```ts
-import { allows } from '@caldera/auth'
+import { allows } from '@caldera-js/auth'
 
 .get(
   'show',
@@ -140,7 +140,7 @@ Keep `scope` and `view` saying the same thing: one lists notes, the other opens 
 Some permissions aren't about a row, like seeing the reports page. Define those with `defineAbility`, in `src/policies/` too:
 
 ```ts title="src/policies/abilities.ts"
-import { defineAbility } from '@caldera/auth'
+import { defineAbility } from '@caldera-js/auth'
 
 export const viewReports = defineAbility('viewReports', (user) => user.role === 'admin')
 ```

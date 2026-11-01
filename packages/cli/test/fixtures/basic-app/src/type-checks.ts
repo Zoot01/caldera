@@ -17,7 +17,7 @@ export async function nestedHidden() {
 }
 
 // Only types once `caldera generate` registers the user model and policies.
-import { createGate } from '@caldera/auth'
+import { createGate } from '@caldera-js/auth'
 
 export async function gateChecks(post: Awaited<ReturnType<typeof Post.findOrFail>>) {
   const gate = createGate({ user: null })

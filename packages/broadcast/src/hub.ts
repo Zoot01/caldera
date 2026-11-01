@@ -50,7 +50,7 @@ export interface HubOptions {
   maxPayloadBytes?: number
   /** Seconds of silence before pusher-js pings. Default 30. */
   activityTimeout?: number
-  /** Several hubs serving one app (see `redisCluster` in @caldera/broadcast/redis). */
+  /** Several hubs serving one app (see `redisCluster` in @caldera-js/broadcast/redis). */
   cluster?: HubCluster
 }
 

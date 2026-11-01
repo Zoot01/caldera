@@ -16,7 +16,7 @@ pnpm exec caldera make:channel Note
 ```
 
 ```ts title="src/channels/note.ts"
-import { defineChannel } from '@caldera/broadcast'
+import { defineChannel } from '@caldera-js/broadcast'
 import { Note } from '../models/note'
 
 export const NoteChannel = defineChannel('notes.{note}', {
@@ -40,7 +40,7 @@ The starter has one already, `users.{id}`, which only that user can join.
 An [event](/docs/events) with `broadcast` reaches browsers on a channel too:
 
 ```ts title="src/events/note-renamed.ts"
-import { defineEvent } from '@caldera/events'
+import { defineEvent } from '@caldera-js/events'
 import { z } from 'zod'
 import { NoteChannel } from '../channels/note'
 
@@ -73,7 +73,7 @@ Broadcasts go out once the listeners have run, and after the transaction commits
 A model can broadcast its own changes. Every note created, updated or deleted reaches its owner's other tabs, and anyone looking at that note:
 
 ```ts title="src/models/note.ts"
-import { channel } from '@caldera/broadcast'
+import { channel } from '@caldera-js/broadcast'
 
 export const Note = defineModel(notes, {
   // …
@@ -94,7 +94,7 @@ Browsers get `note.created`, `note.updated` and `note.deleted`. `with` is requir
 ## Listening in pages
 
 ```tsx
-import { useChannel } from '@caldera/broadcast/react'
+import { useChannel } from '@caldera-js/broadcast/react'
 import { router } from '@inertiajs/react'
 import { toastManager } from '@/components/ui/toast'
 
@@ -126,7 +126,7 @@ export const NoteViewers = defineChannel('notes.{note}.viewers', {
 ```
 
 ```tsx
-import { usePresence } from '@caldera/broadcast/react'
+import { usePresence } from '@caldera-js/broadcast/react'
 
 const { members } = usePresence('notes.{note}.viewers', { note: note.id })
 

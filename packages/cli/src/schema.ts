@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { relative } from 'node:path'
 import { loadModels } from './models.js'
 import { names } from './names.js'

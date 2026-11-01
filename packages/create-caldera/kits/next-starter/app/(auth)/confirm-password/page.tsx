@@ -1,4 +1,4 @@
-import { load } from '@caldera/next'
+import { load } from '@caldera-js/next'
 import type { Metadata } from 'next'
 import AuthLayout from '@/layouts/auth-layout'
 import { http } from '@/src/http'

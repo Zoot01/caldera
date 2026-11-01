@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/events",
+  "name": "@caldera-js/events",
   "version": "0.0.0",
   "description": "Caldera events: typed events, listeners (in-process or queued as jobs), after-commit emits and fakes.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/events",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "events"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -22,15 +31,21 @@
     "zod": "^4.6.0"
   },
   "dependencies": {
-    "@caldera/core": "workspace:*"
+    "@caldera-js/core": "workspace:*"
   },
   "devDependencies": {
-    "@caldera/cache": "workspace:*",
-    "@caldera/db": "workspace:*",
-    "@caldera/queue": "workspace:*",
+    "@caldera-js/cache": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "drizzle-orm": "1.0.0-rc.5",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

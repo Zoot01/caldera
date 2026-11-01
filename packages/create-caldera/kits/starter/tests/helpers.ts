@@ -1,4 +1,4 @@
-import type { TestApp } from '@caldera/testing'
+import type { TestApp } from '@caldera-js/testing'
 import { http } from '../src/http.js'
 import { User } from '../src/models/user.js'
 

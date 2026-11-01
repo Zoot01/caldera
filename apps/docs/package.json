@@ -1,5 +1,5 @@
 {
-  "name": "@caldera/docs",
+  "name": "@caldera-js/docs",
   "private": true,
   "type": "module",
   "scripts": {

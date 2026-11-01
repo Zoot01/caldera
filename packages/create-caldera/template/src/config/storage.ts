@@ -1,4 +1,4 @@
-import { defineConfig } from '@caldera/core'
+import { defineConfig } from '@caldera-js/core'
 
 export const storage = defineConfig('storage', (env) => ({
   default: env.FILES ? ('r2' as const) : env.S3_BUCKET ? ('s3' as const) : ('local' as const),

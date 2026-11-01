@@ -1,5 +1,5 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { appendHeader, isSessionStarted, previousUrl, sessionOf } from '@caldera/http'
+import { appendHeader, isSessionStarted, previousUrl, sessionOf } from '@caldera-js/http'
 import type { Context, MiddlewareHandler } from 'hono'
 import { always, isProp, propKind, type LazyProp, type Prop, type PropsInput } from './props.js'
 import { renderOnServer, type SsrRenderer, type SsrResult } from './ssr.js'
@@ -286,7 +286,7 @@ export function serializePage(page: PageObject): string {
   return JSON.stringify(page).replaceAll('<', '\\u003c').replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029')
 }
 
-/** `lang` (and `dir` for right-to-left scripts) from @caldera/i18n's locale, matched by shape; `en` without it. */
+/** `lang` (and `dir` for right-to-left scripts) from @caldera-js/i18n's locale, matched by shape; `en` without it. */
 export function htmlLang(c: Context): string {
   let locale = 'en'
   try {

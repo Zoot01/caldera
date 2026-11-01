@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { AUTH_SCHEMA_FILE, generateProjectAuthSchema } from './auth-schema.js'
 import { generate } from './codegen.js'
 import { i18nReport } from './i18n.js'
@@ -93,7 +93,7 @@ export async function check(project: Project): Promise<CheckResult> {
 }
 
 function asIssue(error: unknown): CheckIssue {
-  // By shape: errors from the project's code come from its own copy of @caldera/core.
+  // By shape: errors from the project's code come from its own copy of @caldera-js/core.
   if (error instanceof Error && typeof (error as CalderaError).code === 'string') {
     const e = error as CalderaError
     const file = (e.details as { file?: string } | undefined)?.file

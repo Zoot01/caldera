@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 
 /**
  * Turns a user-supplied path into a safe object key: forward slashes, no leading slash, no empty

@@ -1,5 +1,5 @@
-import type { RequestI18n } from '@caldera/i18n'
-import { requestContext, services } from '@caldera/next'
+import type { RequestI18n } from '@caldera-js/i18n'
+import { requestContext, services } from '@caldera-js/next'
 import { app } from '../src/app'
 import { User } from '../src/models/user'
 import { Hello } from './hello'

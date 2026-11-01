@@ -1,4 +1,4 @@
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 
 /** An address: `'ann@example.test'`, `'Ann <ann@example.test>'`, `{ name, email }`, or any row with `email` (a user). */
 export type AddressInput = string | { email: string; name?: string | null }

@@ -1,4 +1,4 @@
-import { CalderaError, parseDuration, type Duration } from '@caldera/core'
+import { CalderaError, parseDuration, type Duration } from '@caldera-js/core'
 import type { z } from 'zod'
 import type { CacheCapabilities, CacheStore, ThrottleRequest, ThrottleResult } from './store.js'
 

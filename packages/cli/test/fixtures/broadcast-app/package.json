@@ -1,1 +1,1 @@
-{"name": "fixture-broadcast-app", "private": true, "type": "module", "dependencies": {"@caldera/broadcast": "workspace:*", "@caldera/db": "workspace:*", "@caldera/events": "workspace:*"}}
+{"name": "fixture-broadcast-app", "private": true, "type": "module", "dependencies": {"@caldera-js/broadcast": "workspace:*", "@caldera-js/db": "workspace:*", "@caldera-js/events": "workspace:*"}}

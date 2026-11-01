@@ -1,13 +1,13 @@
-import { CalderaError, type Duration } from '@caldera/core'
+import { CalderaError, type Duration } from '@caldera-js/core'
 import type { JobContext, JobMiddleware } from './job.js'
 
-/** A cache that can hold locks, e.g. `c.var.cache` from `@caldera/cache`. */
+/** A cache that can hold locks, e.g. `c.var.cache` from `@caldera-js/cache`. */
 interface LockingCache {
   readonly capabilities: { locks: boolean }
   lock(name: string, ttl: Duration): { acquire(): Promise<boolean>; release(): Promise<boolean> }
 }
 
-/** A limiter from `defineLimiter()` in `@caldera/cache`. */
+/** A limiter from `defineLimiter()` in `@caldera-js/cache`. */
 interface LimiterLike {
   readonly name: string
   attempt(cache: never, key: string | readonly string[]): Promise<{ allowed: boolean; limits: { retryAfterMs: number }[] }>

@@ -43,7 +43,7 @@ await disk.delete('reports/q3.csv')
 Check an uploaded file in the request with `zfile`, then store it with `putFile`:
 
 ```ts
-import { zfile } from '@caldera/storage'
+import { zfile } from '@caldera-js/storage'
 
 const AttachFile = defineRequest({
   form: z.object({ file: zfile({ maxSize: '10mb', mimes: ['pdf', 'image/*'] }) }),
@@ -88,8 +88,8 @@ const AttachFile = defineRequest({
 A file column holds where the file is, with the name to download it as. `fileRef` is its schema:
 
 ```ts title="src/db/tables/note.ts"
-import { timestamps, zjson } from '@caldera/db/sqlite'
-import { fileRef } from '@caldera/storage'
+import { timestamps, zjson } from '@caldera-js/db/sqlite'
+import { fileRef } from '@caldera-js/storage'
 
 export const notes = snakeCase.table('notes', {
   // …
@@ -100,7 +100,7 @@ export const notes = snakeCase.table('notes', {
 `cleanupFiles` deletes the old file when a row gets a new one, and when the row is deleted for good, once the change commits:
 
 ```ts title="src/models/note.ts"
-import { cleanupFiles } from '@caldera/storage'
+import { cleanupFiles } from '@caldera-js/storage'
 
 export const Note = defineModel(notes, {
   // …
@@ -115,7 +115,7 @@ A soft delete keeps the file, so restoring the note restores its attachment.
 For private files, check who may see the file, then send it:
 
 ```ts
-import { fileResponse } from '@caldera/storage'
+import { fileResponse } from '@caldera-js/storage'
 
 .get(
   'download',
@@ -134,7 +134,7 @@ It downloads under the name it was uploaded with. `fileResponse(file, { inline: 
 Or hand out a link that stops working after a while, so the file doesn't pass through your app:
 
 ```ts
-import { temporaryFileUrl } from '@caldera/storage'
+import { temporaryFileUrl } from '@caldera-js/storage'
 
 const url = await temporaryFileUrl(file, '5m')
 ```
@@ -150,7 +150,7 @@ Some hosts limit request bodies (Vercel: 4.5MB), and big files shouldn't pass th
 Say what may be uploaded in `src/uploads.ts`:
 
 ```ts title="src/uploads.ts"
-import { defineUpload } from '@caldera/storage'
+import { defineUpload } from '@caldera-js/storage'
 
 export const attachment = defineUpload('attachment', {
   rules: { maxSize: '20mb', mimes: ['pdf', 'image/*'] },
@@ -164,7 +164,7 @@ In the page, `useUpload` sends the file, with progress, and the form sends what 
 
 ```tsx
 import { router } from '@inertiajs/react'
-import { useUpload } from '@caldera/storage/react'
+import { useUpload } from '@caldera-js/storage/react'
 
 export function AttachmentField({ noteId }: { noteId: string }) {
   const { upload, progress, error } = useUpload('attachment')
@@ -189,7 +189,7 @@ export function AttachmentField({ noteId }: { noteId: string }) {
 The route checks it with `zupload` and keeps it with `claimUpload`:
 
 ```ts
-import { claimUpload, zupload } from '@caldera/storage'
+import { claimUpload, zupload } from '@caldera-js/storage'
 
 const AttachUpload = defineRequest({ body: z.object({ attachment: zupload(attachment) }) })
 

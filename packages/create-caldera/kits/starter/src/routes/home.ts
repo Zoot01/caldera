@@ -1,4 +1,4 @@
-import { defineRoutes } from '@caldera/http'
+import { defineRoutes } from '@caldera-js/http'
 
 export const home = defineRoutes('home')
   // The welcome page (resources/pages/Home.tsx). A page's props come straight from its route, typed

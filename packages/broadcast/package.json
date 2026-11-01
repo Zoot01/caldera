@@ -1,9 +1,18 @@
 {
-  "name": "@caldera/broadcast",
+  "name": "@caldera-js/broadcast",
   "version": "0.0.0",
   "description": "Caldera realtime broadcasting: typed channels and events over the pusher protocol (Pusher, Soketi, Reverb, a Cloudflare Durable Object, or its own server).",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://calderajs.dev/docs/realtime",
+  "keywords": [
+    "caldera",
+    "framework",
+    "typescript",
+    "hono",
+    "laravel",
+    "broadcast"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -43,8 +52,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@caldera/auth": "workspace:*",
-    "@caldera/events": "workspace:*",
+    "@caldera-js/auth": "workspace:*",
+    "@caldera-js/events": "workspace:*",
     "hono": "^4.13.14",
     "zod": "^4.6.0",
     "pusher-js": "^8.4.0",
@@ -52,7 +61,7 @@
     "ioredis": "^5.4.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
-    "@caldera/auth": {
+    "@caldera-js/auth": {
       "optional": true
     },
     "pusher-js": {
@@ -66,15 +75,15 @@
     }
   },
   "dependencies": {
-    "@caldera/core": "workspace:*",
+    "@caldera-js/core": "workspace:*",
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@caldera/auth": "workspace:*",
-    "@caldera/db": "workspace:*",
-    "@caldera/events": "workspace:*",
-    "@caldera/http": "workspace:*",
-    "@caldera/queue": "workspace:*",
+    "@caldera-js/auth": "workspace:*",
+    "@caldera-js/db": "workspace:*",
+    "@caldera-js/events": "workspace:*",
+    "@caldera-js/http": "workspace:*",
+    "@caldera-js/queue": "workspace:*",
     "@electric-sql/pglite": "0.5.13",
     "@hono/node-server": "^2.1.5",
     "@types/react": "19.3.0",
@@ -89,5 +98,11 @@
     "react-dom": "19.3.1",
     "typescript": "5.9.3",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

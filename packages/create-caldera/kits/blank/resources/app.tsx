@@ -1,5 +1,5 @@
 import '@vitejs/plugin-react/preamble'
-import { configureBroadcast, withSocketId } from '@caldera/broadcast/client'
+import { configureBroadcast, withSocketId } from '@caldera-js/broadcast/client'
 import { http } from '@inertiajs/core'
 import { createInertiaApp, router } from '@inertiajs/react'
 import '../.caldera/broadcast.client.gen.js'
@@ -8,7 +8,7 @@ import './app.css'
 import { layout } from './layout.js'
 import { title } from './title.js'
 
-// Realtime: useChannel()/usePresence() from @caldera/broadcast/react connect with the `broadcast`
+// Realtime: useChannel()/usePresence() from @caldera-js/broadcast/react connect with the `broadcast`
 // page prop, and every request carries this browser's socket id, so `toOthers` broadcasts skip it.
 router.on('navigate', (event) => configureBroadcast(event.detail.page.props.broadcast))
 http.onRequest(withSocketId)

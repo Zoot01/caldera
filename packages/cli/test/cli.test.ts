@@ -47,9 +47,9 @@ describe('caldera generate', () => {
       ['AGENTS.md', 'updated'],
     ])
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
-    expect(register).toContain(`declare module '@caldera/db'`)
+    expect(register).toContain(`declare module '@caldera-js/db'`)
     expect(register).toContain('    posts: typeof models0.default\n    users: typeof models1.User\n')
-    expect(register).toContain(`declare module '@caldera/auth'`)
+    expect(register).toContain(`declare module '@caldera-js/auth'`)
     expect(register).toContain('    user: Row<typeof models1.User>\n')
     expect(register).toContain('    post: typeof policies0.PostPolicy\n')
     const routes = readFileSync(join(root, '.caldera/routes.gen.ts'), 'utf8')
@@ -69,7 +69,7 @@ describe('caldera generate', () => {
     expect(withRegister.stdout + withRegister.stderr).toBe('')
     expect(withRegister.status).toBe(0)
 
-    // Without the @caldera/db half, model queries lose their relational types.
+    // Without the @caldera-js/db half, model queries lose their relational types.
     const register = readFileSync(join(root, '.caldera/register.d.ts'), 'utf8')
     writeFileSync(join(root, '.caldera/register.d.ts'), register.slice(0, register.indexOf("\nimport type { relations }")))
     expect(typecheck(root).stdout).toMatch(/type-checks\.ts\(\d+,\d+\): error/)
@@ -88,7 +88,7 @@ describe('caldera generate', () => {
 
     writeFileSync(
       join(root, 'src/config/mail.ts'),
-      `import { defineConfig } from '@caldera/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`,
+      `import { defineConfig } from '@caldera-js/core'\nexport const mail = defineConfig('mail', () => ({ from: 'hi@example.test' }))\n`,
     )
     const check = await generate(project, { check: true })
     expect(check.stale).toBe(true)
@@ -99,7 +99,7 @@ describe('caldera generate', () => {
   it('rejects two config files using the same name', async () => {
     writeFileSync(
       join(root, 'src/config/site-copy.ts'),
-      `import { defineConfig } from '@caldera/core'\nexport const again = defineConfig('site', () => ({}))\n`,
+      `import { defineConfig } from '@caldera-js/core'\nexport const again = defineConfig('site', () => ({}))\n`,
     )
     await expect(generate(openProject(root))).rejects.toThrow(/Config "site" is defined in both/)
   })
@@ -158,7 +158,7 @@ describe('caldera route:list', () => {
   it('reports duplicate route names across files', async () => {
     writeFileSync(
       join(root, 'src/routes/copy.ts'),
-      `import { defineRoutes } from '@caldera/http'\nexport const again = defineRoutes('health').get('check', '/other', (c) => c.text(''))\n`,
+      `import { defineRoutes } from '@caldera-js/http'\nexport const again = defineRoutes('health').get('check', '/other', (c) => c.text(''))\n`,
     )
     await expect(listRoutes(openProject(root))).rejects.toThrow(/Route "health.check" is defined in both src\/routes\/copy.ts and src\/routes\/health.ts/)
   })
@@ -366,7 +366,7 @@ describe('AGENTS.md and caldera check', () => {
     await generate(openProject(root))
     expect(await check(openProject(root))).toEqual({ schemaVersion: 1, ok: true, issues: [] })
 
-    writeFileSync(join(root, 'src/routes/health.ts'), `import { defineRoutes } from '@caldera/http'\nexport default defineRoutes('health').get('check', '/healthz', (c) => c.text('ok'))\n`)
+    writeFileSync(join(root, 'src/routes/health.ts'), `import { defineRoutes } from '@caldera-js/http'\nexport default defineRoutes('health').get('check', '/healthz', (c) => c.text('ok'))\n`)
     const result = await check(openProject(root))
     expect(result.ok).toBe(false)
     expect(result.issues).toEqual([{ code: 'stale_generated', message: 'AGENTS.md is out of date with the code.', file: 'AGENTS.md', fix: 'caldera generate' }])
@@ -377,7 +377,7 @@ describe('AGENTS.md and caldera check', () => {
   })
 
   it('turns configuration errors into issues instead of crashing', async () => {
-    writeFileSync(join(root, 'src/models/orphan.ts'), `import { defineModel } from '@caldera/db'\nimport { snakeCase, text } from 'drizzle-orm/pg-core'\nexport const Orphan = defineModel(snakeCase.table('orphans', { id: text().primaryKey() }), { name: 'orphan' })\n`)
+    writeFileSync(join(root, 'src/models/orphan.ts'), `import { defineModel } from '@caldera-js/db'\nimport { snakeCase, text } from 'drizzle-orm/pg-core'\nexport const Orphan = defineModel(snakeCase.table('orphans', { id: text().primaryKey() }), { name: 'orphan' })\n`)
     const result = await check(openProject(root))
     expect(result.issues).toEqual([expect.objectContaining({ code: 'model_definition', message: expect.stringMatching(/Model "orphan" .* isn't in src\/db\/relations\.ts/) })])
   })

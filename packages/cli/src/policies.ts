@@ -1,5 +1,5 @@
 import { relative } from 'node:path'
-import { CalderaError } from '@caldera/core'
+import { CalderaError } from '@caldera-js/core'
 import { exportsOfKind, policyFiles, routeFiles, type Project } from './project.js'
 import { listRoutes } from './routes.js'
 

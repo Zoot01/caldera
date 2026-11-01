@@ -1,6 +1,6 @@
 import { Hono, type Env } from 'hono'
 import type { ParamKeys, Schema } from 'hono/types'
-import type { UnionToIntersection } from '@caldera/core'
+import type { UnionToIntersection } from '@caldera-js/core'
 import type { AnyRouteGroup, RouteRecord } from './routes.js'
 
 type SchemaOf<G> = G extends { app: Hono<any, infer S> } ? S : never

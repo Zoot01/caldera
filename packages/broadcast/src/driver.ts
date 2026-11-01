@@ -1,4 +1,4 @@
-import { CalderaError, defineDriver } from '@caldera/core'
+import { CalderaError, defineDriver } from '@caldera-js/core'
 
 /** What a broadcast driver can do; a channel that needs more fails at boot. */
 export interface BroadcastCapabilities {
