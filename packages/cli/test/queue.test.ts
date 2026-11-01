@@ -77,7 +77,19 @@ it('make:job creates a job in src/jobs', async () => {
   cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
   const result = await make(openProject(dir), 'job', 'SendWelcomeEmail')
   expect(result.created).toEqual(['src/jobs/send-welcome-email.ts'])
-  expect(readFileSync(join(dir, 'src/jobs/send-welcome-email.ts'), 'utf8')).toContain(`export const SendWelcomeEmail = defineJob({\n  name: 'send-welcome-email',`)
+  // Dotted, what it acts on then the action, like events (`order.shipped`).
+  expect(readFileSync(join(dir, 'src/jobs/send-welcome-email.ts'), 'utf8')).toContain(`export const SendWelcomeEmail = defineJob({\n  name: 'welcome-email.send',`)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+it('make:mail writes a mail whose heading and subject read as words', async () => {
+  const dir = join(tmp, `${PREFIX}mail-${Math.random().toString(36).slice(2)}`)
+  cpSync(join(here, 'fixtures/queue-app'), dir, { recursive: true, filter: (src) => !src.includes('/.caldera') })
+  await make(openProject(dir), 'mail', 'DailyDigest')
+  const source = readFileSync(join(dir, 'src/mail/daily-digest.tsx'), 'utf8')
+  expect(source).toContain('<Preview>Daily digest</Preview>')
+  expect(source).toContain('<Heading as="h1">Daily digest</Heading>')
+  expect(source).toContain("subject: 'Daily digest',")
   rmSync(dir, { recursive: true, force: true })
 })
 
