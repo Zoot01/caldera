@@ -16,6 +16,8 @@ export interface MailApp {
 /** What a mail's `subject` and `text` functions get besides its props. */
 export interface MailContext {
   app: MailApp
+  /** The recipient's language, when the mail was sent with `.locale('fr')` (or by a notification to someone with one). */
+  locale: string | undefined
 }
 
 export interface MailOptions<P extends z.ZodType> {
@@ -60,7 +62,7 @@ export interface Rendered {
 
 // Not a React context: createContext doesn't exist in React's server-component build, which Next.js
 // loads for anything app/ imports (src/app.ts imports this package).
-let rendering: MailApp | undefined
+let rendering: { app: MailApp; locale: string | undefined } | undefined
 const DEFAULT_MAIL = Symbol.for('caldera.mail.default')
 
 /** The app of the configured mail service, outside a render (e.g. a mail rendered by a test). */
@@ -68,10 +70,10 @@ function registeredApp(): MailApp {
   return (globalThis as { [DEFAULT_MAIL]?: { app?: MailApp } })[DEFAULT_MAIL]?.app ?? { name: '', url: '' }
 }
 
-/** Runs a render with `app` as what useApp() gives (one app per process, so overlapping renders agree). */
-async function within<T>(app: MailApp, run: () => Promise<T>): Promise<T> {
+/** Runs a render with `app` and `locale` as what useApp() and useLocale() give. */
+async function within<T>(context: { app: MailApp; locale: string | undefined }, run: () => Promise<T>): Promise<T> {
   const previous = rendering
-  rendering = app
+  rendering = context
   try {
     return await run()
   } finally {
@@ -81,14 +83,23 @@ async function within<T>(app: MailApp, run: () => Promise<T>): Promise<T> {
 
 /** In a mail component: the app it's sent from, `{ name, url }` (from `config.app`). */
 export function useApp(): MailApp {
-  return rendering ?? registeredApp()
+  return rendering?.app ?? registeredApp()
+}
+
+/**
+ * In a mail component: the recipient's language, when it was sent with `.locale('fr')` (or by a
+ * notification to someone who has one), else undefined. With @caldera/i18n:
+ * `const { t } = translator(useLocale())`.
+ */
+export function useLocale(): string | undefined {
+  return rendering?.locale
 }
 
 /**
  * Renders a mail with its props (validated first). Uses React Email's render, whose package exports
  * pick the edge build on Workers. Never pretty-printed: that loads prettier.
  */
-export async function renderMail<M extends AnyMail>(mail: M, input: MailProps<M>, context: { app?: MailApp } = {}): Promise<Rendered & { props: unknown }> {
+export async function renderMail<M extends AnyMail>(mail: M, input: MailProps<M>, context: { app?: MailApp; locale?: string } = {}): Promise<Rendered & { props: unknown }> {
   const parsed = mail.props.safeParse(input)
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.') || '(props)'}: ${i.message}`).join('; ')
@@ -96,11 +107,12 @@ export async function renderMail<M extends AnyMail>(mail: M, input: MailProps<M>
   }
   const props = parsed.data
   const app = context.app ?? registeredApp()
+  const scope = { app, locale: context.locale }
   const element = createElement(mail.options.component, props)
-  const html = await within(app, () => render(element))
+  const html = await within(scope, () => render(element))
   const textOption = mail.options.text ?? 'auto'
-  const text = textOption === false ? undefined : typeof textOption === 'function' ? textOption(props, { app }) : await within(app, () => render(element, { plainText: true }))
-  const subject = typeof mail.options.subject === 'function' ? mail.options.subject(props, { app }) : mail.options.subject
+  const text = textOption === false ? undefined : typeof textOption === 'function' ? textOption(props, scope) : await within(scope, () => render(element, { plainText: true }))
+  const subject = typeof mail.options.subject === 'function' ? mail.options.subject(props, scope) : mail.options.subject
   return { subject, html, text, props }
 }
 

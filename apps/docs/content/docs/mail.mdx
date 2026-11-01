@@ -95,6 +95,33 @@ await mail.to(email).queue(NoteSharedEmail, props)
 
 A [worker](/docs/queues) renders and sends it, with retries. Inside a transaction, it's queued once the transaction commits. Mail is never queued unless you ask.
 
+### In the recipient's language
+
+A mail is written for the person reading it, not the one whose request sent it. `.locale()` renders it in theirs:
+
+```ts
+await mail.to(user).locale(user.locale).send(DailyDigestEmail, props)
+```
+
+In the component, `useLocale()` gives that language (`undefined` without one), and a subject function gets it as `locale`. With [localization](/docs/localization), translate with it:
+
+```tsx
+import { translator } from '@caldera/i18n'
+import { useLocale } from '@caldera/mail'
+
+function DailyDigest({ issues }: Props) {
+  const { t } = translator(useLocale())
+  return <Text>{t('mail.digest_intro', { count: issues.length })}</Text>
+}
+
+export const DailyDigestEmail = defineMail({
+  // …
+  subject: (p, { locale }) => translator(locale).t('mail.digest_subject', { count: p.issues.length }),
+})
+```
+
+Queued mail keeps its language. [Notifications](/docs/notifications#sending) set it for you from the person's own.
+
 ## Mailers
 
 `MAIL_MAILER` picks one from `src/config/mail.ts`:

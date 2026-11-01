@@ -23,6 +23,8 @@ export interface Envelope {
   bcc: Address[]
   replyTo: Address[]
   from?: Address
+  /** The recipient's language for this mail (`.locale('fr')`). */
+  locale?: string
 }
 
 export interface QueueOptions {
@@ -40,6 +42,8 @@ export interface PendingMail<N extends string> {
   from(address: AddressInput): PendingMail<N>
   /** Another configured mailer than the default. */
   via(mailer: N): PendingMail<N>
+  /** Renders in this language: the mail reads it with `useLocale()`, its subject function as `locale`. */
+  locale(locale: string | null | undefined): PendingMail<N>
   /** Renders and sends now. */
   send<M extends AnyMail>(mail: M, props: MailProps<M>): Promise<SendResult>
   /** Queues the built-in `caldera.send-mail` job; it renders in the worker. Nothing is ever queued implicitly. */
@@ -88,6 +92,7 @@ const envelopeSchema = z.object({
   bcc: z.array(z.object({ email: z.string(), name: z.string().optional() })),
   replyTo: z.array(z.object({ email: z.string(), name: z.string().optional() })),
   from: z.object({ email: z.string(), name: z.string().optional() }).optional(),
+  locale: z.string().optional(),
 })
 
 /** The built-in job queued mail runs as. Its payload names the mail; the worker renders it. */
@@ -154,7 +159,7 @@ export function createMail<const N extends string>(
   const deliver = async (mail: AnyMail, input: unknown, envelope: Envelope, mailer: N = config.default): Promise<SendResult> => {
     remember(mail)
     if (envelope.to.length + envelope.cc.length + envelope.bcc.length === 0) throw new CalderaError('mail_no_recipients', `Mail "${mail.name}" has no recipients: call .to(...) first.`)
-    const rendered = await renderMail(mail, input as never, { app })
+    const rendered = await renderMail(mail, input as never, { app, ...(envelope.locale ? { locale: envelope.locale } : {}) })
     const props = rendered.props as never
     const headers: Record<string, string> = {}
     let target = envelope
@@ -205,6 +210,7 @@ export function createMail<const N extends string>(
     replyTo: (...a) => pending({ ...state, replyTo: [...state.replyTo, ...a.map(parseAddress)] }),
     from: (a) => pending({ ...state, from: parseAddress(a) }),
     via: (mailer) => pending({ ...state, mailer }),
+    locale: (locale) => pending({ ...state, ...(locale ? { locale } : {}) }),
     send: (mail, props) => deliver(mail, props, state, state.mailer),
     async queue(mail, props, queueOptions = {}) {
       remember(mail)
@@ -332,6 +338,7 @@ export const mail: PendingMail<string> = {
   replyTo: (...a) => defaultMail().replyTo(...a),
   from: (a) => defaultMail().from(a),
   via: (m) => defaultMail().via(m),
+  locale: (l) => defaultMail().locale(l),
   send: (m, p) => defaultMail().send(m, p),
   queue: (m, p, o) => defaultMail().queue(m, p, o),
 }

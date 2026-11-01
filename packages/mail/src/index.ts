@@ -1,4 +1,4 @@
-export { attach, defineMail, renderMail, useApp } from './mail.js'
+export { attach, defineMail, renderMail, useApp, useLocale } from './mail.js'
 export type { AnyMail, AttachmentSource, MailApp, MailContext, MailDefinition, MailOptions, MailProps, Rendered } from './mail.js'
 export { formatAddress, messageSize, parseAddress } from './message.js'
 export type { Address, AddressInput, Attachment, Message } from './message.js'

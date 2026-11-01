@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { createMail, defineMail, MailSendError, mailPreviewRoutes, mailProvider, renderMail, sendMailJobOf, useApp, type MailConfig, type Message } from '../src/index.js'
+import { createMail, defineMail, MailSendError, mailPreviewRoutes, mailProvider, renderMail, sendMailJobOf, useApp, useLocale, type MailConfig, type Message } from '../src/index.js'
 import { sesTransport } from '../src/ses.js'
 import { postmarkTransport, resendTransport } from '../src/transports.js'
 import { InvoiceEmail, WelcomeEmail } from './fixtures/welcome.js'
@@ -290,3 +290,25 @@ describe('the shared dev outbox (caldera dev and queue workers)', () => {
     }
   })
 })
+
+describe('the recipient’s language', () => {
+  const words: Record<string, string> = { en: 'Hello', fr: 'Bonjour' }
+  const Greeting = () => createElement('p', null, words[useLocale() ?? 'en'])
+  const Hello = defineMail({ name: 'hello', props: z.object({}), subject: (_p, { locale }) => `${words[locale ?? 'en']}!`, component: Greeting })
+
+  it('renders with .locale(): the component reads useLocale(), the subject gets locale, queued mail keeps it', async () => {
+    const service = createMail({ default: 'memory', mailers: { memory: { driver: 'memory' } }, from: 'hello@example.test' })
+    await service.to('ann@example.test').locale('fr').send(Hello, {})
+    await service.to('bob@example.test').locale(null).send(Hello, {})
+    const [fr, en] = service.outbox()!.messages
+    expect([fr!.subject, en!.subject]).toEqual(['Bonjour!', 'Hello!'])
+    expect(fr!.html).toContain('Bonjour')
+    expect(en!.html).toContain('Hello')
+    // Queued: the language travels with the job, and the worker renders in it.
+    const fake = service.fake()
+    await service.to('ann@example.test').locale('fr').queue(Hello, {})
+    expect(fake.queued(Hello)[0]!.envelope.locale).toBe('fr')
+    fake.restore()
+  })
+})
+

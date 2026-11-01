@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { ZodError } from 'zod'
 import { back, INTENDED_KEY, redirect } from './redirect.js'
+import { translateMessage, type MessageTranslator } from './messages.js'
 import { isSessionStarted, sessionOf } from './session.js'
 
 /** The one error shape every Caldera HTTP response uses. Clients can type their failure branch with it. */
@@ -160,6 +161,12 @@ export function errorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
 
   return async (error, c) => {
     const known = toHttpError(error)
+    // Messages that are message keys (`new ValidationError({ key: ['projects.key_taken'] })`), in the
+    // request's locale.
+    if (known instanceof ValidationError) {
+      const i18n = (c.var as { i18n?: Partial<MessageTranslator> }).i18n
+      for (const messages of Object.values(known.fields)) messages.forEach((message, i) => (messages[i] = translateMessage(message, i18n)))
+    }
     if (known instanceof ValidationError && redirectsOnValidation(c)) return validationRedirect(c, known)
     // A refused form post on an Inertia page shows on the form, like a validation error.
     if (known instanceof TooManyRequestsError && c.req.method !== 'GET' && redirectsOnValidation(c)) {

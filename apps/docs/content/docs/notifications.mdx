@@ -56,6 +56,19 @@ await notify(bob, SharedWithYou, {
 
 `notify` takes a user or a list of users. How a user is reached is `UserNotifiable` in `src/models/user.ts`: their email for `mail`, and their id for the inbox.
 
+Give it their language and their emails come in it (see [mail in the recipient's language](/docs/mail#in-the-recipients-language)):
+
+```ts title="src/models/user.ts"
+export const UserNotifiable = defineNotifiable<typeof users.$inferSelect>({
+  type: 'user',
+  id: (user) => user.id,
+  routes: { mail: (user) => ({ email: user.email, name: user.name }) },
+  locale: (user) => user.locale,
+})
+```
+
+The inbox stores what the notification's `database.data` returns, once. Store facts (`{ issue, by, title }`) rather than a sentence, and write the sentence when the inbox is shown, in the reader's language.
+
 To notify an address with no account behind it, use `route`:
 
 ```ts
@@ -63,6 +76,8 @@ import { route } from '@caldera/notifications'
 
 await notify(route({ mail: 'cat@example.test' }), SharedWithYou, payload)
 ```
+
+`route({ … }, { locale: 'fr' })` sets their language.
 
 ### Choosing channels
 

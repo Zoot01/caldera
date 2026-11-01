@@ -107,7 +107,7 @@ export interface Notifications {
 
 export const SEND_NOTIFICATION_JOB = 'caldera.send-notification'
 
-const recipientSchema = z.object({ kind: z.literal('caldera.recipient'), type: z.string(), id: z.string(), routes: z.record(z.string(), z.unknown()), onDemand: z.boolean() })
+const recipientSchema = z.object({ kind: z.literal('caldera.recipient'), type: z.string(), id: z.string(), routes: z.record(z.string(), z.unknown()), onDemand: z.boolean(), locale: z.string().optional() })
 const jobPayload = z.object({ notification: z.string(), payload: z.unknown(), notifiable: recipientSchema, channel: z.string(), id: z.string() })
 
 interface QueueLike {
@@ -115,7 +115,7 @@ interface QueueLike {
   register(...jobs: unknown[]): void
 }
 interface MailLike {
-  to(address: unknown): { send(mail: unknown, props: unknown): Promise<unknown> }
+  to(address: unknown): { send(mail: unknown, props: unknown): Promise<unknown>; locale?(locale: string | undefined): { send(mail: unknown, props: unknown): Promise<unknown> } }
 }
 
 const fromGlobal = <T>(key: string) => (globalThis as { [key: symbol]: unknown })[Symbol.for(key)] as T | undefined
@@ -193,7 +193,10 @@ export function createNotifications(
       const message = (handler as (n: Notifiable, p: unknown) => MailMessage | null | undefined)(notifiable, payload)
       const to = message?.to ?? notifiable.routes.mail
       if (!message || to === undefined || to === null) return 'skipped'
-      await mailOf().to(to).send(message.mail, message.props)
+      // In the recipient's language (their notifiable's `locale`), unless the message names one.
+      const pending = mailOf().to(to)
+      const locale = message.locale ?? notifiable.locale
+      await (locale && pending.locale ? pending.locale(locale) : pending).send(message.mail, message.props)
       return 'sent'
     }
     if (channel === 'database') {

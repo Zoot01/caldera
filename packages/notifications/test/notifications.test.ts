@@ -238,6 +238,16 @@ describe.each(backends)('notifications on $name', (backend) => {
 })
 
 describe('without a database', () => {
+  it('mails a recipient in their language, when they have one', async () => {
+    const mail = memoryMail()
+    const locales: (string | undefined)[] = []
+    const spy = { to: (address: unknown) => ({ ...mail.to(address as never), locale: (locale: string | undefined) => (locales.push(locale), mail.to(address as never).locale(locale)) }) }
+    const notifications = createNotifications({ channels: [Sms], mail: () => spy as never })
+    await notifications.send(route({ mail: 'ops@example.test' }, { locale: 'fr' }), InvoicePaid, invoice)
+    await notifications.send(route({ mail: 'ops@example.test' }), InvoicePaid, invoice)
+    expect(locales).toEqual(['fr'])
+  })
+
   it('sends on demand to a route, and refuses the database channel for it before sending anything', async () => {
     const mail = memoryMail()
     const notifications = createNotifications({ channels: [Sms], mail: () => mail })

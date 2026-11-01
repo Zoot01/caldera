@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { validator } from 'hono/validator'
 import { z } from 'zod'
 import { ForbiddenError, ValidationError } from './errors.js'
+import { translateMessage, type MessageTranslator } from './messages.js'
 
 type Schema = z.ZodType
 
@@ -99,9 +100,9 @@ export function requestMiddleware(request: AnyRequest): NamedHandler[] {
       handler: validator(target, async (value, c) => {
         const input = request.prepare ? request.prepare(value, target) : value
         // With @caldera/i18n, messages come in the request's locale (matched by shape, no dependency).
-        const zodError = (c.var as { i18n?: { zodError?: (issue: unknown) => string | undefined } }).i18n?.zodError
-        const result = await (schema as Schema).safeParseAsync(input, zodError ? { error: zodError as never } : undefined)
-        if (!result.success) throw ValidationError.fromZod(result.error)
+        const i18n = (c.var as { i18n?: Partial<MessageTranslator & { zodError(issue: unknown): string | undefined }> }).i18n
+        const result = await (schema as Schema).safeParseAsync(input, i18n?.zodError ? { error: i18n.zodError as never } : undefined)
+        if (!result.success) throw ValidationError.fromZod(i18n?.has && i18n.t ? translateMessages(result.error, i18n as MessageTranslator) : result.error)
         return result.data as {}
       }) as MiddlewareHandler,
     })
@@ -118,4 +119,17 @@ export function requestJsonSchemas(request: AnyRequest): Record<string, unknown>
   if (request.query) out.query = toJson(request.query)
   if (request.params) out.params = toJson(request.params)
   return out
+}
+
+/**
+ * A message written in a schema that's a message key (`z.string().min(1, 'projects.name_required')`)
+ * is translated, with the rule's `minimum`/`maximum`: so a form's own messages come in the request's
+ * locale too. Anything else (an English sentence) is kept as written.
+ */
+function translateMessages<E extends { issues: { message: string; minimum?: unknown; maximum?: unknown }[] }>(error: E, i18n: MessageTranslator): E {
+  for (const issue of error.issues) {
+    const params = { ...(issue.minimum !== undefined ? { minimum: Number(issue.minimum) } : {}), ...(issue.maximum !== undefined ? { maximum: Number(issue.maximum) } : {}) }
+    issue.message = translateMessage(issue.message, i18n, params)
+  }
+  return error
 }

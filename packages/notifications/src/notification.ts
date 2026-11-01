@@ -11,6 +11,8 @@ export interface Notifiable {
   readonly routes: Readonly<Record<string, unknown>>
   /** True for `route({ ... })`: there's no stored notifiable, so no database channel. */
   readonly onDemand: boolean
+  /** Their language, for mail: the notification's email renders in it (`useLocale()`). */
+  readonly locale?: string
 }
 
 /**
@@ -23,23 +25,33 @@ export interface NotifiableDefinition<R> {
   of(row: R): Notifiable
 }
 
-export function defineNotifiable<R>(options: { type: string; id: (row: R) => string | number; routes: Record<string, (row: R) => unknown> }): NotifiableDefinition<R> {
+export function defineNotifiable<R>(options: {
+  type: string
+  id: (row: R) => string | number
+  routes: Record<string, (row: R) => unknown>
+  /** Their preferred language (Laravel's HasLocalePreference): mail to them renders in it. */
+  locale?: (row: R) => string | null | undefined
+}): NotifiableDefinition<R> {
   return {
     kind: 'caldera.notifiable',
     type: options.type,
-    of: (row) => ({
-      kind: 'caldera.recipient',
-      type: options.type,
-      id: String(options.id(row)),
-      routes: Object.fromEntries(Object.entries(options.routes).map(([channel, route]) => [channel, route(row)])),
-      onDemand: false,
-    }),
+    of: (row) => {
+      const locale = options.locale?.(row)
+      return {
+        kind: 'caldera.recipient',
+        type: options.type,
+        id: String(options.id(row)),
+        routes: Object.fromEntries(Object.entries(options.routes).map(([channel, route]) => [channel, route(row)])),
+        onDemand: false,
+        ...(locale ? { locale } : {}),
+      }
+    },
   }
 }
 
 /** A recipient without a stored row: `route({ mail: 'ops@example.com' })`. */
-export function route(routes: Record<string, unknown>): Notifiable {
-  return { kind: 'caldera.recipient', type: 'on-demand', id: 'on-demand', routes, onDemand: true }
+export function route(routes: Record<string, unknown>, options: { locale?: string } = {}): Notifiable {
+  return { kind: 'caldera.recipient', type: 'on-demand', id: 'on-demand', routes, onDemand: true, ...(options.locale ? { locale: options.locale } : {}) }
 }
 
 export interface ChannelContext {
@@ -71,6 +83,8 @@ export interface MailMessage {
   props: unknown
   /** Overrides the notifiable's `mail` route. */
   to?: unknown
+  /** Overrides the notifiable's language. */
+  locale?: string
 }
 
 export interface DatabaseMessage<S extends z.ZodType> {
